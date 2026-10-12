@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/BBTAG_IM.Core/BBTAG_IM.Core.csproj" />
+    <Project Path="src/BBTAG_IM.ImprovementMod/BBTAG_IM.ImprovementMod.csproj" />
     <Project Path="src/BBTAG_IM.Launcher/BBTAG_IM.Launcher.csproj" />
+    <Project Path="src/BBTAG_IM.Native/BBTAG_IM.Native.csproj" />
     <Project Path="src/BBTAG_IM.Payload/BBTAG_IM.Payload.csproj" />
   </Folder>
   <Folder Name="/tests/">

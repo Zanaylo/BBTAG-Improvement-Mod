@@ -8,55 +8,69 @@ namespace BBTAG_IM.Core.Tests.Launch;
 public class ModSelectionTests
 {
     private const string LauncherDirectory = @"D:\BBTAG_IM";
+    private const string ModsFolder = @"D:\BBTAG_IM\mods";
 
-    private readonly IFileSystem _fileSystem = Substitute.For<IFileSystem>();
-
-    private void ModAt(string path)
-    {
-        _fileSystem.DirectoryExists(path).Returns(true);
-        _fileSystem.DirectoryExists(Path.Combine(path, "data2")).Returns(true);
-    }
+    private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
 
     [Fact]
-    public void Resolve_UsesFoldersGivenOnCommandLineInOrder()
+    public void Resolve_FoldersGivenOnTheCommandLine_UsesThemInOrder()
     {
+        // Arrange
         ModAt(@"D:\Mods\Second");
         ModAt(@"D:\Mods\First");
-        var options = new LaunchOptions(null, [@"D:\Mods\Second", @"D:\Mods\First"], false);
+        LaunchOptions options = new(null, [@"D:\Mods\Second", @"D:\Mods\First"], false);
 
-        var mods = ModSelection.Resolve(options, LauncherDirectory, _fileSystem);
+        // Act
+        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(options, LauncherDirectory, _fileSystemMock);
 
+        // Assert
         Assert.Equal(["Second", "First"], mods.Select(mod => mod.Name));
     }
 
     [Fact]
-    public void Resolve_RejectsInvalidCommandLineFolder()
+    public void Resolve_CommandLineFolderThatDoesNotExist_ThrowsInvalidModFolder()
     {
-        var options = new LaunchOptions(null, [@"D:\Mods\Missing"], false);
+        // Arrange
+        LaunchOptions options = new(null, [@"D:\Mods\Missing"], false);
 
-        Assert.Throws<InvalidModFolderException>(() => ModSelection.Resolve(options, LauncherDirectory, _fileSystem));
+        // Act
+        Exception? exception = Record.Exception(() => ModSelection.Resolve(options, LauncherDirectory, _fileSystemMock));
+
+        // Assert
+        Assert.IsType<InvalidModFolderException>(exception);
     }
 
     [Fact]
-    public void Resolve_FallsBackToModsFolderNextToLauncher()
+    public void Resolve_NoFoldersOnTheCommandLine_LoadsTheModsFolderNextToTheLauncher()
     {
-        var modsFolder = Path.Combine(LauncherDirectory, "mods");
-        var overhaul = Path.Combine(modsFolder, "Overhaul");
-        _fileSystem.DirectoryExists(modsFolder).Returns(true);
-        _fileSystem.EnumerateDirectories(modsFolder).Returns([overhaul]);
+        // Arrange
+        string overhaul = Path.Combine(ModsFolder, "Overhaul");
+        _fileSystemMock.DirectoryExists(ModsFolder).Returns(true);
+        _fileSystemMock.EnumerateDirectories(ModsFolder).Returns([overhaul]);
         ModAt(overhaul);
 
-        var mods = ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystem);
+        // Act
+        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystemMock);
 
+        // Assert
         Assert.Equal(["Overhaul"], mods.Select(mod => mod.Name));
     }
 
     [Fact]
-    public void Resolve_FailsWhenThereIsNothingToLoad()
+    public void Resolve_NothingToLoad_ThrowsInvalidModFolderPointingAtTheModsFolder()
     {
-        var exception = Assert.Throws<InvalidModFolderException>(
-            () => ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystem));
+        // Act
+        Exception? exception = Record.Exception(() => ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystemMock));
 
-        Assert.Contains("mods", exception.Message);
+        // Assert
+        Assert.Equal(
+            $"No mods to load. Put mod folders inside {ModsFolder}, or drag a mod folder onto the launcher.",
+            Assert.IsType<InvalidModFolderException>(exception).Message);
+    }
+
+    private void ModAt(string path)
+    {
+        _fileSystemMock.DirectoryExists(path).Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(path, "data2")).Returns(true);
     }
 }

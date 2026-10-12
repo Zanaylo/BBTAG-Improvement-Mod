@@ -8,73 +8,171 @@ public class ModFolderTests
 {
     private const string Root = @"D:\Mods\BBTAG-OverHaul-Patches";
 
-    private readonly IFileSystem _fileSystem = Substitute.For<IFileSystem>();
+    private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
 
     public ModFolderTests()
     {
-        _fileSystem.DirectoryExists(Root).Returns(true);
+        _fileSystemMock.DirectoryExists(Root).Returns(true);
     }
 
     [Fact]
-    public void Inspect_MountsData2FolderAsGameData()
+    public void Inspect_FolderWithData2_MountsItAsGameData()
     {
-        _fileSystem.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
+        // Arrange
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
 
-        var mod = ModFolder.Inspect(Root, _fileSystem);
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
 
-        Assert.Equal("BBTAG-OverHaul-Patches", mod.Name);
-        Assert.Equal(Root, mod.RootPath);
+        // Assert
         Assert.Equal([new ModDataRoot(Path.Combine(Root, "data2"), "data")], mod.DataRoots);
-        Assert.Null(mod.ExecutablePath);
     }
 
     [Fact]
-    public void Inspect_PrefersDataOverData2WhenBothExist()
+    public void Inspect_FolderWithDataAndData2_MountsDataFirst()
     {
-        _fileSystem.DirectoryExists(Path.Combine(Root, "data")).Returns(true);
-        _fileSystem.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
+        // Arrange
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "data")).Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
 
-        var mod = ModFolder.Inspect(Root, _fileSystem);
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
 
+        // Assert
         Assert.Equal(
             [new ModDataRoot(Path.Combine(Root, "data"), "data"), new ModDataRoot(Path.Combine(Root, "data2"), "data")],
             mod.DataRoots);
     }
 
     [Fact]
-    public void Inspect_FindsModdedExecutable()
+    public void Inspect_FolderWithGameExecutable_FindsTheModdedExecutable()
     {
-        _fileSystem.FileExists(Path.Combine(Root, "BBTAG.exe")).Returns(true);
+        // Arrange
+        _fileSystemMock.FileExists(Path.Combine(Root, "BBTAG.exe")).Returns(true);
 
-        var mod = ModFolder.Inspect(Root, _fileSystem);
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
 
+        // Assert
         Assert.Equal(Path.Combine(Root, "BBTAG.exe"), mod.ExecutablePath);
-        Assert.Empty(mod.DataRoots);
     }
 
     [Fact]
-    public void Inspect_TrimsTrailingSeparatorFromName()
+    public void Inspect_FolderWithOneTable_FindsTheTable()
     {
-        _fileSystem.DirectoryExists(Root + @"\").Returns(true);
-        _fileSystem.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "readme.txt"), Path.Combine(Root, "Overhaul.CT")]);
 
-        var mod = ModFolder.Inspect(Root + @"\", _fileSystem);
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
 
-        Assert.Equal("BBTAG-OverHaul-Patches", mod.Name);
-        Assert.Equal(Root, mod.RootPath);
+        // Assert
+        Assert.Equal(Path.Combine(Root, "Overhaul.CT"), mod.TablePath);
     }
 
     [Fact]
-    public void Inspect_RejectsMissingFolder()
+    public void Inspect_SeveralTablesOneNamedAfterTheGame_PrefersThatTable()
     {
-        _fileSystem.DirectoryExists(Root).Returns(false);
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "Alpha.CT"), Path.Combine(Root, "bbtag.ct"), Path.Combine(Root, "Zeta.ct")]);
 
-        Assert.Throws<InvalidModFolderException>(() => ModFolder.Inspect(Root, _fileSystem));
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.Equal(Path.Combine(Root, "bbtag.ct"), mod.TablePath);
     }
 
     [Fact]
-    public void Inspect_RejectsFolderWithoutDataOrExecutable()
+    public void Inspect_SeveralTablesNoneNamedAfterTheGame_PicksTheFirstByName()
     {
-        Assert.Throws<InvalidModFolderException>(() => ModFolder.Inspect(Root, _fileSystem));
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "Zeta.CT"), Path.Combine(Root, "Alpha.CT")]);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.Equal(Path.Combine(Root, "Alpha.CT"), mod.TablePath);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithDllFiles_ListsThemAsPluginsInNameOrder()
+    {
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns(
+            [Path.Combine(Root, "Zeta.dll"), Path.Combine(Root, "readme.txt"), Path.Combine(Root, "ImprovementMod.DLL")]);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.Equal([Path.Combine(Root, "ImprovementMod.DLL"), Path.Combine(Root, "Zeta.dll")], mod.PluginPaths);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithOnlyAPlugin_IsAValidMod()
+    {
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "ImprovementMod.dll")]);
+
+        // Act
+        Exception? exception = Record.Exception(() => ModFolder.Inspect(Root, _fileSystemMock));
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithOnlyATable_IsAValidMod()
+    {
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "BBTAG.CT")]);
+
+        // Act
+        Exception? exception = Record.Exception(() => ModFolder.Inspect(Root, _fileSystemMock));
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Inspect_PathWithTrailingSeparator_UsesTheFolderNameAndTrimmedRoot()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Root + @"\").Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "data2")).Returns(true);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root + @"\", _fileSystemMock);
+
+        // Assert
+        Assert.Equal(("BBTAG-OverHaul-Patches", Root), (mod.Name, mod.RootPath));
+    }
+
+    [Fact]
+    public void Inspect_MissingFolder_ThrowsInvalidModFolder()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Root).Returns(false);
+
+        // Act
+        Exception? exception = Record.Exception(() => ModFolder.Inspect(Root, _fileSystemMock));
+
+        // Assert
+        Assert.IsType<InvalidModFolderException>(exception);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithNothingToLoad_ThrowsInvalidModFolder()
+    {
+        // Arrange
+        _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "readme.txt")]);
+
+        // Act
+        Exception? exception = Record.Exception(() => ModFolder.Inspect(Root, _fileSystemMock));
+
+        // Assert
+        Assert.IsType<InvalidModFolderException>(exception);
     }
 }

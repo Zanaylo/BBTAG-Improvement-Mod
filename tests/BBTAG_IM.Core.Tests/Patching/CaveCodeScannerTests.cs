@@ -26,43 +26,53 @@ public class CaveCodeScannerTests
     ];
 
     [Fact]
-    public void FindFields_FindsAbsoluteOperandsOnReachableCode()
+    public void FindFields_EntryAtTheStart_FindsAbsoluteOperandsOfReachableCodeOnly()
     {
-        var fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], Image);
+        // Act
+        CaveFields fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], Image);
 
+        // Assert
         Assert.Equal([2, 11, 21, 34, 38], fields.AddressFields);
     }
 
     [Fact]
-    public void FindFields_ReportsRel32BranchesLeavingTheCode()
+    public void FindFields_EntryAtTheStart_ReportsRel32BranchesLeavingTheCode()
     {
-        var fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], Image);
+        // Act
+        CaveFields fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], Image);
 
+        // Assert
         Assert.Equal([28], fields.BranchFields);
     }
 
     [Fact]
-    public void FindFields_StartsFromEveryEntryAndIgnoresBranchesInsideTheCode()
+    public void FindFields_SecondEntryIntoUnreachableCode_ScansFromEveryEntry()
     {
-        var fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva, CodeRva + UnreachableEntry], Image);
+        // Act
+        CaveFields fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva, CodeRva + UnreachableEntry], Image);
 
+        // Assert
         Assert.Equal([2, 11, 21, 34, 38, 44], fields.AddressFields);
         Assert.Equal([28], fields.BranchFields);
     }
 
     [Fact]
-    public void FindFields_IgnoresAddressesOutsideTheImage()
+    public void FindFields_ImageElsewhereInMemory_IgnoresTheAddresses()
     {
-        var fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], new AddressRange(0x10000000, 0x1000));
+        // Act
+        CaveFields fields = CaveCodeScanner.FindFields(Code, CodeRva, [CodeRva], new AddressRange(0x10000000, 0x1000));
 
+        // Assert
         Assert.Empty(fields.AddressFields);
     }
 
     [Fact]
-    public void FindFields_IgnoresEntriesOutsideTheCode()
+    public void FindFields_EntriesOutsideTheCode_FindsNothing()
     {
-        var fields = CaveCodeScanner.FindFields(Code, CodeRva, [0x1000, CodeRva + 0x1000], Image);
+        // Act
+        CaveFields fields = CaveCodeScanner.FindFields(Code, CodeRva, [0x1000, CodeRva + 0x1000], Image);
 
+        // Assert
         Assert.Empty(fields.AddressFields);
         Assert.Empty(fields.BranchFields);
     }

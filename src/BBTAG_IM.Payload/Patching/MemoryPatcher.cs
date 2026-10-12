@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Patching;
-using BBTAG_IM.Payload.Native;
+using BBTAG_IM.Native;
 
 namespace BBTAG_IM.Payload.Patching;
 

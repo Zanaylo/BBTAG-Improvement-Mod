@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>BBTAG_IM.Launcher</RootNamespace>
     <AssemblyName>BBTAG_IM_Launcher</AssemblyName>
@@ -11,7 +11,14 @@
     <PublishAot>true</PublishAot>
     <SelfContained>true</SelfContained>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />

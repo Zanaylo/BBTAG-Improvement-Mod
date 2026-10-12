@@ -2,7 +2,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
-using BBTAG_IM.Payload.Native;
+using BBTAG_IM.Native;
+using BBTAG_IM.Native.Hooks;
 
 namespace BBTAG_IM.Payload.Hooks;
 
@@ -12,6 +13,8 @@ internal static unsafe class FileApiHooks
     private const int MaximumLoggedRedirects = 40;
     private const int MaximumLoggedEnumerations = 20;
     private const int MaximumLoggedFailures = 5;
+    private const int MaximumLoggedMissing = 200;
+    private const nint InvalidHandle = -1;
     private const char Wildcard = '*';
     private const char SingleWildcard = '?';
 
@@ -20,6 +23,7 @@ internal static unsafe class FileApiHooks
     private static int s_loggedRedirects;
     private static int s_loggedEnumerations;
     private static int s_loggedFailures;
+    private static int s_loggedMissing;
 
     private static delegate* unmanaged[Stdcall]<char*, uint, uint, nint, uint, uint, nint, nint> s_kernelCreateFileW;
     private static delegate* unmanaged[Stdcall]<byte*, uint, uint, nint, uint, uint, nint, nint> s_createFileA;
@@ -52,37 +56,40 @@ internal static unsafe class FileApiHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static nint CreateFileA(byte* fileName, uint access, uint share, nint security, uint disposition, uint flags, nint template)
     {
-        var redirected = RedirectOpen(Marshal.PtrToStringAnsi((nint)fileName), access, disposition);
+        var requested = Marshal.PtrToStringAnsi((nint)fileName);
+        var redirected = RedirectOpen(requested, access, disposition);
 
         if (redirected is null)
-            return s_createFileA(fileName, access, share, security, disposition, flags, template);
+            return CheckedOpen(requested, disposition, s_createFileA(fileName, access, share, security, disposition, flags, template));
 
         fixed (char* path = redirected)
-            return s_kernelCreateFileW(path, access, share, security, disposition, flags, template);
+            return CheckedOpen(requested, disposition, s_kernelCreateFileW(path, access, share, security, disposition, flags, template));
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static nint CreateFileW(char* fileName, uint access, uint share, nint security, uint disposition, uint flags, nint template)
     {
-        var redirected = RedirectOpen(Marshal.PtrToStringUni((nint)fileName), access, disposition);
+        var requested = Marshal.PtrToStringUni((nint)fileName);
+        var redirected = RedirectOpen(requested, access, disposition);
 
         if (redirected is null)
-            return s_createFileW(fileName, access, share, security, disposition, flags, template);
+            return CheckedOpen(requested, disposition, s_createFileW(fileName, access, share, security, disposition, flags, template));
 
         fixed (char* path = redirected)
-            return s_createFileW(path, access, share, security, disposition, flags, template);
+            return CheckedOpen(requested, disposition, s_createFileW(path, access, share, security, disposition, flags, template));
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int GetFileAttributesExW(char* fileName, int infoLevel, void* information)
     {
-        var redirected = RedirectLookup(Marshal.PtrToStringUni((nint)fileName));
+        var requested = Marshal.PtrToStringUni((nint)fileName);
+        var redirected = RedirectLookup(requested);
 
         if (redirected is null)
-            return s_getFileAttributesExW(fileName, infoLevel, information);
+            return CheckedLookup(requested, s_getFileAttributesExW(fileName, infoLevel, information));
 
         fixed (char* path = redirected)
-            return s_getFileAttributesExW(path, infoLevel, information);
+            return CheckedLookup(requested, s_getFileAttributesExW(path, infoLevel, information));
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
@@ -91,11 +98,11 @@ internal static unsafe class FileApiHooks
         var ansi = RedirectFindAnsi(fileName);
 
         if (ansi == 0)
-            return s_findFirstFileA(fileName, findData);
+            return CheckedFind(fileName, s_findFirstFileA(fileName, findData));
 
         try
         {
-            return s_findFirstFileA((byte*)ansi, findData);
+            return CheckedFind(fileName, s_findFirstFileA((byte*)ansi, findData));
         }
         finally
         {
@@ -109,15 +116,64 @@ internal static unsafe class FileApiHooks
         var ansi = RedirectFindAnsi(fileName);
 
         if (ansi == 0)
-            return s_findFirstFileExA(fileName, infoLevel, findData, searchOp, searchFilter, flags);
+            return CheckedFind(fileName, s_findFirstFileExA(fileName, infoLevel, findData, searchOp, searchFilter, flags));
 
         try
         {
-            return s_findFirstFileExA((byte*)ansi, infoLevel, findData, searchOp, searchFilter, flags);
+            return CheckedFind(fileName, s_findFirstFileExA((byte*)ansi, infoLevel, findData, searchOp, searchFilter, flags));
         }
         finally
         {
             Marshal.FreeHGlobal(ansi);
+        }
+    }
+
+    private static nint CheckedOpen(string? requested, uint disposition, nint handle)
+    {
+        if (handle == InvalidHandle && disposition == ModFileRedirector.OpenExisting)
+            LogMissing(requested);
+
+        return handle;
+    }
+
+    private static int CheckedLookup(string? requested, int succeeded)
+    {
+        if (succeeded == 0)
+            LogMissing(requested);
+
+        return succeeded;
+    }
+
+    private static nint CheckedFind(byte* fileName, nint handle)
+    {
+        if (handle != InvalidHandle)
+            return handle;
+
+        var requested = Marshal.PtrToStringAnsi((nint)fileName);
+
+        if (requested?.IndexOfAny([Wildcard, SingleWildcard]) < 0)
+            LogMissing(requested);
+
+        return handle;
+    }
+
+    private static void LogMissing(string? requested)
+    {
+        var error = Marshal.GetLastSystemError();
+
+        try
+        {
+            var key = s_redirector.GameFileKey(requested);
+
+            if (key is not null && Interlocked.Increment(ref s_loggedMissing) <= MaximumLoggedMissing)
+                s_log.Info($"Missing {key} (Windows error {error}).");
+        }
+        catch (IOException)
+        {
+        }
+        finally
+        {
+            Marshal.SetLastSystemError(error);
         }
     }
 
@@ -169,7 +225,7 @@ internal static unsafe class FileApiHooks
             return ansi;
 
         Marshal.FreeHGlobal(ansi);
-        LogFailure(path, new HookException("The mod path cannot be written in the system code page, so the game keeps its own file."));
+        LogFailure(path, new HookException("The mod path cannot be written in the system code page, so the game keeps its native file."));
         return 0;
     }
 

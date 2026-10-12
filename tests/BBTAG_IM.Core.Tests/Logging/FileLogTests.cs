@@ -5,6 +5,14 @@ namespace BBTAG_IM.Core.Tests.Logging;
 public sealed class FileLogTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "BBTAG_IM.Tests", Guid.NewGuid().ToString("N"));
+    private readonly FixedClock _clockMock = new(new DateTimeOffset(2026, 10, 11, 17, 30, 5, 120, TimeSpan.Zero));
+
+    private string LogPath => Path.Combine(_directory, "logs", "BBTAG_IM.log");
+
+    public FileLog CreateFileLog() => new(
+        LogPath,
+        _clockMock
+    );
 
     public void Dispose()
     {
@@ -13,17 +21,19 @@ public sealed class FileLogTests : IDisposable
     }
 
     [Fact]
-    public void Info_AppendsTimestampedLinesAndCreatesFolder()
+    public void InfoAndError_FolderDoesNotExist_CreatesItAndAppendsTimestampedLines()
     {
-        var path = Path.Combine(_directory, "logs", "BBTAG_IM.log");
-        var log = new FileLog(path, new FixedClock(new DateTimeOffset(2026, 10, 11, 17, 30, 5, 120, TimeSpan.Zero)));
+        // Arrange
+        FileLog log = CreateFileLog();
 
+        // Act
         log.Info("first");
         log.Error("second");
 
+        // Assert
         Assert.Equal(
             ["[2026-10-11 17:30:05.120] INFO  first", "[2026-10-11 17:30:05.120] ERROR second"],
-            File.ReadAllLines(path));
+            File.ReadAllLines(LogPath));
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

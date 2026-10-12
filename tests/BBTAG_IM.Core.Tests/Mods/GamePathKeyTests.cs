@@ -12,24 +12,36 @@ public class GamePathKeyTests
     [InlineData(@"D:/Steam/steamapps/common/BBTAG/data/bg/bg_riverbed.pac", @"data\bg\bg_riverbed.pac")]
     [InlineData(@"\\?\D:\Steam\steamapps\common\BBTAG\data\etc\cockpit_obj.pac", @"data\etc\cockpit_obj.pac")]
     [InlineData(@"D:\Steam\steamapps\common\BBTAG\data\.\char\..\bg\\bg_riverbed.pac", @"data\bg\bg_riverbed.pac")]
-    public void From_StripsGameRootFromAbsolutePaths(string requested, string expected)
+    public void From_AbsolutePathInsideTheGame_ReturnsThePathRelativeToTheGame(string requested, string expected)
     {
-        Assert.Equal(expected, GamePathKey.From(requested, GameRoot));
+        // Act
+        string? key = GamePathKey.From(requested, GameRoot);
+
+        // Assert
+        Assert.Equal(expected, key);
     }
 
     [Theory]
     [InlineData("data/char/char_adh_col.pac", @"data\char\char_adh_col.pac")]
     [InlineData(@".\data\char\char_adh_col.pac", @"data\char\char_adh_col.pac")]
     [InlineData(@"./data//localize/eng_idlist.txt", @"data\localize\eng_idlist.txt")]
-    public void From_NormalisesRelativePaths(string requested, string expected)
+    public void From_RelativePath_ReturnsTheNormalisedPath(string requested, string expected)
     {
-        Assert.Equal(expected, GamePathKey.From(requested, GameRoot));
+        // Act
+        string? key = GamePathKey.From(requested, GameRoot);
+
+        // Assert
+        Assert.Equal(expected, key);
     }
 
     [Fact]
-    public void From_AcceptsGameRootWithTrailingSeparator()
+    public void From_GameRootWithTrailingSeparator_ReturnsThePathRelativeToTheGame()
     {
-        Assert.Equal(@"data\a.pac", GamePathKey.From(GameRoot + @"\data\a.pac", GameRoot + @"\"));
+        // Act
+        string? key = GamePathKey.From(GameRoot + @"\data\a.pac", GameRoot + @"\");
+
+        // Assert
+        Assert.Equal(@"data\a.pac", key);
     }
 
     [Theory]
@@ -45,8 +57,12 @@ public class GamePathKeyTests
     [InlineData(@"C:data\a.pac")]
     [InlineData(@"\\.\pipe\steam")]
     [InlineData("CONIN$")]
-    public void From_ReturnsNullForPathsOutsideTheGame(string? requested)
+    public void From_PathOutsideTheGameFolders_ReturnsNull(string? requested)
     {
-        Assert.Null(GamePathKey.From(requested, GameRoot));
+        // Act
+        string? key = GamePathKey.From(requested, GameRoot);
+
+        // Assert
+        Assert.Null(key);
     }
 }

@@ -11,78 +11,117 @@ public class GameLocatorTests
     private const string SteamPath = @"C:\Steam";
     private const string Library = @"D:\Library";
     private const string GameInLibrary = @"D:\Library\steamapps\common\BBTAG";
+    private const string GameInSteamFolder = @"C:\Steam\steamapps\common\BBTAG";
 
-    private readonly IFileSystem _fileSystem = Substitute.For<IFileSystem>();
-    private readonly ISteamInstallation _steam = Substitute.For<ISteamInstallation>();
-    private readonly GameLocator _locator;
+    private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
+    private readonly ISteamInstallation _steamMock = Substitute.For<ISteamInstallation>();
 
-    public GameLocatorTests()
+    public GameLocator CreateGameLocator() => new(
+        _fileSystemMock,
+        _steamMock
+    );
+
+    [Fact]
+    public void Locate_RequestedDirectoryHoldsTheGame_ReturnsItWithoutTrailingSeparator()
     {
-        _locator = new GameLocator(_fileSystem, _steam);
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        _fileSystemMock.FileExists(@"E:\Games\BBTAG\BBTAG.exe").Returns(true);
+
+        // Act
+        string directory = locator.Locate(@"E:\Games\BBTAG\", LauncherDirectory);
+
+        // Assert
+        Assert.Equal(@"E:\Games\BBTAG", directory);
+    }
+
+    [Fact]
+    public void Locate_RequestedDirectoryWithoutTheGame_ThrowsGameNotFoundEvenWhenSteamHasIt()
+    {
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        InstallInSecondLibrary();
+
+        // Act
+        Exception? exception = Record.Exception(() => locator.Locate(@"E:\Games\Empty", LauncherDirectory));
+
+        // Assert
+        Assert.Equal(@"BBTAG.exe was not found in E:\Games\Empty.", Assert.IsType<GameNotFoundException>(exception).Message);
+    }
+
+    [Fact]
+    public void Locate_GameNextToTheLauncher_PrefersTheLauncherDirectory()
+    {
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        InstallInSecondLibrary();
+        _fileSystemMock.FileExists(Path.Combine(LauncherDirectory, "BBTAG.exe")).Returns(true);
+
+        // Act
+        string directory = locator.Locate(null, LauncherDirectory);
+
+        // Assert
+        Assert.Equal(LauncherDirectory, directory);
+    }
+
+    [Fact]
+    public void Locate_GameInASecondSteamLibrary_ReturnsItsFolder()
+    {
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        InstallInSecondLibrary();
+
+        // Act
+        string directory = locator.Locate(null, LauncherDirectory);
+
+        // Assert
+        Assert.Equal(GameInLibrary, directory);
+    }
+
+    [Fact]
+    public void Locate_SteamWithoutLibraryList_SearchesTheSteamFolder()
+    {
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        _steamMock.SteamPath.Returns(SteamPath);
+        Manifest(SteamPath);
+        _fileSystemMock.FileExists(Path.Combine(GameInSteamFolder, "BBTAG.exe")).Returns(true);
+
+        // Act
+        string directory = locator.Locate(null, LauncherDirectory);
+
+        // Assert
+        Assert.Equal(GameInSteamFolder, directory);
+    }
+
+    [Fact]
+    public void Locate_SteamNotInstalled_ThrowsGameNotFound()
+    {
+        // Arrange
+        GameLocator locator = CreateGameLocator();
+        _steamMock.SteamPath.Returns((string?)null);
+
+        // Act
+        Exception? exception = Record.Exception(() => locator.Locate(null, LauncherDirectory));
+
+        // Assert
+        Assert.IsType<GameNotFoundException>(exception);
     }
 
     private void InstallInSecondLibrary()
     {
-        _steam.SteamPath.Returns(SteamPath);
-        var libraryFolders = Path.Combine(SteamPath, "steamapps", "libraryfolders.vdf");
-        _fileSystem.FileExists(libraryFolders).Returns(true);
-        _fileSystem.ReadAllText(libraryFolders).Returns("\"path\" \"C:\\\\Steam\"\n\"path\" \"D:\\\\Library\"");
-        var manifest = Path.Combine(Library, "steamapps", "appmanifest_702890.acf");
-        _fileSystem.FileExists(manifest).Returns(true);
-        _fileSystem.ReadAllText(manifest).Returns("\"installdir\" \"BBTAG\"");
-        _fileSystem.FileExists(Path.Combine(GameInLibrary, "BBTAG.exe")).Returns(true);
+        _steamMock.SteamPath.Returns(SteamPath);
+        string libraryFolders = Path.Combine(SteamPath, "steamapps", "libraryfolders.vdf");
+        _fileSystemMock.FileExists(libraryFolders).Returns(true);
+        _fileSystemMock.ReadAllText(libraryFolders).Returns("\"path\" \"C:\\\\Steam\"\n\"path\" \"D:\\\\Library\"");
+        Manifest(Library);
+        _fileSystemMock.FileExists(Path.Combine(GameInLibrary, "BBTAG.exe")).Returns(true);
     }
 
-    [Fact]
-    public void Locate_UsesRequestedDirectory()
+    private void Manifest(string library)
     {
-        _fileSystem.FileExists(@"E:\Games\BBTAG\BBTAG.exe").Returns(true);
-
-        Assert.Equal(@"E:\Games\BBTAG", _locator.Locate(@"E:\Games\BBTAG\", LauncherDirectory));
-    }
-
-    [Fact]
-    public void Locate_RejectsRequestedDirectoryWithoutGame()
-    {
-        InstallInSecondLibrary();
-
-        Assert.Throws<GameNotFoundException>(() => _locator.Locate(@"E:\Games\Empty", LauncherDirectory));
-    }
-
-    [Fact]
-    public void Locate_UsesLauncherDirectoryWhenGameIsThere()
-    {
-        InstallInSecondLibrary();
-        _fileSystem.FileExists(Path.Combine(LauncherDirectory, "BBTAG.exe")).Returns(true);
-
-        Assert.Equal(LauncherDirectory, _locator.Locate(null, LauncherDirectory));
-    }
-
-    [Fact]
-    public void Locate_FindsGameInSteamLibraries()
-    {
-        InstallInSecondLibrary();
-
-        Assert.Equal(GameInLibrary, _locator.Locate(null, LauncherDirectory));
-    }
-
-    [Fact]
-    public void Locate_SearchesSteamFolderWhenLibraryListIsMissing()
-    {
-        _steam.SteamPath.Returns(SteamPath);
-        var manifest = Path.Combine(SteamPath, "steamapps", "appmanifest_702890.acf");
-        _fileSystem.FileExists(manifest).Returns(true);
-        _fileSystem.ReadAllText(manifest).Returns("\"installdir\" \"BBTAG\"");
-        _fileSystem.FileExists(Path.Combine(SteamPath, "steamapps", "common", "BBTAG", "BBTAG.exe")).Returns(true);
-
-        Assert.Equal(Path.Combine(SteamPath, "steamapps", "common", "BBTAG"), _locator.Locate(null, LauncherDirectory));
-    }
-
-    [Fact]
-    public void Locate_FailsWithoutSteam()
-    {
-        _steam.SteamPath.Returns((string?)null);
-
-        Assert.Throws<GameNotFoundException>(() => _locator.Locate(null, LauncherDirectory));
+        string manifest = Path.Combine(library, "steamapps", "appmanifest_702890.acf");
+        _fileSystemMock.FileExists(manifest).Returns(true);
+        _fileSystemMock.ReadAllText(manifest).Returns("\"installdir\" \"BBTAG\"");
     }
 }

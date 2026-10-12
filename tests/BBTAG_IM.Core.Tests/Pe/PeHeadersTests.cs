@@ -12,105 +12,95 @@ public class PeHeadersTests
     private readonly Faker _faker = new();
 
     [Fact]
-    public void Parse_ReadsFileAndOptionalHeaderFields()
+    public void Parse_32BitImage_ReadsTheFileAndOptionalHeaderFields()
     {
-        var timeDateStamp = _faker.Random.UInt();
-        var builder = new TestPeBuilder().WithTimeDateStamp(timeDateStamp).WithImageBase(0x10000000);
+        // Arrange
+        uint timeDateStamp = _faker.Random.UInt();
+        TestPeBuilder builder = new TestPeBuilder().WithTimeDateStamp(timeDateStamp).WithImageBase(0x10000000).WithEntryPoint(0x5A3E10);
         builder.AddSection(".text", _faker.Random.Bytes(0x300), TestPeBuilder.CodeCharacteristics);
 
-        var headers = PeHeaders.Parse(builder.Build());
+        // Act
+        PeHeaders headers = PeHeaders.Parse(builder.Build());
 
-        Assert.Equal(PeConstants.MachineI386, headers.Machine);
-        Assert.Equal(timeDateStamp, headers.TimeDateStamp);
-        Assert.Equal(0x10000000u, headers.ImageBase);
-        Assert.Equal(0x2000u, headers.SizeOfImage);
-        Assert.Equal(TestPeBuilder.HeadersSize, headers.SizeOfHeaders);
-        Assert.False(headers.RelocationsStripped);
+        // Assert
+        Assert.Equal(
+            (PeConstants.MachineI386, timeDateStamp, 0x10000000u, 0x2000u, TestPeBuilder.HeadersSize, 0x5A3E10u, false),
+            (headers.Machine, headers.TimeDateStamp, headers.ImageBase, headers.SizeOfImage, headers.SizeOfHeaders, headers.AddressOfEntryPoint, headers.RelocationsStripped));
     }
 
     [Fact]
-    public void Parse_ReadsEntryPoint()
+    public void Parse_CodeAndDataSections_ReadsEverySection()
     {
-        var image = new TestPeBuilder().WithEntryPoint(0x5A3E10).Build();
-
-        Assert.Equal(0x5A3E10u, PeHeaders.Parse(image).AddressOfEntryPoint);
-    }
-
-    [Fact]
-    public void Parse_ReadsEverySection()
-    {
-        var builder = new TestPeBuilder();
+        // Arrange
+        TestPeBuilder builder = new();
         builder.AddSection(".text", _faker.Random.Bytes(0x1200), TestPeBuilder.CodeCharacteristics);
         builder.AddSection(".data", _faker.Random.Bytes(0x10), virtualSize: 0x5000);
 
-        var sections = PeHeaders.Parse(builder.Build()).Sections;
+        // Act
+        IReadOnlyList<PeSection> sections = PeHeaders.Parse(builder.Build()).Sections;
 
-        Assert.Equal(2, sections.Count);
-        Assert.Equal(new PeSection(".text", 0x1000, 0x1200, 0x400, 0x1200, TestPeBuilder.CodeCharacteristics), sections[0]);
-        Assert.Equal(new PeSection(".data", 0x3000, 0x5000, 0x1600, 0x200, TestPeBuilder.DataCharacteristics), sections[1]);
-        Assert.True(sections[0].IsExecutable);
-        Assert.False(sections[1].IsExecutable);
+        // Assert
+        Assert.Equal(
+            [
+                new PeSection(".text", 0x1000, 0x1200, 0x400, 0x1200, TestPeBuilder.CodeCharacteristics),
+                new PeSection(".data", 0x3000, 0x5000, 0x1600, 0x200, TestPeBuilder.DataCharacteristics),
+            ],
+            sections);
+        Assert.Equal([true, false], sections.Select(section => section.IsExecutable));
     }
 
     [Fact]
-    public void Parse_ReadsDataDirectories()
+    public void Parse_ImageWithImportDirectoryOnly_ReadsItAndReportsTheExportsMissing()
     {
-        var builder = new TestPeBuilder().WithDirectory(PeConstants.ImportDirectoryIndex, 0x2000, 0x28);
+        // Arrange
+        TestPeBuilder builder = new TestPeBuilder().WithDirectory(PeConstants.ImportDirectoryIndex, 0x2000, 0x28);
         builder.AddSection(".idata", new byte[0x40]);
 
-        var headers = PeHeaders.Parse(builder.Build());
+        // Act
+        PeHeaders headers = PeHeaders.Parse(builder.Build());
 
+        // Assert
         Assert.Equal(new PeDataDirectory(0x2000, 0x28), headers.Directory(PeConstants.ImportDirectoryIndex));
         Assert.False(headers.Directory(PeConstants.ExportDirectoryIndex).IsPresent);
     }
 
     [Fact]
-    public void Parse_ReportsStrippedRelocations()
+    public void Parse_RelocationsStrippedFlag_ReportsIt()
     {
-        var image = new TestPeBuilder().WithFileCharacteristics(0x0103).Build();
+        // Arrange
+        byte[] image = new TestPeBuilder().WithFileCharacteristics(0x0103).Build();
 
-        Assert.True(PeHeaders.Parse(image).RelocationsStripped);
+        // Act
+        PeHeaders headers = PeHeaders.Parse(image);
+
+        // Assert
+        Assert.True(headers.RelocationsStripped);
     }
 
-    [Fact]
-    public void Parse_RejectsMissingDosSignature()
+    [Theory]
+    [MemberData(nameof(BrokenImages))]
+    public void Parse_ImageThatIsNotA32BitPe_ThrowsInvalidPeImage(byte[] image)
     {
-        var image = new TestPeBuilder().Build();
-        image[0] = 0;
+        // Act
+        Exception? exception = Record.Exception(() => PeHeaders.Parse(image));
 
-        Assert.Throws<InvalidPeImageException>(() => PeHeaders.Parse(image));
+        // Assert
+        Assert.IsType<InvalidPeImageException>(exception);
     }
 
-    [Fact]
-    public void Parse_RejectsMissingNtSignature()
+    public static TheoryData<byte[]> BrokenImages() =>
+    [
+        Edited(image => image[0] = 0),
+        Edited(image => image[TestPeBuilder.PeHeaderOffset] = 0),
+        new TestPeBuilder().WithMachine(MachineAmd64).Build(),
+        new TestPeBuilder().WithOptionalHeaderMagic(Pe32PlusMagic).Build(),
+        new TestPeBuilder().Build().AsSpan(0, 0x90).ToArray(),
+    ];
+
+    private static byte[] Edited(Action<byte[]> edit)
     {
-        var image = new TestPeBuilder().Build();
-        image[TestPeBuilder.PeHeaderOffset] = 0;
-
-        Assert.Throws<InvalidPeImageException>(() => PeHeaders.Parse(image));
-    }
-
-    [Fact]
-    public void Parse_RejectsNon32BitMachine()
-    {
-        var image = new TestPeBuilder().WithMachine(MachineAmd64).Build();
-
-        Assert.Throws<InvalidPeImageException>(() => PeHeaders.Parse(image));
-    }
-
-    [Fact]
-    public void Parse_RejectsPe32PlusOptionalHeader()
-    {
-        var image = new TestPeBuilder().WithOptionalHeaderMagic(Pe32PlusMagic).Build();
-
-        Assert.Throws<InvalidPeImageException>(() => PeHeaders.Parse(image));
-    }
-
-    [Fact]
-    public void Parse_RejectsTruncatedImage()
-    {
-        var image = new TestPeBuilder().Build().AsSpan(0, 0x90).ToArray();
-
-        Assert.Throws<InvalidPeImageException>(() => PeHeaders.Parse(image));
+        byte[] image = new TestPeBuilder().Build();
+        edit(image);
+        return image;
     }
 }

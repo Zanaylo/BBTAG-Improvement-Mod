@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
+    <ProjectReference Include="..\BBTAG_IM.Native\BBTAG_IM.Native.csproj" />
   </ItemGroup>
 
 </Project>

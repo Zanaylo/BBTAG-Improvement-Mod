@@ -11,73 +11,117 @@ public class PlanRelocationTests
 
     private static readonly AddressRange NewSections = new(NewSectionRva, 0x400000);
 
-    private static ExePatchPlan PlanWith(PatchWrite? write = null, PatchSection? section = null) =>
-        new(PreferredBase, NewSections, write is null ? [] : [write], section is null ? [] : [section]);
-
-    [Fact]
-    public void BytesFor_MovesImageAddressesByBaseDelta()
+    public PlanRelocation CreatePlanRelocation(
+        PatchWrite? write = null,
+        PatchSection? section = null,
+        uint imageBase = ImageBase,
+        uint newSectionsAddress = NewSectionsAddress)
     {
-        var write = new PatchWrite(0x274530, [0x30, 0x17, 0xAC, 0x00], [0], []);
-        var relocation = new PlanRelocation(PlanWith(write), ImageBase, NewSectionsAddress);
-
-        Assert.Equal([0x30, 0x17, 0xC6, 0x00], relocation.BytesFor(write));
+        ExePatchPlan plan = new(PreferredBase, NewSections, write is null ? [] : [write], section is null ? [] : [section]);
+        return new PlanRelocation(
+            plan,
+            imageBase,
+            newSectionsAddress
+        );
     }
 
     [Fact]
-    public void BytesFor_MovesNewSectionAddressesToWhereTheyWereAllocated()
+    public void BytesFor_AddressInsideTheImage_MovesItByTheBaseDelta()
     {
-        var write = new PatchWrite(0x4C7397, [0xB8, 0x88, 0x71, 0x33, 0x02], [1], []);
-        var relocation = new PlanRelocation(PlanWith(write), ImageBase, NewSectionsAddress);
+        // Arrange
+        PatchWrite write = new(0x274530, [0x30, 0x17, 0xAC, 0x00], [0], []);
+        PlanRelocation relocation = CreatePlanRelocation(write);
 
-        Assert.Equal([0xB8, 0x88, 0xC1, 0x74, 0x02], relocation.BytesFor(write));
+        // Act
+        byte[] bytes = relocation.BytesFor(write);
+
+        // Assert
+        Assert.Equal([0x30, 0x17, 0xC6, 0x00], bytes);
     }
 
     [Fact]
-    public void BytesFor_RetargetsJumpsIntoNewSections()
+    public void BytesFor_AddressInsideANewSection_MovesItToWhereTheSectionWasAllocated()
     {
-        var write = new PatchWrite(0x21130, [0xE9, 0x4B, 0x5F, 0xF1, 0x01], [], [1]);
-        var relocation = new PlanRelocation(PlanWith(write), ImageBase, NewSectionsAddress);
+        // Arrange
+        PatchWrite write = new(0x4C7397, [0xB8, 0x88, 0x71, 0x33, 0x02], [1], []);
+        PlanRelocation relocation = CreatePlanRelocation(write);
 
-        Assert.Equal([0xE9, 0x4B, 0xAF, 0x18, 0x02], relocation.BytesFor(write));
+        // Act
+        byte[] bytes = relocation.BytesFor(write);
+
+        // Assert
+        Assert.Equal([0xB8, 0x88, 0xC1, 0x74, 0x02], bytes);
     }
 
     [Fact]
-    public void BytesFor_RetargetsJumpsLeavingNewSections()
+    public void BytesFor_JumpIntoANewSection_IsRetargeted()
     {
-        var code = new byte[0x14C0AD];
+        // Arrange
+        PatchWrite write = new(0x21130, [0xE9, 0x4B, 0x5F, 0xF1, 0x01], [], [1]);
+        PlanRelocation relocation = CreatePlanRelocation(write);
+
+        // Act
+        byte[] bytes = relocation.BytesFor(write);
+
+        // Assert
+        Assert.Equal([0xE9, 0x4B, 0xAF, 0x18, 0x02], bytes);
+    }
+
+    [Fact]
+    public void BytesFor_JumpLeavingANewSection_IsRetargeted()
+    {
+        // Arrange
+        byte[] code = new byte[0x14C0AD];
         new byte[] { 0xE9, 0x91, 0xA0, 0x0E, 0xFE }.CopyTo(code, 0x14C0A8);
-        var section = new PatchSection(".extend", NewSectionRva, 0x400000, code, true, [], [0x14C0A9]);
-        var relocation = new PlanRelocation(PlanWith(section: section), ImageBase, NewSectionsAddress);
+        PatchSection section = new(".extend", NewSectionRva, 0x400000, code, true, [], [0x14C0A9]);
+        PlanRelocation relocation = CreatePlanRelocation(section: section);
 
-        var bytes = relocation.BytesFor(section);
+        // Act
+        byte[] bytes = relocation.BytesFor(section);
 
+        // Assert
         Assert.Equal([0xE9, 0x91, 0x50, 0xE7, 0xFD], bytes.AsSpan(0x14C0A8, 5).ToArray());
     }
 
     [Fact]
-    public void BytesFor_KeepsJumpsThatStayInsideTheirRegion()
+    public void BytesFor_JumpThatStaysInsideTheImage_IsKept()
     {
-        var write = new PatchWrite(0x1000, [0xE9, 0x10, 0x00, 0x00, 0x00], [], [1]);
-        var relocation = new PlanRelocation(PlanWith(write), ImageBase, NewSectionsAddress);
+        // Arrange
+        PatchWrite write = new(0x1000, [0xE9, 0x10, 0x00, 0x00, 0x00], [], [1]);
+        PlanRelocation relocation = CreatePlanRelocation(write);
 
-        Assert.Equal([0xE9, 0x10, 0x00, 0x00, 0x00], relocation.BytesFor(write));
+        // Act
+        byte[] bytes = relocation.BytesFor(write);
+
+        // Assert
+        Assert.Equal([0xE9, 0x10, 0x00, 0x00, 0x00], bytes);
     }
 
     [Fact]
-    public void BytesFor_ReturnsOriginalBytesAtPreferredLayout()
+    public void BytesFor_GameLoadedAtThePreferredLayout_ReturnsTheOriginalBytes()
     {
-        var write = new PatchWrite(0x21130, [0xE9, 0x4B, 0x5F, 0xF1, 0x01, 0x00, 0x10, 0x40, 0x00], [5], [1]);
-        var relocation = new PlanRelocation(PlanWith(write), PreferredBase, PreferredBase + NewSectionRva);
+        // Arrange
+        PatchWrite write = new(0x21130, [0xE9, 0x4B, 0x5F, 0xF1, 0x01, 0x00, 0x10, 0x40, 0x00], [5], [1]);
+        PlanRelocation relocation = CreatePlanRelocation(write, imageBase: PreferredBase, newSectionsAddress: PreferredBase + NewSectionRva);
 
-        Assert.Equal(write.Bytes, relocation.BytesFor(write));
+        // Act
+        byte[] bytes = relocation.BytesFor(write);
+
+        // Assert
+        Assert.Equal(write.Bytes, bytes);
     }
 
     [Fact]
-    public void AddressOf_PlacesSectionsRelativeToTheNewSectionsBlock()
+    public void AddressOf_SecondNewSection_IsPlacedRelativeToTheNewSectionsBlock()
     {
-        var section = new PatchSection(".extra", NewSectionRva + 0x1000, 0x100, [], false, [], []);
-        var relocation = new PlanRelocation(PlanWith(section: section), ImageBase, NewSectionsAddress);
+        // Arrange
+        PatchSection section = new(".extra", NewSectionRva + 0x1000, 0x100, [], false, [], []);
+        PlanRelocation relocation = CreatePlanRelocation(section: section);
 
-        Assert.Equal(NewSectionsAddress + 0x1000, relocation.AddressOf(section));
+        // Act
+        uint address = relocation.AddressOf(section);
+
+        // Assert
+        Assert.Equal(NewSectionsAddress + 0x1000, address);
     }
 }

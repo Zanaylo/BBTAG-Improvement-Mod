@@ -1,26 +1,30 @@
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
-using BBTAG_IM.Core.Mods;
 using BBTAG_IM.Core.Pe;
 using BBTAG_IM.Launcher.Injection;
 
 namespace BBTAG_IM.Launcher;
 
+internal sealed record LaunchResult(PayloadStatus Status, int ProcessId);
+
 internal sealed class GameLauncher(PayloadInjector injector, ILog log)
 {
     private const string SteamAppIdVariable = "SteamAppId";
     private const string SteamGameIdVariable = "SteamGameId";
+    private const string PathVariable = "PATH";
 
-    public PayloadStatus Launch(LaunchSession session)
+    private static readonly string? OriginalPath = Environment.GetEnvironmentVariable(PathVariable);
+
+    public LaunchResult Launch(LaunchSession session, LaunchTarget target)
     {
-        var executable = Path.Combine(session.GameDirectory, ModFolder.GameExecutableName);
-        var entryPointRva = FileImage.Load(executable).Headers.AddressOfEntryPoint;
+        var entryPointRva = FileImage.Load(target.ExecutablePath).Headers.AddressOfEntryPoint;
 
         Environment.SetEnvironmentVariable(SteamAppIdVariable, GameLocator.SteamAppId);
         Environment.SetEnvironmentVariable(SteamGameIdVariable, GameLocator.SteamAppId);
+        Environment.SetEnvironmentVariable(PathVariable, session.GameDirectory + Path.PathSeparator + OriginalPath);
 
-        using var process = RemoteProcess.StartSuspended(executable, session.GameDirectory);
-        log.Info($"Started {executable} (process {process.ProcessId}).");
+        using var process = RemoteProcess.StartSuspended(target.ExecutablePath, session.GameDirectory);
+        log.Info($"Started {target.ExecutablePath} in {session.GameDirectory} (process {process.ProcessId}).");
 
         try
         {
@@ -30,11 +34,11 @@ internal sealed class GameLauncher(PayloadInjector injector, ILog log)
             if (status != PayloadStatus.Ready)
             {
                 process.Terminate();
-                return status;
+                return new LaunchResult(status, (int)process.ProcessId);
             }
 
             gate.Release();
-            return status;
+            return new LaunchResult(status, (int)process.ProcessId);
         }
         catch
         {

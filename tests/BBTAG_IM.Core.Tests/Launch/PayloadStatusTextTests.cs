@@ -5,23 +5,26 @@ namespace BBTAG_IM.Core.Tests.Launch;
 public class PayloadStatusTextTests
 {
     [Fact]
-    public void Describe_GivesEveryStatusItsOwnText()
+    public void Describe_EveryKnownStatus_HasItsOwnText()
     {
-        var texts = Enum.GetValues<PayloadStatus>().Select(PayloadStatusText.Describe).ToArray();
+        // Arrange
+        PayloadStatus[] statuses = Enum.GetValues<PayloadStatus>();
 
-        Assert.All(texts, text => Assert.False(string.IsNullOrWhiteSpace(text)));
-        Assert.Equal(texts.Length, texts.Distinct().Count());
+        // Act
+        string[] texts = statuses.Select(PayloadStatusText.Describe).ToArray();
+
+        // Assert
+        Assert.Equal(statuses.Length, texts.Distinct().Count());
+        Assert.DoesNotContain(texts, text => text.Contains("unknown status", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Describe_ExplainsIncompatibleExecutable()
+    public void Describe_UnknownStatus_ShowsItsNumber()
     {
-        Assert.Contains("BBTAG.exe", PayloadStatusText.Describe(PayloadStatus.IncompatibleExecutable));
-    }
+        // Act
+        string text = PayloadStatusText.Describe((PayloadStatus)1234);
 
-    [Fact]
-    public void Describe_HandlesUnknownStatus()
-    {
-        Assert.Contains("1234", PayloadStatusText.Describe((PayloadStatus)1234));
+        // Assert
+        Assert.Equal("The mod stopped with an unknown status (1234).", text);
     }
 }

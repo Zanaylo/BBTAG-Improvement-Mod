@@ -33,26 +33,42 @@ public class SteamLibraryFoldersTests
         """;
 
     [Fact]
-    public void ParsePaths_ReadsEveryLibraryPath()
+    public void ParsePaths_LibraryFoldersFile_ReturnsEveryLibraryPath()
     {
-        Assert.Equal([@"C:\Program Files (x86)\Steam", @"D:\Jogos\steam"], SteamLibraryFolders.ParsePaths(LibraryFolders));
+        // Act
+        IReadOnlyList<string> paths = SteamLibraryFolders.ParsePaths(LibraryFolders);
+
+        // Assert
+        Assert.Equal([@"C:\Program Files (x86)\Steam", @"D:\Jogos\steam"], paths);
     }
 
     [Fact]
-    public void ParsePaths_ReturnsEmptyForUnrelatedText()
+    public void ParsePaths_TextWithoutPaths_ReturnsEmpty()
     {
-        Assert.Empty(SteamLibraryFolders.ParsePaths("\"libraryfolders\" { }"));
+        // Act
+        IReadOnlyList<string> paths = SteamLibraryFolders.ParsePaths("\"libraryfolders\" { }");
+
+        // Assert
+        Assert.Empty(paths);
     }
 
     [Fact]
-    public void ParseInstallDirectory_ReadsInstallDir()
+    public void ParseInstallDirectory_AppManifest_ReturnsTheInstallFolderName()
     {
-        Assert.Equal("BBTAG", SteamLibraryFolders.ParseInstallDirectory(AppManifest));
+        // Act
+        string? installDirectory = SteamLibraryFolders.ParseInstallDirectory(AppManifest);
+
+        // Assert
+        Assert.Equal("BBTAG", installDirectory);
     }
 
     [Fact]
-    public void ParseInstallDirectory_ReturnsNullWhenMissing()
+    public void ParseInstallDirectory_ManifestWithoutInstallDir_ReturnsNull()
     {
-        Assert.Null(SteamLibraryFolders.ParseInstallDirectory("\"AppState\" { \"appid\" \"702890\" }"));
+        // Act
+        string? installDirectory = SteamLibraryFolders.ParseInstallDirectory("\"AppState\" { \"appid\" \"702890\" }");
+
+        // Assert
+        Assert.Null(installDirectory);
     }
 }

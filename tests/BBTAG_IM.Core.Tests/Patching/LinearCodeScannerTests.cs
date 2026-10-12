@@ -20,31 +20,33 @@ public class LinearCodeScannerTests
     ];
 
     [Fact]
-    public void FieldsOverlapping_ReturnsOperandsOfInstructionsTouchingTheWindow()
+    public void FieldsOverlapping_WindowOverImmediateAndMemoryOperands_ReturnsBoth()
     {
-        var fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x1003, 0x0B));
+        // Act
+        DecodedFields fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x1003, 0x0B));
 
-        Assert.Equal(
-            [new OperandField(0x1004, 0x01400000, false), new OperandField(0x100A, 0x02291040, true)],
-            fields.Operands);
+        // Assert
+        Assert.Equal([new OperandField(0x1004, 0x01400000, false), new OperandField(0x100A, 0x02291040, true)], fields.Operands);
         Assert.Empty(fields.Branches);
     }
 
     [Fact]
-    public void FieldsOverlapping_FlagsOnlyBaselessDisplacementsAsAbsoluteMemory()
+    public void FieldsOverlapping_DisplacementsWithAndWithoutBaseRegister_FlagsOnlyTheBaselessOneAsAbsolute()
     {
-        var fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x1010, 0x0C));
+        // Act
+        DecodedFields fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x1010, 0x0C));
 
-        Assert.Equal(
-            [new OperandField(0x1011, 0x0008D1D8, false), new OperandField(0x1018, 0x02291040, true)],
-            fields.Operands);
+        // Assert
+        Assert.Equal([new OperandField(0x1011, 0x0008D1D8, false), new OperandField(0x1018, 0x02291040, true)], fields.Operands);
     }
 
     [Fact]
-    public void FieldsOverlapping_ReportsRel32BranchesSeparately()
+    public void FieldsOverlapping_WindowOverACall_ReportsTheRel32BranchSeparately()
     {
-        var fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x101C, 0x08));
+        // Act
+        DecodedFields fields = LinearCodeScanner.FieldsOverlapping(Code, CodeRva, new AddressRange(0x101C, 0x08));
 
+        // Assert
         Assert.Empty(fields.Operands);
         Assert.Equal([new BranchField(0x101D, 0x1021)], fields.Branches);
     }

@@ -28,8 +28,11 @@ if (Test-Path $Output) {
 Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Payload') -c Release -o $Output
 Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Launcher') -c Release -o $Output
 
-Get-ChildItem $Output -Filter *.pdb | Remove-Item -Force
-New-Item -ItemType Directory -Force (Join-Path $Output 'mods') | Out-Null
+$improvementMod = Join-Path $Output 'mods\BBTAG-Improvement-Mod'
+Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.ImprovementMod') -c Release -o $improvementMod
+New-Item -ItemType Directory -Force (Join-Path $improvementMod 'palettes') | Out-Null
+
+Get-ChildItem $Output -Filter *.pdb -Recurse | Remove-Item -Force
 Copy-Item (Join-Path $PSScriptRoot 'resource\README.txt') $Output -Force
 
-Get-ChildItem $Output | Format-Table Name, Length -AutoSize
+Get-ChildItem $Output -File -Recurse | Format-Table FullName, Length -AutoSize

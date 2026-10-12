@@ -11,81 +11,129 @@ public class FileImageTests
     private readonly Faker _faker = new();
 
     [Fact]
-    public void FileOffsetOf_MapsSectionRvaToRawOffset()
+    public void FileOffsetOf_RvaInsideASection_ReturnsItsRawOffset()
     {
-        var builder = new TestPeBuilder();
+        // Arrange
+        TestPeBuilder builder = new();
         builder.AddSection(".text", _faker.Random.Bytes(0x100), TestPeBuilder.CodeCharacteristics);
-        var dataRva = builder.AddSection(".data", _faker.Random.Bytes(0x100));
+        uint dataRva = builder.AddSection(".data", _faker.Random.Bytes(0x100));
+        FileImage image = new(builder.Build());
 
-        var image = new FileImage(builder.Build());
+        // Act
+        int? offset = image.FileOffsetOf(dataRva + 0x10);
 
-        Assert.Equal(0x610, image.FileOffsetOf(dataRva + 0x10));
+        // Assert
+        Assert.Equal(0x610, offset);
     }
 
     [Fact]
-    public void FileOffsetOf_MapsHeaderRvaToItself()
+    public void FileOffsetOf_RvaInsideTheHeaders_ReturnsTheSameValue()
     {
-        var image = new FileImage(new TestPeBuilder().Build());
+        // Arrange
+        FileImage image = new(new TestPeBuilder().Build());
 
-        Assert.Equal(0x3C, image.FileOffsetOf(0x3C));
+        // Act
+        int? offset = image.FileOffsetOf(0x3C);
+
+        // Assert
+        Assert.Equal(0x3C, offset);
+    }
+
+    [Theory]
+    [InlineData(0x2000)]
+    [InlineData(0x50000)]
+    public void FileOffsetOf_RvaWithoutRawData_ReturnsNull(uint distanceFromSection)
+    {
+        // Arrange
+        TestPeBuilder builder = new();
+        uint rva = builder.AddSection(".bss", new byte[0x10], virtualSize: 0x3000);
+        FileImage image = new(builder.Build());
+
+        // Act
+        int? offset = image.FileOffsetOf(rva + distanceFromSection);
+
+        // Assert
+        Assert.Null(offset);
     }
 
     [Fact]
-    public void FileOffsetOf_ReturnsNullOutsideRawData()
+    public void ReadUInt32_MappedRva_ReadsLittleEndian()
     {
-        var builder = new TestPeBuilder();
-        var rva = builder.AddSection(".bss", new byte[0x10], virtualSize: 0x3000);
-
-        var image = new FileImage(builder.Build());
-
-        Assert.Null(image.FileOffsetOf(rva + 0x2000));
-        Assert.Null(image.FileOffsetOf(0x50000));
-    }
-
-    [Fact]
-    public void ReadUInt32_ReadsLittleEndianValueAtRva()
-    {
-        var value = _faker.Random.UInt();
-        var data = new byte[0x20];
+        // Arrange
+        uint value = _faker.Random.UInt();
+        byte[] data = new byte[0x20];
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8), value);
-        var builder = new TestPeBuilder();
-        var rva = builder.AddSection(".data", data);
+        TestPeBuilder builder = new();
+        uint rva = builder.AddSection(".data", data);
+        FileImage image = new(builder.Build());
 
-        var image = new FileImage(builder.Build());
+        // Act
+        uint read = image.ReadUInt32(rva + 8);
 
-        Assert.Equal(value, image.ReadUInt32(rva + 8));
-        Assert.Equal((ushort)value, image.ReadUInt16(rva + 8));
+        // Assert
+        Assert.Equal(value, read);
     }
 
     [Fact]
-    public void ReadUInt32_RejectsUnmappedRva()
+    public void ReadUInt16_MappedRva_ReadsLittleEndian()
     {
-        var image = new FileImage(new TestPeBuilder().Build());
+        // Arrange
+        ushort value = _faker.Random.UShort();
+        byte[] data = new byte[0x20];
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(8), value);
+        TestPeBuilder builder = new();
+        uint rva = builder.AddSection(".data", data);
+        FileImage image = new(builder.Build());
 
-        Assert.Throws<InvalidPeImageException>(() => image.ReadUInt32(0x9000));
+        // Act
+        ushort read = image.ReadUInt16(rva + 8);
+
+        // Assert
+        Assert.Equal(value, read);
     }
 
     [Fact]
-    public void ReadAsciiString_ReadsUntilTerminator()
+    public void ReadUInt32_UnmappedRva_ThrowsInvalidPeImage()
     {
-        var text = _faker.Lorem.Word();
-        var builder = new TestPeBuilder();
-        var rva = builder.AddSection(".rdata", Encoding.ASCII.GetBytes("xx" + text + "\0tail"));
+        // Arrange
+        FileImage image = new(new TestPeBuilder().Build());
 
-        var image = new FileImage(builder.Build());
+        // Act
+        Exception? exception = Record.Exception(() => image.ReadUInt32(0x9000));
 
-        Assert.Equal(text, image.ReadAsciiString(rva + 2));
+        // Assert
+        Assert.IsType<InvalidPeImageException>(exception);
     }
 
     [Fact]
-    public void SectionData_ReturnsRawBytes()
+    public void ReadAsciiString_TerminatedText_ReadsUpToTheTerminator()
     {
-        var data = _faker.Random.Bytes(0x200);
-        var builder = new TestPeBuilder();
+        // Arrange
+        string text = _faker.Lorem.Word();
+        TestPeBuilder builder = new();
+        uint rva = builder.AddSection(".rdata", Encoding.ASCII.GetBytes("xx" + text + "\0tail"));
+        FileImage image = new(builder.Build());
+
+        // Act
+        string read = image.ReadAsciiString(rva + 2);
+
+        // Assert
+        Assert.Equal(text, read);
+    }
+
+    [Fact]
+    public void SectionData_Section_ReturnsItsRawBytes()
+    {
+        // Arrange
+        byte[] data = _faker.Random.Bytes(0x200);
+        TestPeBuilder builder = new();
         builder.AddSection(".text", data, TestPeBuilder.CodeCharacteristics);
+        FileImage image = new(builder.Build());
 
-        var image = new FileImage(builder.Build());
+        // Act
+        byte[] read = image.SectionData(image.Headers.Sections[0]).ToArray();
 
-        Assert.Equal(data, image.SectionData(image.Headers.Sections[0]).ToArray());
+        // Assert
+        Assert.Equal(data, read);
     }
 }

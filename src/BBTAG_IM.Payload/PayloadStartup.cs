@@ -4,9 +4,11 @@ using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
 using BBTAG_IM.Core.Patching;
 using BBTAG_IM.Core.Pe;
+using BBTAG_IM.Native;
+using BBTAG_IM.Native.Hooks;
 using BBTAG_IM.Payload.Hooks;
-using BBTAG_IM.Payload.Native;
 using BBTAG_IM.Payload.Patching;
+using BBTAG_IM.Payload.Plugins;
 
 namespace BBTAG_IM.Payload;
 
@@ -58,12 +60,19 @@ internal static class PayloadStartup
         var game = LoadedModule.MainModule();
 
         log.Info($"Payload loaded into {game.Path} at 0x{game.BaseAddress:X8}.");
-        PatchExecutable(mods, game, log);
+        PatchExecutable(mods, game, session.GameDirectory, log);
         RedirectModFiles(mods, game, session.GameDirectory, fileSystem, log);
+        PluginLoader.StartAll(mods, Path.GetDirectoryName(session.LogPath) ?? session.GameDirectory, log);
     }
 
-    private static void PatchExecutable(IReadOnlyList<ModFolder> mods, LoadedModule game, ILog log)
+    private static void PatchExecutable(IReadOnlyList<ModFolder> mods, LoadedModule game, string gameDirectory, ILog log)
     {
+        if (!LaunchTarget.IsInstalledGame(game.Path, gameDirectory))
+        {
+            log.Info($"Running {game.Path} as it is, so its native code is used.");
+            return;
+        }
+
         var executableMods = mods.Where(mod => mod.ExecutablePath is not null).ToArray();
 
         if (executableMods.Length == 0)
@@ -87,6 +96,7 @@ internal static class PayloadStartup
         foreach (var (mod, files) in index.FilesByMod)
             log.Info($"{mod}: {files} file(s) layered over the game data.");
 
-        FileApiHooks.Install(game, new ModFileRedirector(index, gameDirectory), log);
+        var executableDirectory = Path.GetDirectoryName(game.Path) ?? gameDirectory;
+        FileApiHooks.Install(game, new ModFileRedirector(index, gameDirectory, executableDirectory), log);
     }
 }

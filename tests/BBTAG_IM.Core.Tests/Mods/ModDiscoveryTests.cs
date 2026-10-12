@@ -8,31 +8,38 @@ public class ModDiscoveryTests
 {
     private const string ModsDirectory = @"D:\BBTAG_IM\mods";
 
-    private readonly IFileSystem _fileSystem = Substitute.For<IFileSystem>();
+    private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
 
     [Fact]
-    public void InModsDirectory_ReturnsValidModsSortedByName()
+    public void InModsDirectory_ValidAndEmptyFolders_ReturnsTheValidModsSortedByName()
     {
-        var zeta = Path.Combine(ModsDirectory, "Zeta");
-        var alpha = Path.Combine(ModsDirectory, "alpha");
-        var empty = Path.Combine(ModsDirectory, "Empty");
-        _fileSystem.DirectoryExists(ModsDirectory).Returns(true);
-        _fileSystem.EnumerateDirectories(ModsDirectory).Returns([zeta, empty, alpha]);
-        foreach (var mod in new[] { zeta, alpha, empty })
-            _fileSystem.DirectoryExists(mod).Returns(true);
-        _fileSystem.DirectoryExists(Path.Combine(zeta, "data")).Returns(true);
-        _fileSystem.DirectoryExists(Path.Combine(alpha, "data2")).Returns(true);
+        // Arrange
+        string zeta = Path.Combine(ModsDirectory, "Zeta");
+        string alpha = Path.Combine(ModsDirectory, "alpha");
+        string empty = Path.Combine(ModsDirectory, "Empty");
+        _fileSystemMock.DirectoryExists(ModsDirectory).Returns(true);
+        _fileSystemMock.EnumerateDirectories(ModsDirectory).Returns([zeta, empty, alpha]);
+        _fileSystemMock.DirectoryExists(Arg.Is<string>(path => path == zeta || path == alpha || path == empty)).Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(zeta, "data")).Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(alpha, "data2")).Returns(true);
 
-        var mods = ModDiscovery.InModsDirectory(ModsDirectory, _fileSystem);
+        // Act
+        IReadOnlyList<ModFolder> mods = ModDiscovery.InModsDirectory(ModsDirectory, _fileSystemMock);
 
+        // Assert
         Assert.Equal(["alpha", "Zeta"], mods.Select(mod => mod.Name));
     }
 
     [Fact]
-    public void InModsDirectory_ReturnsEmptyWhenDirectoryIsMissing()
+    public void InModsDirectory_MissingDirectory_ReturnsEmpty()
     {
-        _fileSystem.DirectoryExists(ModsDirectory).Returns(false);
+        // Arrange
+        _fileSystemMock.DirectoryExists(ModsDirectory).Returns(false);
 
-        Assert.Empty(ModDiscovery.InModsDirectory(ModsDirectory, _fileSystem));
+        // Act
+        IReadOnlyList<ModFolder> mods = ModDiscovery.InModsDirectory(ModsDirectory, _fileSystemMock);
+
+        // Assert
+        Assert.Empty(mods);
     }
 }

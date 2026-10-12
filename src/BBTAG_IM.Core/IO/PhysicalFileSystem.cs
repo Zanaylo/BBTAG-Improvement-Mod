@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace BBTAG_IM.Core.IO;
 
 public sealed class PhysicalFileSystem : IFileSystem
@@ -8,8 +10,40 @@ public sealed class PhysicalFileSystem : IFileSystem
 
     public IEnumerable<string> EnumerateDirectories(string path) => Directory.EnumerateDirectories(path);
 
+    public IEnumerable<string> EnumerateFiles(string path) => Directory.EnumerateFiles(path);
+
     public IEnumerable<string> EnumerateFilesRecursively(string path) =>
         Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories);
 
     public string ReadAllText(string path) => File.ReadAllText(path);
+
+    public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
+
+    public DateTime LastWriteTimeUtc(string path) => File.GetLastWriteTimeUtc(path);
+
+    public void WriteAllText(string path, string text)
+    {
+        CreateDirectoryOf(path);
+        File.WriteAllText(path, text);
+    }
+
+    public void WriteAllBytes(string path, byte[] bytes)
+    {
+        CreateDirectoryOf(path);
+        File.WriteAllBytes(path, bytes);
+    }
+
+    public Version? FileVersion(string path)
+    {
+        var info = FileVersionInfo.GetVersionInfo(path);
+        return new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart, info.FilePrivatePart);
+    }
+
+    private static void CreateDirectoryOf(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+    }
 }

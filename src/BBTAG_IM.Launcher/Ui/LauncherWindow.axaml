@@ -1,0 +1,165 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="using:BBTAG_IM.Launcher.Ui"
+        mc:Ignorable="d"
+        d:DesignWidth="820"
+        d:DesignHeight="860"
+        x:Class="BBTAG_IM.Launcher.Ui.LauncherWindow"
+        x:DataType="ui:LauncherViewModel"
+        Title="BBTAG Improvement Mod"
+        Width="820"
+        Height="860"
+        MinWidth="640"
+        MinHeight="560">
+
+  <Design.DataContext>
+    <x:Static Member="ui:LauncherDesignData.ViewModel" />
+  </Design.DataContext>
+
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Margin="16,16,16,8" Spacing="6">
+      <TextBlock Text="BBTAG Improvement Mod" FontSize="22" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding GameText}" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding ExecutableText}" TextWrapping="Wrap" />
+      <DockPanel Margin="0,8,0,0">
+        <Button DockPanel.Dock="Left"
+                Content="Play"
+                Width="120"
+                HorizontalContentAlignment="Center"
+                IsEnabled="{Binding CanPlay}"
+                Click="OnPlayClick" />
+        <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding Status}" />
+      </DockPanel>
+    </StackPanel>
+
+    <ListBox x:Name="MessageList" DockPanel.Dock="Bottom" Height="150" Margin="16,8,16,16" ItemsSource="{Binding Messages}" />
+
+    <TabControl Margin="16,0">
+      <TabItem Header="Mods">
+        <DockPanel Margin="0,8,0,0">
+          <TextBlock DockPanel.Dock="Top"
+                     Margin="0,0,0,8"
+                     TextWrapping="Wrap"
+                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins." />
+          <ListBox ItemsSource="{Binding Mods}" IsEnabled="{Binding CanChangeMods}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="ui:ModEntry">
+                <CheckBox IsChecked="{Binding IsEnabled}">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Contents}" Opacity="0.75" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Improvement Mod">
+        <StackPanel Margin="0,8,0,0" Spacing="8">
+          <TextBlock TextWrapping="Wrap" Text="{Binding ImprovementCaption}" />
+          <CheckBox IsVisible="{Binding HasImprovementMod}"
+                    IsChecked="{Binding FrameLimiter}"
+                    Content="Turn V-Sync off and hold the game at 60 fps" />
+          <TextBlock IsVisible="{Binding HasImprovementMod}"
+                     Margin="28,0,0,0"
+                     Opacity="0.75"
+                     TextWrapping="Wrap"
+                     Text="Less input delay than V-Sync while the game keeps a steady 60 fps, so online matches run at the right speed." />
+          <CheckBox IsVisible="{Binding HasImprovementMod}"
+                    Margin="0,8,0,0"
+                    IsChecked="{Binding HitboxViewer}"
+                    Content="Show hitboxes in training mode" />
+          <TextBlock IsVisible="{Binding HasImprovementMod}"
+                     Margin="28,0,0,0"
+                     Opacity="0.75"
+                     TextWrapping="Wrap"
+                     Text="Blue boxes show where a character can be hit. Red boxes show attacks. Only training matches draw them." />
+        </StackPanel>
+      </TabItem>
+
+      <TabItem Header="Palettes">
+        <DockPanel Margin="0,8,0,0">
+          <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Text="{Binding PalettesCaption}" />
+          <Grid IsVisible="{Binding HasPalettes}" ColumnDefinitions="180,*">
+            <ListBox ItemsSource="{Binding PaletteCharacters}" SelectedItem="{Binding SelectedPaletteCharacter}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="ui:CharacterPaletteChoices">
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <ScrollViewer Grid.Column="1" Margin="12,0,0,0">
+              <ItemsControl ItemsSource="{Binding SelectedPaletteCharacter.Colors}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="ui:PaletteColorSlot">
+                    <Grid Margin="0,2,12,2" ColumnDefinitions="70,*,Auto">
+                      <TextBlock VerticalAlignment="Center" Text="{Binding Label}" />
+                      <ui:WheelComboBox Grid.Column="1"
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{Binding Options}"
+                                SelectedItem="{Binding Selected}"
+                                ToolTip.Tip="{Binding Details}">
+                        <ui:WheelComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="ui:PaletteOption">
+                            <TextBlock Text="{Binding Label}" />
+                          </DataTemplate>
+                        </ui:WheelComboBox.ItemTemplate>
+                      </ui:WheelComboBox>
+                      <Border Grid.Column="2"
+                              Width="40"
+                              Height="40"
+                              Margin="8,0,0,0"
+                              BorderBrush="Gray"
+                              BorderThickness="1"
+                              ToolTip.Tip="{Binding Details}">
+                        <Image Source="{Binding Preview}" RenderOptions.BitmapInterpolationMode="None" />
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Grid>
+        </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Cheat Engine">
+        <DockPanel Margin="0,8,0,0">
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8" Spacing="6">
+            <TextBlock TextWrapping="Wrap" Text="{Binding ScriptsCaption}" />
+            <CheckBox IsVisible="{Binding HasTable}"
+                      IsChecked="{Binding ShowCheatEngineWindow}"
+                      Content="Show the Cheat Engine window" />
+          </StackPanel>
+          <Border IsVisible="{Binding HasTable}" BorderBrush="Gray" BorderThickness="1">
+            <TreeView ItemsSource="{Binding Scripts}">
+              <TreeView.Styles>
+                <Style Selector="TreeViewItem" x:DataType="ui:ScriptNode">
+                  <Setter Property="IsExpanded" Value="{Binding IsExpanded}" />
+                </Style>
+              </TreeView.Styles>
+              <TreeView.ItemTemplate>
+                <TreeDataTemplate x:DataType="ui:ScriptNode" ItemsSource="{Binding Children}">
+                  <Panel>
+                    <CheckBox IsVisible="{Binding CanToggle}"
+                              IsEnabled="{Binding !IsRequired}"
+                              IsChecked="{Binding IsChecked}"
+                              Content="{Binding Label}" />
+                    <TextBlock IsVisible="{Binding !CanToggle}"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Text="{Binding Label}" />
+                  </Panel>
+                </TreeDataTemplate>
+              </TreeView.ItemTemplate>
+            </TreeView>
+          </Border>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
