@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BBTAG_IM.Core/BBTAG_IM.Core.csproj" />
+    <Project Path="src/BBTAG_IM.Launcher/BBTAG_IM.Launcher.csproj" />
+    <Project Path="src/BBTAG_IM.Payload/BBTAG_IM.Payload.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BBTAG_IM.Core.Tests/BBTAG_IM.Core.Tests.csproj" />
+  </Folder>
+</Solution>

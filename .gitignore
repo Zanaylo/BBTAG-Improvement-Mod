@@ -1,0 +1,16 @@
+bin/
+obj/
+build/
+export/
+.vs/
+*.user
+*.log
+*.pdb
+*.dmp
+TestResults/
+__pycache__/
+tools/
+docs/
+/logs/
+/mods/
+*.CT

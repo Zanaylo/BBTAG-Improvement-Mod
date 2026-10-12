@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>BBTAG_IM.Payload</RootNamespace>
+    <AssemblyName>BBTAG_IM</AssemblyName>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x86</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <IlcGenerateStackTraceData>true</IlcGenerateStackTraceData>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
+  </ItemGroup>
+
+</Project>
