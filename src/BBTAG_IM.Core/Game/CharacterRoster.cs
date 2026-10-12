@@ -12,7 +12,7 @@ public sealed class CharacterRoster(IGameMemory memory, uint? getter)
     private static readonly SingletonPattern GetterPattern = new(
         "Character roster",
         BytePattern.Parse("33 FF E8 ?? ?? ?? ?? 8B 80 00 2E 00 00 83 C0 01 0F 84"),
-        2);
+        CallOffset: 2);
 
     private const byte MoveToEax = 0xB8;
     private const int GetterLength = 5;

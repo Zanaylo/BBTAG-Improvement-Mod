@@ -13,7 +13,7 @@ internal static class ImplFile
 
     public static byte[] Create(int characterIndex, string creator = "", string description = "", byte fill = 0x11)
     {
-        var bytes = new byte[HeaderLength + DataLength];
+        byte[] bytes = new byte[HeaderLength + DataLength];
         Encoding.ASCII.GetBytes("IMPL").CopyTo(bytes, 0);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), HeaderLength);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), DataLength);

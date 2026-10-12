@@ -35,11 +35,16 @@ internal sealed class OnlineProbe(GameView game, IGameMemory memory, GameAddress
         {
             _matchFrames = 0;
             _reported = false;
-            _traffic.Take();
             return;
         }
 
-        if (_reported || ++_matchFrames < ReportAfterMatchFrames)
+        if (_reported)
+            return;
+
+        if (_matchFrames++ == 0)
+            _traffic.Clear();
+
+        if (_matchFrames < ReportAfterMatchFrames)
             return;
 
         _reported = true;

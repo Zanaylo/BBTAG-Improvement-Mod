@@ -57,7 +57,7 @@ internal sealed class FakeGameMemory : IGameMemory
 
     private Span<byte> Bytes(uint address, int length)
     {
-        var region = FindRegion(address, length)
+        MappedRegion region = FindRegion(address, length)
             ?? throw new InvalidOperationException($"The game would crash reading {length} bytes at 0x{address:X8}.");
 
         return region.Bytes.AsSpan((int)(address - region.Address), length);

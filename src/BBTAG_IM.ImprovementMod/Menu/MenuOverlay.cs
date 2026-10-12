@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Overlay;
 using BBTAG_IM.ImprovementMod.Frames;
@@ -9,16 +10,23 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed unsafe class MenuOverlay(ImprovementMenu menu, MenuSettings settings, ILog log)
+internal sealed unsafe class MenuOverlay
 {
     public const string NativeLibraryName = "cimgui.dll";
+    public const string LayoutFileName = "menu-layout.ini";
 
     private const string FontFileName = "segoeui.ttf";
     private const float DefaultFontSize = 13f;
     private const double LongestFrameSeconds = 0.1;
     private const double ShortestFrameSeconds = 0.0001;
 
-    private readonly ImGuiRenderer _renderer = new(log);
+    private readonly ImprovementMenu _menu;
+    private readonly MenuSettings _settings;
+    private readonly MenuTextures _textures;
+    private readonly BackBufferPass _pass;
+    private readonly ImGuiRenderer _renderer;
+    private readonly string _layoutPath;
+    private readonly Action<Direct3DDevice, DeviceViewport> _draw;
 
     private long _lastFrame = Stopwatch.GetTimestamp();
     private bool _contextCreated;
@@ -26,28 +34,53 @@ internal sealed unsafe class MenuOverlay(ImprovementMenu menu, MenuSettings sett
     private float _fontSize;
     private bool _wasOpen;
 
+    public MenuOverlay(ImprovementMenu menu, MenuSettings settings, MenuTextures textures, BackBufferPass pass, string modFolder, ILog log)
+    {
+        _menu = menu;
+        _settings = settings;
+        _textures = textures;
+        _pass = pass;
+        _renderer = new ImGuiRenderer(textures, log);
+        _layoutPath = Path.Combine(modFolder, LayoutFileName);
+        _draw = Draw;
+    }
+
     public void OnPresent(nint device)
     {
         var isOpen = MenuInput.IsOpen;
 
-        if (isOpen && !_wasOpen)
-            menu.Reopened();
+        if (isOpen != _wasOpen)
+            Toggled(isOpen);
 
         _wasOpen = isOpen;
 
         if (isOpen)
-            BackBufferPass.Run(device, Draw);
+            _pass.Run(device, _draw);
     }
 
-    public void OnReset() => _renderer.Release();
+    public void OnReset() => _textures.ReleaseAll();
+
+    private void Toggled(bool isOpen)
+    {
+        if (isOpen)
+        {
+            _menu.Reopened();
+            return;
+        }
+
+        if (_contextCreated)
+            ImGui.SaveIniSettingsToDisk(_layoutPath);
+    }
 
     private void Draw(Direct3DDevice device, DeviceViewport viewport)
     {
         var displaySize = new Vector2(viewport.Width, viewport.Height);
         CreateContext();
-        BuildFont(MenuFont.SizeFor(settings.Current.MenuFontSize, displaySize.Y));
+        BuildFont(MenuFont.SizeFor(_settings.Current.MenuFontSize, displaySize.Y));
 
-        if (!_renderer.PrepareFonts(device))
+        _textures.Use(device);
+
+        if (!_renderer.PrepareFonts())
             return;
 
         var io = ImGui.GetIO();
@@ -58,7 +91,7 @@ internal sealed unsafe class MenuOverlay(ImprovementMenu menu, MenuSettings sett
 
         ImGui.NewFrame();
 
-        if (!menu.Draw(displaySize))
+        if (!_menu.Draw(displaySize))
             MenuInput.Close();
 
         ImGui.Render();
@@ -74,7 +107,7 @@ internal sealed unsafe class MenuOverlay(ImprovementMenu menu, MenuSettings sett
         _contextCreated = true;
         ImGui.CreateContext();
         var io = ImGui.GetIO();
-        io.NativePtr->IniFilename = null;
+        io.NativePtr->IniFilename = (byte*)Marshal.StringToCoTaskMemUTF8(_layoutPath);
         io.MouseDrawCursor = true;
 
         ImGui.StyleColorsDark();
@@ -87,7 +120,7 @@ internal sealed unsafe class MenuOverlay(ImprovementMenu menu, MenuSettings sett
             return;
 
         _fontSize = size;
-        _renderer.Release();
+        _renderer.ReleaseFont();
 
         var fonts = ImGui.GetIO().Fonts;
         var fontPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), FontFileName);

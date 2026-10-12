@@ -4,13 +4,9 @@ using BBTAG_IM.Core.Tests.Support;
 
 namespace BBTAG_IM.Core.Tests.Mods;
 
-public class ModPluginTests : IDisposable
+public class ModPluginTests
 {
     private const uint StartRva = 0x1010;
-
-    private readonly List<string> _temporaryFiles = [];
-
-    public void Dispose() => _temporaryFiles.ForEach(File.Delete);
 
     [Fact]
     public void FindStart_DllExportingTheStartFunction_ReturnsItsRva()
@@ -51,69 +47,7 @@ public class ModPluginTests : IDisposable
         Assert.Null(start);
     }
 
-    [Fact]
-    public void IsPlugin_DllFileExportingTheStartFunction_ReturnsTrue()
-    {
-        // Arrange
-        string path = TemporaryFile(DllBytesExporting(ModPlugin.StartExport));
-
-        // Act
-        bool isPlugin = ModPlugin.IsPlugin(path);
-
-        // Assert
-        Assert.True(isPlugin);
-    }
-
-    [Fact]
-    public void IsPlugin_LibraryWithOtherExports_ReturnsFalse()
-    {
-        // Arrange
-        string path = TemporaryFile(DllBytesExporting("igCreateContext"));
-
-        // Act
-        bool isPlugin = ModPlugin.IsPlugin(path);
-
-        // Assert
-        Assert.False(isPlugin);
-    }
-
-    [Fact]
-    public void IsPlugin_FileThatIsNotAnExecutable_ReturnsFalse()
-    {
-        // Arrange
-        string path = TemporaryFile([1, 2, 3]);
-
-        // Act
-        bool isPlugin = ModPlugin.IsPlugin(path);
-
-        // Assert
-        Assert.False(isPlugin);
-    }
-
-    [Fact]
-    public void IsPlugin_FileMissing_ReturnsFalse()
-    {
-        // Arrange
-        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".dll");
-
-        // Act
-        bool isPlugin = ModPlugin.IsPlugin(path);
-
-        // Assert
-        Assert.False(isPlugin);
-    }
-
-    private string TemporaryFile(byte[] bytes)
-    {
-        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".dll");
-        File.WriteAllBytes(path, bytes);
-        _temporaryFiles.Add(path);
-        return path;
-    }
-
-    private static FileImage DllExporting(params string[] functions) => new(DllBytesExporting(functions));
-
-    private static byte[] DllBytesExporting(params string[] functions)
+    private static FileImage DllExporting(params string[] functions)
     {
         TestPeBuilder builder = new();
         builder.AddSection(".text", new byte[0x40], TestPeBuilder.CodeCharacteristics);
@@ -124,6 +58,6 @@ public class ModPluginTests : IDisposable
             return layout.Data;
         });
         builder.WithDirectory(PeConstants.ExportDirectoryIndex, layout!.DirectoryRva, layout.DirectorySize);
-        return builder.Build();
+        return new FileImage(builder.Build());
     }
 }

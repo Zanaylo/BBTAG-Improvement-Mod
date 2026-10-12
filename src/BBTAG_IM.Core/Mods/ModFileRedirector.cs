@@ -23,11 +23,11 @@ public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, 
 
     public long Redirections => Interlocked.Read(ref _redirections);
 
-    public string? RedirectOpen(string? path, uint desiredAccess, uint creationDisposition)
-    {
-        var readsExistingFile = creationDisposition == OpenExisting && (desiredAccess & WriteAccessMask) == 0;
-        return Counted(Redirect(path, readsExistingFile));
-    }
+    public static bool ReadsExistingFile(uint desiredAccess, uint creationDisposition) =>
+        creationDisposition == OpenExisting && (desiredAccess & WriteAccessMask) == 0;
+
+    public string? RedirectOpen(string? path, uint desiredAccess, uint creationDisposition) =>
+        Counted(Redirect(path, ReadsExistingFile(desiredAccess, creationDisposition)));
 
     public string? RedirectLookup(string? path) => Counted(Redirect(path, readsExistingFile: true));
 

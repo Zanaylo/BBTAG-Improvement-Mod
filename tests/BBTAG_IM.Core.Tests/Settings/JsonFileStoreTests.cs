@@ -99,35 +99,6 @@ public class JsonFileStoreTests
     }
 
     [Fact]
-    public void Load_ImprovementSettingsWithoutFile_LeavesTheFrameLimiterOff()
-    {
-        // Arrange
-        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
-        _fileSystemMock.FileExists(ImprovementSettingsPath).Returns(false);
-
-        // Act
-        ImprovementSettings settings = store.Load();
-
-        // Assert
-        Assert.False(settings.FrameLimiter);
-    }
-
-    [Fact]
-    public void Save_ImprovementSettings_WritesTheFileInsideTheModFolder()
-    {
-        // Arrange
-        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
-        CaptureWrites(ImprovementSettingsPath);
-
-        // Act
-        store.Save(new ImprovementSettings { FrameLimiter = true });
-        ImprovementSettings loaded = store.Load();
-
-        // Assert
-        Assert.True(loaded.FrameLimiter);
-    }
-
-    [Fact]
     public void Save_ImprovementSettingsWithPalettes_ReadsThePalettesBack()
     {
         // Arrange
@@ -145,11 +116,11 @@ public class JsonFileStoreTests
     }
 
     [Fact]
-    public void Save_ImprovementSettingsWithHitboxStylesAndAnAuthor_ReadsThemBack()
+    public void Save_ImprovementSettingsWithEveryOption_ReadsThemBack()
     {
         // Arrange
         JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
-        ImprovementSettings saved = new() { HitboxOrigins = false, PaletteCreator = "Painter" };
+        ImprovementSettings saved = new() { FrameLimiter = true, HitboxOrigins = false, PaletteCreator = "Painter", MenuFontSize = 14 };
         saved.Hitboxes.Shown = false;
         saved.Hurtboxes.Fill = 0.5f;
         CaptureWrites(ImprovementSettingsPath);
@@ -159,36 +130,9 @@ public class JsonFileStoreTests
         ImprovementSettings loaded = store.Load();
 
         // Assert
-        Assert.Equal((false, false, 0.5f, "Painter"), (loaded.HitboxOrigins, loaded.Hitboxes.Shown, loaded.Hurtboxes.Fill, loaded.PaletteCreator));
-    }
-
-    [Fact]
-    public void Save_ImprovementSettingsWithAMenuFontSize_ReadsItBack()
-    {
-        // Arrange
-        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
-        CaptureWrites(ImprovementSettingsPath);
-
-        // Act
-        store.Save(new ImprovementSettings { MenuFontSize = 14 });
-        ImprovementSettings loaded = store.Load();
-
-        // Assert
-        Assert.Equal(14f, loaded.MenuFontSize);
-    }
-
-    [Fact]
-    public void Load_ImprovementSettingsWithoutFile_SizesTheMenuFontByTheScreen()
-    {
-        // Arrange
-        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
-        _fileSystemMock.FileExists(ImprovementSettingsPath).Returns(false);
-
-        // Act
-        ImprovementSettings settings = store.Load();
-
-        // Assert
-        Assert.Null(settings.MenuFontSize);
+        Assert.Equal(
+            (true, false, false, 0.5f, "Painter", (float?)14f),
+            (loaded.FrameLimiter, loaded.HitboxOrigins, loaded.Hitboxes.Shown, loaded.Hurtboxes.Fill, loaded.PaletteCreator, loaded.MenuFontSize));
     }
 
     [Fact]

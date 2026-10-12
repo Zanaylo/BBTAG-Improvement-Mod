@@ -33,6 +33,7 @@ internal struct LockedRect
 internal readonly unsafe struct Direct3DDevice(nint device)
 {
     private const int ReleaseSlot = 2;
+    private const int StateBlockCaptureSlot = 4;
     private const int StateBlockApplySlot = 5;
     private const int TextureLockSlot = 19;
     private const int TextureUnlockSlot = 20;
@@ -63,6 +64,9 @@ internal readonly unsafe struct Direct3DDevice(nint device)
         if (comObject != 0)
             ((delegate* unmanaged[Stdcall]<nint, uint>)Slot(comObject, ReleaseSlot))(comObject);
     }
+
+    public static bool CaptureStateBlock(nint stateBlock) =>
+        ((delegate* unmanaged[Stdcall]<nint, int>)Slot(stateBlock, StateBlockCaptureSlot))(stateBlock) >= 0;
 
     public static void ApplyStateBlock(nint stateBlock) =>
         ((delegate* unmanaged[Stdcall]<nint, int>)Slot(stateBlock, StateBlockApplySlot))(stateBlock);
@@ -155,9 +159,9 @@ internal readonly unsafe struct Direct3DDevice(nint device)
     public void SetScissorRect(WindowRect rectangle) =>
         ((delegate* unmanaged[Stdcall]<nint, WindowRect*, int>)Slot(device, SetScissorRectSlot))(device, &rectangle);
 
-    public void DrawIndexedTriangles(void* vertices, int vertexCount, ushort* indices, int triangleCount, int stride) =>
+    public void DrawIndexedTriangles(void* vertices, int firstVertex, int vertexCount, ushort* indices, int triangleCount, int stride) =>
         ((delegate* unmanaged[Stdcall]<nint, int, uint, uint, uint, void*, int, void*, uint, int>)Slot(device, DrawIndexedPrimitiveUserPointerSlot))(
-            device, PrimitiveType.TriangleList, 0, (uint)vertexCount, (uint)triangleCount, indices, Index16Format, vertices, (uint)stride);
+            device, PrimitiveType.TriangleList, (uint)firstVertex, (uint)vertexCount, (uint)triangleCount, indices, Index16Format, vertices, (uint)stride);
 
     private static nint Slot(nint comObject, int index) => (*(nint**)comObject)[index];
 

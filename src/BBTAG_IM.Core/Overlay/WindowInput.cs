@@ -12,13 +12,18 @@ public abstract record WindowInput
     private const uint MouseMove = 0x200;
     private const uint LeftButtonDown = 0x201;
     private const uint LeftButtonUp = 0x202;
+    private const uint LeftButtonDoubleClick = 0x203;
     private const uint RightButtonDown = 0x204;
     private const uint RightButtonUp = 0x205;
+    private const uint RightButtonDoubleClick = 0x206;
     private const uint MiddleButtonDown = 0x207;
     private const uint MiddleButtonUp = 0x208;
+    private const uint MiddleButtonDoubleClick = 0x209;
     private const uint MouseWheel = 0x20A;
     private const long RepeatFlag = 1L << 30;
     private const float WheelNotch = 120f;
+    private const long WordMask = 0xFFFF;
+    private const int HighWordShift = 16;
     private const int LeftButton = 0;
     private const int RightButton = 1;
     private const int MiddleButton = 2;
@@ -28,14 +33,14 @@ public abstract record WindowInput
         KeyDown or SystemKeyDown when (lParam & RepeatFlag) == 0 => new KeyPressed((int)wParam),
         KeyUp or SystemKeyUp => new KeyReleased((int)wParam),
         Character => new CharacterTyped((char)wParam),
-        MouseMove => new MouseMoved((short)(lParam & 0xFFFF), (short)((lParam >> 16) & 0xFFFF)),
-        LeftButtonDown => new MouseButton(LeftButton, true),
+        MouseMove => new MouseMoved(LowWord(lParam), HighWord(lParam)),
+        LeftButtonDown or LeftButtonDoubleClick => new MouseButton(LeftButton, true),
         LeftButtonUp => new MouseButton(LeftButton, false),
-        RightButtonDown => new MouseButton(RightButton, true),
+        RightButtonDown or RightButtonDoubleClick => new MouseButton(RightButton, true),
         RightButtonUp => new MouseButton(RightButton, false),
-        MiddleButtonDown => new MouseButton(MiddleButton, true),
+        MiddleButtonDown or MiddleButtonDoubleClick => new MouseButton(MiddleButton, true),
         MiddleButtonUp => new MouseButton(MiddleButton, false),
-        MouseWheel => new MouseWheelTurned((short)((wParam >> 16) & 0xFFFF) / WheelNotch),
+        MouseWheel => new MouseWheelTurned(HighWord((long)wParam) / WheelNotch),
         _ => null,
     };
 
@@ -48,6 +53,10 @@ public abstract record WindowInput
 
         return point * displaySize / clientSize;
     }
+
+    private static short LowWord(long value) => (short)(value & WordMask);
+
+    private static short HighWord(long value) => (short)((value >> HighWordShift) & WordMask);
 }
 
 public sealed record KeyPressed(int Key) : WindowInput;

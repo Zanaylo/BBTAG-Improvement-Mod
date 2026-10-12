@@ -68,4 +68,17 @@ public class ScreenProjectionTests
         // Assert
         Assert.Equal(new Vector2(200, 100), screen);
     }
+
+    [Fact]
+    public void ToScreen_Quad_ProjectsEveryCorner()
+    {
+        // Arrange
+        Quad world = new(new Vector2(-1, 1), new Vector2(1, 1), new Vector2(1, -1), new Vector2(-1, -1));
+
+        // Act
+        Quad screen = ScreenProjection.ToScreen(world, Identity, FullHd);
+
+        // Assert
+        Assert.Equal(new Quad(new Vector2(0, 0), new Vector2(1920, 0), new Vector2(1920, 1080), new Vector2(0, 1080)), screen);
+    }
 }

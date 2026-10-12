@@ -2,24 +2,32 @@ using BBTAG_IM.Core.Palettes;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class PaletteChoices(PaletteEditor editor, PaletteLibrary library, MenuSettings settings)
+internal sealed class PaletteChoices(PaletteEditor editor, PaletteCatalog catalog, MenuSettings settings)
 {
-    private readonly Dictionary<string, CharacterPalettes> _palettes = new(StringComparer.OrdinalIgnoreCase);
+    public const string Reading = "Reading the palettes folder.";
+
+    private IReadOnlyList<string>? _characters;
 
     public static string Wearing(EditedCharacter character) =>
         character.PaletteName ?? (character.IsEdited ? "edited colors" : PaletteLibrary.GameColors);
 
-    public CharacterPalettes Of(string folder)
-    {
-        if (!_palettes.TryGetValue(folder, out var palettes))
-            _palettes[folder] = palettes = library.Load(folder);
+    public CharacterPalettes? Of(string folder) => catalog.LoadInBackground(folder);
 
-        return palettes;
+    public CharacterPalettes? Loaded(string folder) => catalog.Loaded(folder);
+
+    public IReadOnlyList<string> Characters() => _characters ??= catalog.Library.CharactersWithPalettes();
+
+    public void Rescan(string folder)
+    {
+        catalog.Reload(folder);
+        _characters = null;
     }
 
-    public void Rescan(string folder) => _palettes.Remove(folder);
-
-    public void Rescan() => _palettes.Clear();
+    public void Rescan()
+    {
+        catalog.ReloadAll();
+        _characters = null;
+    }
 
     public void Wear(EditedCharacter character, ImplPalette? palette)
     {

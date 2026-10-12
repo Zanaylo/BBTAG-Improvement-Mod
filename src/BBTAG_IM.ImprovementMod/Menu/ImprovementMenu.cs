@@ -9,8 +9,9 @@ internal sealed class ImprovementMenu(MenuSettings settings, PlayerCount playerC
     private const string Title = "BBTAG Improvement Mod";
     private const string PlayerCountLabel = "Current online players:";
     private const float WidthInFontSizes = 32;
-    private const float HighestShareOfScreen = 0.85f;
-    private const float FitContent = 0;
+    private const float NarrowestInFontSizes = 20;
+    private const float LowestInFontSizes = 10;
+    private const float FirstShareOfScreenHeight = 0.7f;
 
     private static readonly Vector2 FirstPosition = new(0.05f, 0.08f);
     private static readonly Vector4 PlayerCountColor = new(0, 1, 0, 1);
@@ -29,12 +30,13 @@ internal sealed class ImprovementMenu(MenuSettings settings, PlayerCount playerC
     public bool Draw(Vector2 displaySize)
     {
         var open = true;
-        var width = ImGui.GetFontSize() * WidthInFontSizes;
+        var font = ImGui.GetFontSize();
 
-        ImGui.SetNextWindowSizeConstraints(new Vector2(width, FitContent), new Vector2(float.MaxValue, displaySize.Y * HighestShareOfScreen));
         ImGui.SetNextWindowPos(displaySize * FirstPosition, ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(font * WidthInFontSizes, displaySize.Y * FirstShareOfScreenHeight), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSizeConstraints(new Vector2(font * NarrowestInFontSizes, font * LowestInFontSizes), new Vector2(float.MaxValue));
 
-        if (ImGui.Begin(Title, ref open, ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.AlwaysAutoResize))
+        if (ImGui.Begin(Title, ref open))
             DrawContents();
 
         ImGui.End();

@@ -45,11 +45,9 @@ public sealed class PaletteColors
 
     public ReadOnlySpan<byte> File(int file) => _bytes.AsSpan(file * FileLength, FileLength);
 
-    public PaletteColor Get(int file, int entry)
-    {
-        var color = Color(file, entry);
-        return new PaletteColor(color[RedByte], color[GreenByte], color[BlueByte], color[AlphaByte]);
-    }
+    public PaletteColor Get(int file, int entry) => Decode(Color(file, entry));
+
+    public static PaletteColor Decode(ReadOnlySpan<byte> color) => new(color[RedByte], color[GreenByte], color[BlueByte], color[AlphaByte]);
 
     public void Set(int file, int entry, PaletteColor value)
     {

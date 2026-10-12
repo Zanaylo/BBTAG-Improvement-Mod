@@ -19,6 +19,15 @@ public sealed class PhysicalFileSystem : IFileSystem
 
     public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
 
+    public byte[] ReadBytes(string path, long offset, int length)
+    {
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var bytes = new byte[length];
+        file.Position = offset;
+        file.ReadExactly(bytes);
+        return bytes;
+    }
+
     public DateTime LastWriteTimeUtc(string path) => File.GetLastWriteTimeUtc(path);
 
     public void WriteAllText(string path, string text)
@@ -32,6 +41,8 @@ public sealed class PhysicalFileSystem : IFileSystem
         CreateDirectoryOf(path);
         File.WriteAllBytes(path, bytes);
     }
+
+    public void DeleteFile(string path) => File.Delete(path);
 
     public Version? FileVersion(string path)
     {

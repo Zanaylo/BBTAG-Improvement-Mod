@@ -87,6 +87,9 @@ public sealed class ImplPalette
 
     public ReadOnlySpan<byte> File(int index) => _files.AsSpan(index * FileLength, FileLength);
 
+    public PaletteColor ColorAt(int file, int entry) =>
+        PaletteColors.Decode(File(file).Slice(entry * PaletteColors.BytesPerColor, PaletteColors.BytesPerColor));
+
     public bool IsFileEmpty(int index) => !File(index).ContainsAnyExcept((byte)0);
 
     public IReadOnlyList<uint> CharacterColors()

@@ -67,4 +67,65 @@ public class CharactersTests
         // Assert
         Assert.Equal(expected, isCode);
     }
+
+    [Theory]
+    [InlineData("Ragna", "brg")]
+    [InlineData("ragna", "brg")]
+    [InlineData("Nu", "bny")]
+    [InlineData("Yu", "pbc")]
+    [InlineData("Blitztank", "ubl")]
+    [InlineData("mko", "mko")]
+    public void ImageCodeOf_PaletteFolder_ReturnsTheCodeOfItsSpriteArchive(string folder, string expected)
+    {
+        // Act
+        string? code = Characters.ImageCodeOf(folder);
+
+        // Assert
+        Assert.Equal(expected, code);
+    }
+
+    [Theory]
+    [InlineData("Character 140")]
+    [InlineData("Packs")]
+    public void ImageCodeOf_FolderThatNamesNoCharacterCode_ReturnsNull(string folder)
+    {
+        // Act
+        string? code = Characters.ImageCodeOf(folder);
+
+        // Assert
+        Assert.Null(code);
+    }
+
+    [Fact]
+    public void ImageCodes_EveryGameCharacter_HasOneCode()
+    {
+        // Act
+        int count = Characters.ImageCodes.Count;
+
+        // Assert
+        Assert.Equal(Characters.Names.Count, count);
+    }
+
+    [Theory]
+    [InlineData("brg", "Ragna")]
+    [InlineData("bny", "Nu")]
+    [InlineData("mko", "mko")]
+    public void FolderOfImageCode_Code_ReturnsThePaletteFolderOfThatCharacter(string code, string expected)
+    {
+        // Act
+        string? folder = Characters.FolderOfImageCode(code);
+
+        // Assert
+        Assert.Equal(expected, folder);
+    }
+
+    [Fact]
+    public void FolderOfImageCode_TextThatIsNotACode_ReturnsNull()
+    {
+        // Act
+        string? folder = Characters.FolderOfImageCode("Ragna");
+
+        // Assert
+        Assert.Null(folder);
+    }
 }

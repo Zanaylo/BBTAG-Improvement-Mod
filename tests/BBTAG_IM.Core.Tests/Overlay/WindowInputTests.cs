@@ -13,8 +13,11 @@ public class WindowInputTests
     private const uint MouseMove = 0x200;
     private const uint LeftButtonDown = 0x201;
     private const uint LeftButtonUp = 0x202;
+    private const uint LeftButtonDoubleClick = 0x203;
     private const uint RightButtonDown = 0x204;
+    private const uint RightButtonDoubleClick = 0x206;
     private const uint MiddleButtonUp = 0x208;
+    private const uint MiddleButtonDoubleClick = 0x209;
     private const uint MouseWheel = 0x20A;
     private const uint Paint = 0x000F;
     private const ulong F1 = 0x70;
@@ -90,6 +93,9 @@ public class WindowInputTests
     [InlineData(LeftButtonUp, 0, false)]
     [InlineData(RightButtonDown, 1, true)]
     [InlineData(MiddleButtonUp, 2, false)]
+    [InlineData(LeftButtonDoubleClick, 0, true)]
+    [InlineData(RightButtonDoubleClick, 1, true)]
+    [InlineData(MiddleButtonDoubleClick, 2, true)]
     public void Parse_MouseButton_ReturnsWhichButtonAndItsState(uint message, int button, bool down)
     {
         // Act

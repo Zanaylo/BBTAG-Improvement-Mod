@@ -45,6 +45,7 @@ public class PaletteEditorTests
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
     private readonly ILog _logMock = Substitute.For<ILog>();
+    private readonly Func<int, int> _pickBelowMock = Substitute.For<Func<int, int>>();
 
     public PaletteEditorTests()
     {
@@ -55,7 +56,7 @@ public class PaletteEditorTests
     }
 
     public PaletteEditor CreatePaletteEditor() =>
-        new(Game, new CharacterRoster(_memoryMock, RosterGetter), () => _settings, new PaletteLibrary(_fileSystemMock, ModFolder), _logMock);
+        new(Game, new CharacterRoster(_memoryMock, RosterGetter), () => _settings, new PaletteCatalog(new PaletteLibrary(_fileSystemMock, ModFolder), work => work()), _logMock, _pickBelowMock);
 
     private GameView Game => new(_memoryMock, Addresses);
 
@@ -249,6 +250,26 @@ public class PaletteEditorTests
 
         // Assert
         Assert.Equal(1, PaletteIndex(PlayerOneFirst));
+    }
+
+    [Fact]
+    public void Update_NextMatchWithTheSameChosenPalette_ReadsThePaletteFolderOnlyOnce()
+    {
+        // Arrange
+        PaletteEditor editor = CreatePaletteEditor();
+        CharacterInSlot(PlayerOneFirst, Aegis, color: 2);
+        _settings.ChoosePalette("Aegis", 3, "Minato");
+        GameIs(Match);
+        editor.Update();
+        GameIs(CharacterSelect);
+        editor.Update();
+        GameIs(Match);
+
+        // Act
+        editor.Update();
+
+        // Assert
+        _fileSystemMock.Received(1).EnumerateFilesRecursively(AegisFolder);
     }
 
     [Fact]
@@ -513,6 +534,41 @@ public class PaletteEditorTests
         Assert.Equal(AegisFolder + @"\Crimson.impl", path);
         _fileSystemMock.Received(1).WriteAllBytes(path, Arg.Is<byte[]>(bytes => ImplPalette.Parse("Crimson", bytes).Colors().Get(CharacterFile, Entry) == Red));
         Assert.Equal("Crimson", editor.Character(PlayerOneFirst)!.PaletteName);
+    }
+
+    [Fact]
+    public void Update_ColorSetToRandom_WearsThePickedPalette()
+    {
+        // Arrange
+        PaletteEditor editor = CreatePaletteEditor();
+        CharacterInSlot(PlayerOneFirst, Aegis, color: 2);
+        _settings.ChoosePalette("Aegis", 3, RandomPalette.Any);
+        _pickBelowMock(2).Returns(0);
+        GameIs(Match);
+
+        // Act
+        editor.Update();
+
+        // Assert
+        Assert.Equal("Minato", editor.Character(PlayerOneFirst)!.PaletteName);
+        Assert.All(FileBytes(PlayerOneFirst, 2), value => Assert.Equal(0x42, value));
+    }
+
+    [Fact]
+    public void Update_RandomColorLandingOnTheGameColors_KeepsTheGameColors()
+    {
+        // Arrange
+        PaletteEditor editor = CreatePaletteEditor();
+        CharacterInSlot(PlayerOneFirst, Aegis, color: 2);
+        _settings.ChoosePalette("Aegis", 3, RandomPalette.Any);
+        _pickBelowMock(2).Returns(1);
+        GameIs(Match);
+
+        // Act
+        editor.Update();
+
+        // Assert
+        Assert.Equal((null, false), (editor.Character(PlayerOneFirst)!.PaletteName, editor.Character(PlayerOneFirst)!.IsEdited));
     }
 
     private PaletteEditor StartedEditor(int color)

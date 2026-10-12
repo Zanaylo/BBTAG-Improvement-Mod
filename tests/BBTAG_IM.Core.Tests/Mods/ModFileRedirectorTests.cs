@@ -235,4 +235,17 @@ public class ModFileRedirectorTests
         // Assert
         Assert.Equal(1, redirections);
     }
+
+    [Theory]
+    [InlineData(0x80000000u, 3u, true)]
+    [InlineData(0xC0000000u, 3u, false)]
+    [InlineData(0x80000000u, 2u, false)]
+    public void ReadsExistingFile_AccessAndDisposition_IsTrueOnlyForReadingAFileThatExists(uint access, uint disposition, bool expected)
+    {
+        // Act
+        bool reads = ModFileRedirector.ReadsExistingFile(access, disposition);
+
+        // Assert
+        Assert.Equal(expected, reads);
+    }
 }

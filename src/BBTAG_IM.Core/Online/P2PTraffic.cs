@@ -17,14 +17,25 @@ public sealed class P2PTraffic
         }
     }
 
+    public void Clear()
+    {
+        lock (_lock)
+            Forget();
+    }
+
     public P2PSnapshot Take()
     {
         lock (_lock)
         {
             var snapshot = new P2PSnapshot([.. _remotes], [.. _channels]);
-            _remotes.Clear();
-            _channels.Clear();
+            Forget();
             return snapshot;
         }
+    }
+
+    private void Forget()
+    {
+        _remotes.Clear();
+        _channels.Clear();
     }
 }

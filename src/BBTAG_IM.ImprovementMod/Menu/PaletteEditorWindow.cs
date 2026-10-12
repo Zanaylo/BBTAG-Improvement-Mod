@@ -26,16 +26,27 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private static readonly Vector2 FirstPosition = new(0.45f, 0.08f);
     private static readonly Vector4 SelectedBorder = new(1, 1, 1, 1);
     private static readonly Vector4 ChangedBorder = new(1, 0.8f, 0.2f, 1);
+    private static readonly string[] EntryLabels = EntryTexts(entry => $"Entry {entry}");
+    private static readonly string[] ChangedEntryTooltips = EntryTexts(entry => $"Entry {entry}, changed");
+    private static readonly string[] ChangedEntryLabels = EntryTexts(entry => $"Entry {entry} (changed)");
+    private static readonly string[] EffectNames = Enumerable.Range(0, PaletteColors.FileCount).Select(file => $"Effect {file}").ToArray();
 
     private readonly SlotState[] _slots = PlayerSlots.InPlayerOrder.Select(_ => new SlotState()).ToArray();
 
     private bool _isOpen;
+    private int? _shownSlot;
     private bool _highlightOnPick = true;
     private bool _editTransparency;
 
     public bool IsOpen => _isOpen;
 
     public void Toggle() => _isOpen = !_isOpen;
+
+    public void Show(int slot)
+    {
+        _isOpen = true;
+        _shownSlot = slot;
+    }
 
     public void Draw(Vector2 displaySize)
     {
@@ -67,7 +78,9 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
             if (editor.Character(slot) is not { } character)
                 continue;
 
-            if (!ImGui.BeginTabItem($"P{character.Player} {character.Character.Name}##{slot}"))
+            var flags = slot == _shownSlot ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+
+            if (!NativeImGui.BeginTabItem($"P{character.Player} {character.Character.Name}##{slot}", flags))
                 continue;
 
             ImGui.PushID(slot);
@@ -77,6 +90,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
         }
 
         ImGui.EndTabBar();
+        _shownSlot = null;
     }
 
     private void DrawCharacter(EditedCharacter character, SlotState state)
@@ -187,7 +201,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
             ImGui.PopStyleColor();
         }
 
-        MenuText.Tooltip(changed ? $"Entry {entry}, changed" : $"Entry {entry}");
+        MenuText.Tooltip(changed ? ChangedEntryTooltips[entry] : EntryLabels[entry]);
 
         if ((entry + 1) % SwatchesPerRow != 0)
             ImGui.SameLine();
@@ -208,7 +222,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
         var entry = state.Entry;
         var current = character.Colors.Get(file, entry);
 
-        ImGui.TextUnformatted(character.IsChanged(file, entry) ? $"Entry {entry} (changed)" : $"Entry {entry}");
+        ImGui.TextUnformatted(character.IsChanged(file, entry) ? ChangedEntryLabels[entry] : EntryLabels[entry]);
         ImGui.SetNextItemWidth(ImGui.GetFontSize() * PickerWidthInFontSizes);
 
         var picked = _editTransparency ? PickWithTransparency(current) : PickWithoutTransparency(current);
@@ -318,7 +332,9 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
         }
     }
 
-    private static string EffectName(int file) => $"Effect {file}";
+    private static string EffectName(int file) => EffectNames[file];
+
+    private static string[] EntryTexts(Func<int, string> text) => Enumerable.Range(0, PaletteColors.ColorsPerFile).Select(text).ToArray();
 
     private static Vector4 ToVector(PaletteColor color) => new Vector4(color.R, color.G, color.B, color.A) / FullChannel;
 

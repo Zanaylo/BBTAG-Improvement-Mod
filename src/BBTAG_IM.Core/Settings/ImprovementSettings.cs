@@ -21,12 +21,52 @@ public sealed class ImprovementSettings
 
     public float? MenuFontSize { get; set; }
 
+    public float? PaletteDetailWidth { get; set; }
+
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, Dictionary<int, string>> Palettes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public BoxStyle StyleOf(BoxKind kind) => kind == BoxKind.Hitbox ? Hitboxes : Hurtboxes;
 
     public string? PaletteFor(string character, int color) => Palettes.GetValueOrDefault(character)?.GetValueOrDefault(color);
+
+    public int HighestColor(string character)
+    {
+        if (!Palettes.TryGetValue(character, out var colors))
+            return 0;
+
+        var highest = 0;
+
+        foreach (var color in colors.Keys)
+            highest = Math.Max(highest, color);
+
+        return highest;
+    }
+
+    public int? ColorOf(string character, string palette)
+    {
+        if (!Palettes.TryGetValue(character, out var colors))
+            return null;
+
+        int? lowest = null;
+
+        foreach (var (color, name) in colors)
+        {
+            if (name.Equals(palette, StringComparison.OrdinalIgnoreCase) && (lowest is null || color < lowest))
+                lowest = color;
+        }
+
+        return lowest;
+    }
+
+    public void AssignPalette(string character, string palette, int? color)
+    {
+        while (ColorOf(character, palette) is { } held)
+            ChoosePalette(character, held, null);
+
+        if (color is { } chosen)
+            ChoosePalette(character, chosen, palette);
+    }
 
     public void ChoosePalette(string character, int color, string? palette)
     {

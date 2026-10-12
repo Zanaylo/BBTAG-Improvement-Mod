@@ -165,4 +165,20 @@ public class ImplPaletteTests
         // Assert
         Assert.Equal(new string('d', 63), parsed.Description);
     }
+
+    [Fact]
+    public void ColorAt_StoredBlueGreenRedAlpha_ReturnsTheColorInRedGreenBlueOrder()
+    {
+        // Arrange
+        byte[] bytes = ImplFile.Create(Aegis);
+        int entry = 13;
+        new byte[] { 0x30, 0x20, 0x10, 0xFF }.CopyTo(bytes, ImplFile.FirstFileOffset + ImplFile.FileLength * 2 + entry * 4);
+        ImplPalette palette = ImplPalette.Parse("Minato", bytes);
+
+        // Act
+        PaletteColor color = palette.ColorAt(2, entry);
+
+        // Assert
+        Assert.Equal(new PaletteColor(0x10, 0x20, 0x30, 0xFF), color);
+    }
 }

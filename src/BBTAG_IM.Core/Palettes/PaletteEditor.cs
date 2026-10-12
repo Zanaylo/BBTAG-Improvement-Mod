@@ -5,7 +5,7 @@ using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Core.Palettes;
 
-public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<ImprovementSettings> settings, PaletteLibrary library, ILog log)
+public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<ImprovementSettings> settings, PaletteCatalog catalog, ILog log, Func<int, int> pickBelow)
 {
     public const int HighlightFrames = 90;
     public const int BlinkFrames = 8;
@@ -13,6 +13,9 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
     private const int HighestColor = 0xFF;
 
     private readonly EditedCharacter?[] _characters = new EditedCharacter?[GameView.CharacterSlots];
+    private readonly PaletteTable[] _tables = Enumerable.Range(0, GameView.CharacterSlots)
+        .Select(slot => new PaletteTable(game.Memory, game.PaletteTableAddress(slot)))
+        .ToArray();
     private readonly Dictionary<(string Folder, int Color), LeftColors> _leftColors = [];
 
     private HighlightedEntry? _highlight;
@@ -82,7 +85,7 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
             throw new InvalidOperationException($"Slot {slot} has no character to save.");
 
         var palette = ImplPalette.Create(name, character.Character.Index, creator, description, character.Colors);
-        var path = library.Save(character.Character.Folder, palette);
+        var path = catalog.Library.Save(character.Character.Folder, palette);
         character.Name(name);
         return path;
     }
@@ -137,12 +140,36 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
         if (settings().PaletteFor(folder, character.Color + 1) is not { } paletteName)
             return;
 
-        if (library.Load(folder).Find(paletteName) is not { } palette)
+        var palettes = catalog.Load(folder);
+
+        if (RandomPalette.IsChoice(paletteName))
+        {
+            WearRandomPalette(character, paletteName, palettes);
+            return;
+        }
+
+        if (palettes.Find(paletteName) is not { } palette)
         {
             log.Info($"{folder} color {character.Color + 1} should use the palette {paletteName}, but it is not in the palettes folder.");
             return;
         }
 
+        Wear(character, palette);
+    }
+
+    private void WearRandomPalette(EditedCharacter character, string choice, CharacterPalettes palettes)
+    {
+        if (RandomPalette.Pick(choice, palettes.Palettes, pickBelow) is not { } palette)
+        {
+            log.Info($"Player {character.Player} {character.Character.Name} color {character.Color + 1}: the random pick kept the game colors.");
+            return;
+        }
+
+        Wear(character, palette);
+    }
+
+    private void Wear(EditedCharacter character, ImplPalette palette)
+    {
         character.Wear(character.Original.Wearing(palette), palette.Name);
         log.Info($"Player {character.Player} {character.Character.Name} color {character.Color + 1}: palette {palette.Name}.");
     }
@@ -223,7 +250,7 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
             game.Memory.WriteInt32(indexAddress, character.Color);
     }
 
-    private PaletteTable Table(int slot) => new(game.Memory, game.PaletteTableAddress(slot));
+    private PaletteTable Table(int slot) => _tables[slot];
 
     private sealed record LeftColors(PaletteColors Shown, PaletteColors Original);
 

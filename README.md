@@ -92,7 +92,19 @@ whether the Cheat Engine window is shown).
 - **In-game menu.** F1 opens a [Dear ImGui](https://github.com/ocornut/imgui) window (through
   [ImGui.NET](https://github.com/ImGuiNET/ImGui.NET), `cimgui.dll` ships in the mod folder) with
   the Training, Palettes, Performance and Config sections, laid out like UNI2-IM. The palette
-  editor is a separate window. The game window procedure is subclassed for F1, F2, F5 and F6
+  editor and the palette assignments window (BBCF-IM style: every palette per character drawn
+  on its standing sprite, the in-game color that loads it, Random choices, search, import, export and
+  delete) are separate windows. Every window can be resized, and ImGui keeps their positions
+  and sizes in `menu-layout.ini` in the mod folder. The sprite is read at run time from the
+  game's `data\char\char_<code>_img.pac` (enabled mods first): the FPAC file list, the
+  `<prefix>000_00.hip` of the most common sprite prefix, its (index, run) pairs, cropped to
+  the parts larger than a twentieth of the biggest one, then painted with the palette's
+  character colors into a cached texture. Nothing from the game ships with the mod.
+- **Character select colors.** Character select reloads `data\etc\char_select_pal\char_select_<code>_pal.pac`
+  (one `<code>NN_00.hpl` per color, the same bytes as the battle colors) every time the screen
+  is built. The Improvement Mod chains its own `CreateFileA`/`CreateFileW` import hook on top of
+  the payload's and, for a read of that file, hands the game a copy in `cache\` with each
+  assigned palette's character colors written over its color's entry. The game window procedure is subclassed for F1, F2, F5 and F6
   and, while the menu is open, for the mouse, and for the keyboard while a text field has
   focus. ImGui's draw lists are drawn with `DrawIndexedPrimitiveUP` from pretransformed
   vertices, using a dynamic font texture that is released before `Reset` and rebuilt when the

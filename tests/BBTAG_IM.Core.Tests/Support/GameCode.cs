@@ -37,7 +37,7 @@ internal sealed class GameCode
 
     public GameCode Bytes(uint offset, string hex)
     {
-        var bytes = hex.Split(' ').Select(token => token == "??" ? Breakpoint : byte.Parse(token, NumberStyles.HexNumber)).ToArray();
+        byte[] bytes = hex.Split(' ').Select(token => token == "??" ? Breakpoint : byte.Parse(token, NumberStyles.HexNumber)).ToArray();
         bytes.CopyTo(_bytes, offset);
         return this;
     }

@@ -1,17 +1,25 @@
-using System.Runtime.InteropServices;
 using BBTAG_IM.Core.Memory;
 
 namespace BBTAG_IM.Native;
 
 public sealed unsafe class ProcessMemory : IGameMemory
 {
-    private MemoryRegion? _lastRegion;
+    private const int RememberedRegions = 16;
 
-    public void ForgetRegions() => _lastRegion = null;
+    private readonly MemoryRegion[] _regions = new MemoryRegion[RememberedRegions];
 
-    public bool CanRead(uint address, int length) => Covers(address, length, region => region.IsReadable);
+    private int _rememberedCount;
+    private int _nextSlot;
 
-    public bool CanWrite(uint address, int length) => Covers(address, length, region => region.IsWritable);
+    public void ForgetRegions()
+    {
+        _rememberedCount = 0;
+        _nextSlot = 0;
+    }
+
+    public bool CanRead(uint address, int length) => Covers(address, length, needsWrite: false);
+
+    public bool CanWrite(uint address, int length) => Covers(address, length, needsWrite: true);
 
     public void Read(uint address, Span<byte> destination) =>
         new ReadOnlySpan<byte>((void*)(nint)address, destination.Length).CopyTo(destination);
@@ -19,7 +27,7 @@ public sealed unsafe class ProcessMemory : IGameMemory
     public void Write(uint address, ReadOnlySpan<byte> source) =>
         source.CopyTo(new Span<byte>((void*)(nint)address, source.Length));
 
-    private bool Covers(uint address, int length, Func<MemoryRegion, bool> allows)
+    private bool Covers(uint address, int length, bool needsWrite)
     {
         if (address == 0 || length < 0)
             return false;
@@ -29,7 +37,7 @@ public sealed unsafe class ProcessMemory : IGameMemory
 
         while (cursor < end)
         {
-            if (RegionAt(cursor) is not { } region || !allows(region))
+            if (!TryFindRegion(cursor, out var region) || !Allows(region, needsWrite))
                 return false;
 
             cursor = region.End;
@@ -38,15 +46,30 @@ public sealed unsafe class ProcessMemory : IGameMemory
         return true;
     }
 
-    private MemoryRegion? RegionAt(ulong address)
+    private static bool Allows(MemoryRegion region, bool needsWrite) => needsWrite ? region.IsWritable : region.IsReadable;
+
+    private bool TryFindRegion(ulong address, out MemoryRegion region)
     {
-        if (_lastRegion is { } cached && cached.Contains(address))
-            return cached;
+        for (var index = 0; index < _rememberedCount; index++)
+        {
+            if (!_regions[index].Contains(address))
+                continue;
 
-        if (Kernel32.VirtualQuery((nint)address, out var region, (nuint)Marshal.SizeOf<MemoryRegion>()) == 0)
-            return null;
+            region = _regions[index];
+            return true;
+        }
 
-        _lastRegion = region;
-        return region;
+        if (Kernel32.VirtualQuery((nint)address, out region, (nuint)sizeof(MemoryRegion)) == 0)
+            return false;
+
+        Remember(region);
+        return true;
+    }
+
+    private void Remember(MemoryRegion region)
+    {
+        _regions[_nextSlot] = region;
+        _nextSlot = (_nextSlot + 1) % RememberedRegions;
+        _rememberedCount = Math.Min(_rememberedCount + 1, RememberedRegions);
     }
 }

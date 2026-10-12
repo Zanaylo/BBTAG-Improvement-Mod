@@ -18,15 +18,18 @@ public sealed class PaletteTable(IGameMemory memory, uint tableField)
 
     public bool IsLoaded(int color) => HasFile(color, CharacterFile);
 
-    public bool HasFile(int color, int file) => WritableFile(color, file) is not null;
+    public bool HasFile(int color, int file) => FileList is { } files && WritableFile(files, color, file) is not null;
 
     public PaletteColors Read(int color)
     {
         var bytes = new byte[PaletteColors.Length];
 
+        if (FileList is not { } files)
+            return PaletteColors.From(bytes);
+
         for (var file = 0; file < PaletteColors.FileCount; file++)
         {
-            if (WritableFile(color, file) is { } address)
+            if (WritableFile(files, color, file) is { } address)
                 memory.Read(address, bytes.AsSpan(file * PaletteColors.FileLength, PaletteColors.FileLength));
         }
 
@@ -35,11 +38,14 @@ public sealed class PaletteTable(IGameMemory memory, uint tableField)
 
     public int Write(int color, PaletteColors colors)
     {
+        if (FileList is not { } files)
+            return 0;
+
         var written = 0;
 
         for (var file = 0; file < PaletteColors.FileCount; file++)
         {
-            if (WritableFile(color, file) is not { } address)
+            if (WritableFile(files, color, file) is not { } address)
                 continue;
 
             memory.Write(address, colors.File(file));
@@ -50,9 +56,9 @@ public sealed class PaletteTable(IGameMemory memory, uint tableField)
         return written;
     }
 
-    private uint? WritableFile(int color, int file)
+    private uint? WritableFile(uint files, int color, int file)
     {
-        if (color < 0 || FileList is not { } files)
+        if (color < 0)
             return null;
 
         if (memory.ReadPointer(files + (uint)((color * PaletteColors.FileCount + file) * PointerSize)) is not { } start)

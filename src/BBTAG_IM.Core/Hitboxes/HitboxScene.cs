@@ -14,19 +14,19 @@ public sealed record HitboxFrame(IReadOnlyList<HitboxShape> Boxes, IReadOnlyList
 
 public static class HitboxScene
 {
-    private const int PointerSize = sizeof(uint);
+    private const int EntityListLength = GameView.EntityCount * sizeof(uint);
 
     public static bool IsVisible(GameView game, ImprovementSettings settings) =>
         settings.HitboxViewer && game.InTrainingMatch;
 
     public static HitboxFrame Collect(GameView game)
     {
-        if (game.EntityList is not { } list || !game.Memory.CanRead(list, GameView.EntityCount * PointerSize))
+        if (game.EntityList is not { } list || !game.Memory.CanRead(list, EntityListLength))
             return HitboxFrame.Empty;
 
-        var bytes = new byte[GameView.EntityCount * PointerSize];
+        Span<byte> bytes = stackalloc byte[EntityListLength];
         game.Memory.Read(list, bytes);
-        var entities = MemoryMarshal.Cast<byte, uint>(bytes).ToArray();
+        ReadOnlySpan<uint> entities = MemoryMarshal.Cast<byte, uint>(bytes);
         var characters = entities[..GameView.CharacterSlots];
         List<HitboxShape> boxes = [];
         List<Vector2> origins = [];
@@ -42,7 +42,9 @@ public static class HitboxScene
             if (entity.Owner == 0 || !characters.Contains(entity.Owner) || entity.Boxes.Count == 0)
                 continue;
 
-            boxes.AddRange(entity.Boxes.Select(box => new HitboxShape(box.Kind, HitboxGeometry.Corners(entity, box))));
+            foreach (var box in entity.Boxes)
+                boxes.Add(new HitboxShape(box.Kind, HitboxGeometry.Corners(entity, box)));
+
             origins.Add(HitboxGeometry.Origin(entity));
         }
 

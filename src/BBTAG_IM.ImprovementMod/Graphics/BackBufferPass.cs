@@ -1,13 +1,16 @@
 namespace BBTAG_IM.ImprovementMod.Graphics;
 
-internal static class BackBufferPass
+internal sealed class BackBufferPass
 {
     private const int CaptureAllStates = 1;
 
-    public static void Run(nint devicePointer, Action<Direct3DDevice, DeviceViewport> draw)
+    private nint _stateBlock;
+    private nint _stateBlockDevice;
+
+    public void Run(nint devicePointer, Action<Direct3DDevice, DeviceViewport> draw)
     {
         var device = new Direct3DDevice(devicePointer);
-        var stateBlock = device.CreateStateBlock(CaptureAllStates);
+        var stateBlock = SavedStates(device, devicePointer);
 
         if (stateBlock == 0)
             return;
@@ -19,8 +22,25 @@ internal static class BackBufferPass
         finally
         {
             Direct3DDevice.ApplyStateBlock(stateBlock);
-            Direct3DDevice.Release(stateBlock);
         }
+    }
+
+    public void Release()
+    {
+        Direct3DDevice.Release(_stateBlock);
+        _stateBlock = 0;
+        _stateBlockDevice = 0;
+    }
+
+    private nint SavedStates(Direct3DDevice device, nint devicePointer)
+    {
+        if (_stateBlock != 0 && _stateBlockDevice == devicePointer)
+            return Direct3DDevice.CaptureStateBlock(_stateBlock) ? _stateBlock : 0;
+
+        Release();
+        _stateBlock = device.CreateStateBlock(CaptureAllStates);
+        _stateBlockDevice = _stateBlock == 0 ? 0 : devicePointer;
+        return _stateBlock;
     }
 
     private static void DrawOnBackBuffer(Direct3DDevice device, Action<Direct3DDevice, DeviceViewport> draw)

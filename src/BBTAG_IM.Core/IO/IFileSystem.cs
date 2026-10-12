@@ -16,11 +16,15 @@ public interface IFileSystem
 
     byte[] ReadAllBytes(string path);
 
+    byte[] ReadBytes(string path, long offset, int length);
+
     DateTime LastWriteTimeUtc(string path);
 
     void WriteAllText(string path, string text);
 
     void WriteAllBytes(string path, byte[] bytes);
+
+    void DeleteFile(string path);
 
     Version? FileVersion(string path);
 }

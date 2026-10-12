@@ -4,7 +4,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class PaletteSection(PaletteEditor editor, PaletteChoices choices, PaletteEditorWindow editorWindow) : IMenuSection
+internal sealed class PaletteSection(PaletteEditor editor, PaletteChoices choices, PaletteEditorWindow editorWindow, PaletteAssignmentsWindow assignmentsWindow) : IMenuSection
 {
     public const string Name = "Palettes";
 
@@ -21,6 +21,13 @@ internal sealed class PaletteSection(PaletteEditor editor, PaletteChoices choice
     {
         if (ImGui.Button(editorWindow.IsOpen ? "Close editor" : "Open editor"))
             editorWindow.Toggle();
+
+        ImGui.SameLine();
+
+        if (ImGui.Button(PaletteAssignmentsWindow.Title))
+            assignmentsWindow.Toggle();
+
+        MenuText.Tooltip("Every palette of every character, and which in-game color loads each one.");
 
         MenuText.Wrapped("Change any color of the characters while you watch them, then save it as a palette.");
 
@@ -41,13 +48,21 @@ internal sealed class PaletteSection(PaletteEditor editor, PaletteChoices choice
 
     private void DrawChooser(EditedCharacter character)
     {
-        var palettes = choices.Of(character.Character.Folder);
-
         ImGui.PushID(character.Slot);
         ImGui.TextUnformatted($"P{character.Player}");
         ImGui.SameLine();
         ImGui.TextDisabled($"{character.Character.Name}, color {character.Color + 1}");
 
+        if (choices.Of(character.Character.Folder) is { } palettes)
+            DrawPaletteCombo(character, palettes);
+        else
+            MenuText.Muted(PaletteChoices.Reading);
+
+        ImGui.PopID();
+    }
+
+    private void DrawPaletteCombo(EditedCharacter character, CharacterPalettes palettes)
+    {
         ImGui.SetNextItemWidth(ImGui.GetFontSize() * ComboWidthInFontSizes);
 
         if (ImGui.BeginCombo("##worn", PaletteChoices.Wearing(character)))
@@ -67,8 +82,6 @@ internal sealed class PaletteSection(PaletteEditor editor, PaletteChoices choice
 
         foreach (var problem in palettes.Problems)
             MenuText.Muted(problem);
-
-        ImGui.PopID();
     }
 
     private void DrawChoices(EditedCharacter character, CharacterPalettes palettes)

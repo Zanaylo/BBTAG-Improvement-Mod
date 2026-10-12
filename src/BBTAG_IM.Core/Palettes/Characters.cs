@@ -12,6 +12,16 @@ public static class Characters
         "Neo", "Yumi", "Blitztank",
     ];
 
+    public static IReadOnlyList<string> ImageCodes { get; } =
+    [
+        "brg", "bjn", "bno", "brc", "btg", "bha", "bny", "bhz", "bmk", "bpt",
+        "biz", "baz", "bph", "bes", "bma", "bjb", "pbc", "pyo", "pce", "pyu",
+        "pka", "pna", "pmi", "pak", "pag", "pla", "uhy", "uli", "uwa", "uca",
+        "uor", "ugo", "ume", "uva", "uyu", "umi", "rrb", "rwi", "rbl", "ryn",
+        "bnt", "pku", "use", "ahe", "bce", "bsu", "pad", "pel", "uak", "uhi",
+        "rne", "kym", "ubl",
+    ];
+
     public const string NumberedPrefix = "Character ";
 
     private const int LongestCode = 4;
@@ -23,6 +33,28 @@ public static class Characters
 
     public static bool IsNumbered(string text) =>
         text.StartsWith(NumberedPrefix, StringComparison.OrdinalIgnoreCase) && int.TryParse(text[NumberedPrefix.Length..], out _);
+
+    public static string? ImageCodeOf(string folder)
+    {
+        if (IndexOf(folder) is { } index)
+            return ImageCodes[index];
+
+        return IsCode(folder) ? folder : null;
+    }
+
+    public static string? FolderOfImageCode(string code)
+    {
+        if (!IsCode(code))
+            return null;
+
+        for (var index = 0; index < ImageCodes.Count; index++)
+        {
+            if (ImageCodes[index] == code)
+                return Names[index];
+        }
+
+        return code;
+    }
 
     public static int? IndexOf(string name)
     {

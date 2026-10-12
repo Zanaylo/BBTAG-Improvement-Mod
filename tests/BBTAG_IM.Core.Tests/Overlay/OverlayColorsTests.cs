@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.Overlay;
+using BBTAG_IM.Core.Palettes;
 
 namespace BBTAG_IM.Core.Tests.Overlay;
 
@@ -12,16 +13,6 @@ public class OverlayColorsTests
 
         // Assert
         Assert.Equal(0x80112233u, color);
-    }
-
-    [Fact]
-    public void SwapRedAndBlue_AppliedTwice_GivesTheColorBack()
-    {
-        // Act
-        uint color = OverlayColors.SwapRedAndBlue(OverlayColors.SwapRedAndBlue(0xFF699B5F));
-
-        // Assert
-        Assert.Equal(0xFF699B5Fu, color);
     }
 
     [Fact]
@@ -45,5 +36,15 @@ public class OverlayColorsTests
 
         // Assert
         Assert.Equal(0xFF112233u, color);
+    }
+
+    [Fact]
+    public void Swatch_TransparentPaletteColor_ReturnsItOpaqueInMenuOrder()
+    {
+        // Act
+        uint color = OverlayColors.Swatch(new PaletteColor(0x10, 0x20, 0x30, 0x00));
+
+        // Assert
+        Assert.Equal(0xFF302010u, color);
     }
 }

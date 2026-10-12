@@ -111,6 +111,21 @@ public class PaletteLibraryTests
     }
 
     [Fact]
+    public void Load_FolderThatCannotBeListed_ReportsItInsteadOfFailing()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        _fileSystemMock.DirectoryExists(AegisFolder).Returns(true);
+        _fileSystemMock.EnumerateFilesRecursively(AegisFolder).Throws(new UnauthorizedAccessException("Access is denied."));
+
+        // Act
+        CharacterPalettes palettes = library.Load("Aegis");
+
+        // Assert
+        Assert.Equal((0, "The Aegis palettes could not be read: Access is denied."), (palettes.Palettes.Count, palettes.Problems.Single()));
+    }
+
+    [Fact]
     public void Load_TwoPalettesWithTheSameName_KeepsTheFirstAndReportsTheOther()
     {
         // Arrange
@@ -209,6 +224,8 @@ public class PaletteLibraryTests
     [InlineData("Min/ato", false)]
     [InlineData("Min:ato", false)]
     [InlineData("Game colors", false)]
+    [InlineData("Random", false)]
+    [InlineData("random_exclude_default", false)]
     public void IsUsableName_Name_AcceptsOnlyNamesThatMakeAFile(string name, bool expected)
     {
         // Act
@@ -216,6 +233,143 @@ public class PaletteLibraryTests
 
         // Assert
         Assert.Equal(expected, usable);
+    }
+
+    [Fact]
+    public void Open_PaletteFile_NamesItAfterTheFile()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        _fileSystemMock.ReadAllBytes(@"C:\Downloads\Minato.impl").Returns(ImplFile.Create(Aegis));
+
+        // Act
+        ImplPalette palette = library.Open(@"C:\Downloads\Minato.impl");
+
+        // Assert
+        Assert.Equal(("Minato", Aegis), (palette.Name, palette.CharacterIndex));
+    }
+
+    [Fact]
+    public void Open_FileThatIsNotAPalette_ThrowsInvalidPaletteException()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        _fileSystemMock.ReadAllBytes(@"C:\Downloads\Minato.impl").Returns([1, 2, 3]);
+
+        // Act
+        Exception? exception = Record.Exception(() => library.Open(@"C:\Downloads\Minato.impl"));
+
+        // Assert
+        Assert.IsType<InvalidPaletteException>(exception);
+    }
+
+    [Fact]
+    public void Import_FreeName_WritesThePaletteIntoTheCharacterFolder()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        ImplPalette palette = ImplPalette.Parse("Minato", ImplFile.Create(Aegis, fill: 0x42));
+
+        // Act
+        string name = library.Import(palette, "Aegis");
+
+        // Assert
+        Assert.Equal("Minato", name);
+        _fileSystemMock.Received(1).WriteAllBytes(AegisFolder + @"\Minato.impl", Arg.Is<byte[]>(bytes => bytes.SequenceEqual(ImplPalette.Create("Minato", Aegis, "", "", palette.Colors()).ToBytes())));
+    }
+
+    [Fact]
+    public void Import_NameAlreadyTaken_AddsTheFirstFreeNumber()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        FolderHolds((AegisFolder + @"\Minato.impl", ImplFile.Create(Aegis)), (AegisFolder + @"\Pack\minato_2.impl", ImplFile.Create(Aegis)));
+        ImplPalette palette = ImplPalette.Parse("Minato", ImplFile.Create(Aegis));
+
+        // Act
+        string name = library.Import(palette, "Aegis");
+
+        // Assert
+        Assert.Equal("Minato_3", name);
+        _fileSystemMock.Received(1).WriteAllBytes(AegisFolder + @"\Minato_3.impl", Arg.Any<byte[]>());
+    }
+
+    [Fact]
+    public void Import_PaletteOfAnotherCharacter_StampsTheChosenCharacterInTheFile()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        ImplPalette palette = ImplPalette.Parse("Minato", ImplFile.Create(Ragna));
+
+        // Act
+        library.Import(palette, "Aegis");
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllBytes(Arg.Any<string>(), Arg.Is<byte[]>(bytes => ImplPalette.Parse("Minato", bytes).CharacterIndex == Aegis));
+    }
+
+    [Fact]
+    public void Import_IntoModdedCharacterFolder_KeepsTheCharacterOfTheFile()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        ImplPalette palette = ImplPalette.Parse("Red", ImplFile.Create(Kohaku));
+
+        // Act
+        library.Import(palette, "mko");
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllBytes(ModdedFolder + @"\Red.impl", Arg.Is<byte[]>(bytes => ImplPalette.Parse("Red", bytes).CharacterIndex == Kohaku));
+    }
+
+    [Fact]
+    public void Export_Palette_WritesItsFileToThePath()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        ImplPalette palette = ImplPalette.Parse("Minato", ImplFile.Create(Aegis, "Painter"));
+
+        // Act
+        library.Export(palette, @"C:\Shared\Minato.impl");
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllBytes(@"C:\Shared\Minato.impl", Arg.Is<byte[]>(bytes => bytes.SequenceEqual(palette.ToBytes())));
+    }
+
+    [Fact]
+    public void Delete_PaletteInSeveralFolders_DeletesEveryFileWithThatNameAndCountsThem()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        FolderHolds(
+            (AegisFolder + @"\Minato.impl", ImplFile.Create(Aegis)),
+            (AegisFolder + @"\Pack\minato.impl", ImplFile.Create(Aegis)),
+            (AegisFolder + @"\Gold.impl", ImplFile.Create(Aegis)),
+            (AegisFolder + @"\Minato.png", [1, 2, 3]));
+
+        // Act
+        int deleted = library.Delete("Aegis", "Minato");
+
+        // Assert
+        Assert.Equal(2, deleted);
+        _fileSystemMock.Received(1).DeleteFile(AegisFolder + @"\Minato.impl");
+        _fileSystemMock.Received(1).DeleteFile(AegisFolder + @"\Pack\minato.impl");
+        _fileSystemMock.Received(2).DeleteFile(Arg.Any<string>());
+    }
+
+    [Fact]
+    public void Delete_CharacterWithoutFolder_DeletesNothing()
+    {
+        // Arrange
+        PaletteLibrary library = CreatePaletteLibrary();
+        _fileSystemMock.DirectoryExists(AegisFolder).Returns(false);
+
+        // Act
+        int deleted = library.Delete("Aegis", "Minato");
+
+        // Assert
+        Assert.Equal(0, deleted);
+        _fileSystemMock.DidNotReceive().DeleteFile(Arg.Any<string>());
     }
 
     private void FolderHolds(params (string Path, byte[] Bytes)[] files)

@@ -5,6 +5,8 @@ namespace BBTAG_IM.ImprovementMod.Menu;
 internal static class MenuText
 {
     private const float WrapAtWindowEdge = 0;
+    private const string HelpMark = "(?)";
+    private const float TooltipWidthInFontSizes = 30;
 
     public static void Wrapped(string text)
     {
@@ -20,13 +22,19 @@ internal static class MenuText
         ImGui.PopStyleColor();
     }
 
+    public static void HelpMarker(string text)
+    {
+        ImGui.TextDisabled(HelpMark);
+        Tooltip(text);
+    }
+
     public static void Tooltip(string text)
     {
         if (!ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             return;
 
         ImGui.BeginTooltip();
-        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 30);
+        ImGui.PushTextWrapPos(ImGui.GetFontSize() * TooltipWidthInFontSizes);
         ImGui.TextUnformatted(text);
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();

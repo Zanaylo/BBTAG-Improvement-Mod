@@ -82,4 +82,19 @@ public class P2PTrafficTests
         // Assert
         Assert.Empty(snapshot.Remotes);
     }
+
+    [Fact]
+    public void Clear_AfterTraffic_ForgetsRemotesAndChannels()
+    {
+        // Arrange
+        P2PTraffic traffic = CreateP2PTraffic();
+        traffic.Sent(Opponent, channel: 1);
+
+        // Act
+        traffic.Clear();
+
+        // Assert
+        P2PSnapshot snapshot = traffic.Take();
+        Assert.Equal((0, 0), (snapshot.Remotes.Count, snapshot.Channels.Count));
+    }
 }

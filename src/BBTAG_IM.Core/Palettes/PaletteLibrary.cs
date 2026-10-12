@@ -13,6 +13,9 @@ public sealed class PaletteLibrary(IFileSystem fileSystem, string modFolder)
     public const string FolderName = "palettes";
     public const string GameColors = "Game colors";
 
+    private const string NumberSeparator = "_";
+    private const int FirstNumber = 2;
+
     private static readonly char[] NameBreakers = [.. Path.GetInvalidFileNameChars(), '/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 
     public string Folder => Path.Combine(modFolder, FolderName);
@@ -22,7 +25,8 @@ public sealed class PaletteLibrary(IFileSystem fileSystem, string modFolder)
         && !char.IsWhiteSpace(name[0])
         && name[0] != '.'
         && name.IndexOfAny(NameBreakers) < 0
-        && !name.Equals(GameColors, StringComparison.OrdinalIgnoreCase);
+        && !name.Equals(GameColors, StringComparison.OrdinalIgnoreCase)
+        && !RandomPalette.IsChoice(name);
 
     public IReadOnlyList<string> CharactersWithPalettes()
     {
@@ -45,21 +49,14 @@ public sealed class PaletteLibrary(IFileSystem fileSystem, string modFolder)
         if (!fileSystem.DirectoryExists(folder))
             return new CharacterPalettes(character, [], []);
 
-        List<ImplPalette> palettes = [];
-        List<string> problems = [];
-
-        foreach (var path in PalettePaths(folder).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        try
         {
-            if (Read(path, problems) is not { } palette)
-                continue;
-
-            if (Problem(character, palette, palettes) is { } problem)
-                problems.Add(problem);
-            else
-                palettes.Add(palette);
+            return Read(character, PalettePaths(folder).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToArray());
         }
-
-        return new CharacterPalettes(character, palettes, problems);
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new CharacterPalettes(character, [], [$"The {character} palettes could not be read: {exception.Message}"]);
+        }
     }
 
     public string Save(string character, ImplPalette palette)
@@ -75,9 +72,73 @@ public sealed class PaletteLibrary(IFileSystem fileSystem, string modFolder)
         return path;
     }
 
+    public ImplPalette Open(string path) => ImplPalette.Parse(Path.GetFileNameWithoutExtension(path), fileSystem.ReadAllBytes(path));
+
+    public string Import(ImplPalette palette, string character)
+    {
+        var name = FreeName(character, palette.Name);
+        var index = Characters.IndexOf(character) ?? palette.CharacterIndex;
+        Save(character, ImplPalette.Create(name, index, palette.Creator, palette.Description, palette.Colors()));
+        return name;
+    }
+
+    public void Export(ImplPalette palette, string path) => fileSystem.WriteAllBytes(path, palette.ToBytes());
+
+    public int Delete(string character, string name)
+    {
+        var folder = CharacterFolder(character);
+
+        if (!fileSystem.DirectoryExists(folder))
+            return 0;
+
+        var named = PalettePaths(folder)
+            .Where(path => Path.GetFileNameWithoutExtension(path).Equals(name, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (var path in named)
+            fileSystem.DeleteFile(path);
+
+        return named.Length;
+    }
+
+    private string FreeName(string character, string name)
+    {
+        var folder = CharacterFolder(character);
+
+        if (!fileSystem.DirectoryExists(folder))
+            return name;
+
+        var taken = PalettePaths(folder).Select(Path.GetFileNameWithoutExtension).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var free = name;
+
+        for (var number = FirstNumber; taken.Contains(free); number++)
+            free = $"{name}{NumberSeparator}{number}";
+
+        return free;
+    }
+
     private string CharacterFolder(string character) => Path.Combine(Folder, character);
 
     private IEnumerable<string> PalettePaths(string folder) => fileSystem.EnumerateFilesRecursively(folder).Where(IsPalette);
+
+    private CharacterPalettes Read(string character, IReadOnlyList<string> paths)
+    {
+        List<ImplPalette> palettes = [];
+        List<string> problems = [];
+
+        foreach (var path in paths)
+        {
+            if (Read(path, problems) is not { } palette)
+                continue;
+
+            if (Problem(character, palette, palettes) is { } problem)
+                problems.Add(problem);
+            else
+                palettes.Add(palette);
+        }
+
+        return new CharacterPalettes(character, palettes, problems);
+    }
 
     private ImplPalette? Read(string path, List<string> problems)
     {
@@ -89,7 +150,7 @@ public sealed class PaletteLibrary(IFileSystem fileSystem, string modFolder)
         {
             problems.Add(exception.Message);
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             problems.Add($"{Path.GetFileName(path)} could not be read: {exception.Message}");
         }

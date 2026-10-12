@@ -49,14 +49,14 @@ internal sealed class TestPeBuilder
             if (_sections.Count == 0)
                 return SectionAlignment;
 
-            var last = _sections[^1];
+            TestSection last = _sections[^1];
             return Align(last.Rva + Math.Max(last.VirtualSize, (uint)last.Data.Length), SectionAlignment);
         }
     }
 
     public uint AddSection(string name, byte[] data, uint characteristics = DataCharacteristics, uint? virtualSize = null)
     {
-        var rva = NextSectionRva;
+        uint rva = NextSectionRva;
         _sections.Add(new TestSection(name, rva, data, characteristics, virtualSize ?? (uint)data.Length));
         return rva;
     }
@@ -108,9 +108,9 @@ internal sealed class TestPeBuilder
 
     public byte[] Build()
     {
-        var writer = new ByteWriter(MaximumImageSize);
+        ByteWriter writer = new(MaximumImageSize);
         WriteDosHeader(writer);
-        var optionalHeader = WriteFileHeader(writer);
+        int optionalHeader = WriteFileHeader(writer);
         WriteOptionalHeader(writer, optionalHeader);
         WriteSections(writer, optionalHeader + OptionalHeaderSize);
         return writer.ToArray((int)Math.Max(writer.Length, HeadersSize));
@@ -127,7 +127,7 @@ internal sealed class TestPeBuilder
 
     private int WriteFileHeader(ByteWriter writer)
     {
-        var fileHeader = PeHeaderOffset + PeConstants.NtSignatureSize;
+        int fileHeader = PeHeaderOffset + PeConstants.NtSignatureSize;
         writer.UInt16At(fileHeader, _machine);
         writer.UInt16At(fileHeader + 2, (ushort)_sections.Count);
         writer.UInt32At(fileHeader + 4, _timeDateStamp);
@@ -147,9 +147,9 @@ internal sealed class TestPeBuilder
         writer.UInt32At(optionalHeader + SizeOfHeadersField, HeadersSize);
         writer.UInt32At(optionalHeader + DirectoryCountField, DirectoryCount);
 
-        for (var index = 0; index < DirectoryCount; index++)
+        for (int index = 0; index < DirectoryCount; index++)
         {
-            var directory = optionalHeader + DirectoriesField + index * PeConstants.DataDirectorySize;
+            int directory = optionalHeader + DirectoriesField + index * PeConstants.DataDirectorySize;
             writer.UInt32At(directory, _directories[index].VirtualAddress);
             writer.UInt32At(directory + 4, _directories[index].Size);
         }
@@ -157,13 +157,13 @@ internal sealed class TestPeBuilder
 
     private void WriteSections(ByteWriter writer, int sectionTable)
     {
-        var rawPointer = HeadersSize;
+        uint rawPointer = HeadersSize;
 
-        for (var index = 0; index < _sections.Count; index++)
+        for (int index = 0; index < _sections.Count; index++)
         {
-            var section = _sections[index];
-            var header = sectionTable + index * PeConstants.SectionHeaderSize;
-            var rawSize = Align((uint)section.Data.Length, FileAlignment);
+            TestSection section = _sections[index];
+            int header = sectionTable + index * PeConstants.SectionHeaderSize;
+            uint rawSize = Align((uint)section.Data.Length, FileAlignment);
 
             writer.AsciiAt(header, section.Name);
             writer.UInt32At(header + SectionVirtualSizeField, section.VirtualSize);

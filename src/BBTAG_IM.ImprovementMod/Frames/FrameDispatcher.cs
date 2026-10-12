@@ -32,15 +32,22 @@ internal sealed class FrameDispatcher(ProcessMemory memory, ILog log)
     public void OnPresent(nint device)
     {
         memory.ForgetRegions();
+        ReportFirstFrame();
 
-        if (!_firstFrameSeen)
+        foreach (var handler in _handlers)
         {
-            _firstFrameSeen = true;
-            SafeLog.Info(log, "The game drew its first frame through the Improvement Mod.");
+            if (handler.IsRunning)
+                Run(handler, device);
         }
+    }
 
-        foreach (var handler in _handlers.ToArray())
-            Run(handler, device);
+    private void ReportFirstFrame()
+    {
+        if (_firstFrameSeen)
+            return;
+
+        _firstFrameSeen = true;
+        SafeLog.Info(log, "The game drew its first frame through the Improvement Mod.");
     }
 
     private void Run(FrameHandler handler, nint device)
@@ -51,10 +58,17 @@ internal sealed class FrameDispatcher(ProcessMemory memory, ILog log)
         }
         catch (Exception exception)
         {
-            _handlers.Remove(handler);
+            handler.IsRunning = false;
             SafeLog.Error(log, $"{handler.Name} stopped after an error and stays off until the game restarts: {exception}");
         }
     }
 
-    private sealed record FrameHandler(string Name, Action<nint> OnPresent);
+    private sealed class FrameHandler(string name, Action<nint> onPresent)
+    {
+        public string Name => name;
+
+        public Action<nint> OnPresent => onPresent;
+
+        public bool IsRunning { get; set; } = true;
+    }
 }
