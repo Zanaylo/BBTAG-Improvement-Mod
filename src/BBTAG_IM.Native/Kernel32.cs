@@ -13,6 +13,10 @@ public static unsafe partial class Kernel32
     private const string Library = "kernel32.dll";
     private const int MaximumPathLength = 32768;
 
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsDebuggerPresent();
+
     [LibraryImport(Library, SetLastError = true)]
     public static partial nint VirtualAlloc(nint address, nuint size, uint allocationType, uint protect);
 

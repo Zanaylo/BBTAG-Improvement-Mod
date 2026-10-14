@@ -2,11 +2,13 @@ using System.Text;
 
 namespace BBTAG_IM.Core.Launch;
 
-public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOnlyList<string> ModFolders)
+public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOnlyList<string> ModFolders, bool WaitForDebugger = false)
 {
     private const string GameKey = "game";
     private const string LogKey = "log";
     private const string ModKey = "mod";
+    private const string DebuggerKey = "debugger";
+    private const string WaitValue = "wait";
     private const char KeySeparator = '=';
     private const char LineSeparator = '\n';
 
@@ -19,6 +21,9 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
         foreach (var modFolder in ModFolders)
             text.Append(ModKey).Append(KeySeparator).Append(modFolder).Append(LineSeparator);
 
+        if (WaitForDebugger)
+            text.Append(DebuggerKey).Append(KeySeparator).Append(WaitValue).Append(LineSeparator);
+
         return text.ToString();
     }
 
@@ -27,6 +32,7 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
         string? gameDirectory = null;
         string? logPath = null;
         var modFolders = new List<string>();
+        var waitForDebugger = false;
 
         foreach (var line in text.Split(LineSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -48,12 +54,15 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
                 case ModKey:
                     modFolders.Add(value);
                     break;
+                case DebuggerKey:
+                    waitForDebugger = value == WaitValue;
+                    break;
             }
         }
 
         if (gameDirectory is null || logPath is null)
             throw new InvalidLaunchSessionException("The Mod Loader did not say where the game and the log are.");
 
-        return new LaunchSession(gameDirectory, logPath, modFolders);
+        return new LaunchSession(gameDirectory, logPath, modFolders, waitForDebugger);
     }
 }

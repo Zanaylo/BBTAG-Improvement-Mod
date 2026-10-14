@@ -7,7 +7,6 @@ namespace BBTAG_IM.Core.Tests.Launch;
 
 public class ModSelectionTests
 {
-    private const string LauncherDirectory = @"D:\BBTAG_IM";
     private const string ModsFolder = @"D:\BBTAG_IM\mods";
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
@@ -21,7 +20,7 @@ public class ModSelectionTests
         LaunchOptions options = new(null, [@"D:\Mods\Second", @"D:\Mods\First"], false);
 
         // Act
-        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(options, LauncherDirectory, _fileSystemMock);
+        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(options, ModsFolder, _fileSystemMock);
 
         // Assert
         Assert.Equal(["Second", "First"], mods.Select(mod => mod.Name));
@@ -34,14 +33,14 @@ public class ModSelectionTests
         LaunchOptions options = new(null, [@"D:\Mods\Missing"], false);
 
         // Act
-        Exception? exception = Record.Exception(() => ModSelection.Resolve(options, LauncherDirectory, _fileSystemMock));
+        Exception? exception = Record.Exception(() => ModSelection.Resolve(options, ModsFolder, _fileSystemMock));
 
         // Assert
         Assert.IsType<InvalidModFolderException>(exception);
     }
 
     [Fact]
-    public void Resolve_NoFoldersOnTheCommandLine_LoadsTheModsFolderNextToTheLauncher()
+    public void Resolve_NoFoldersOnTheCommandLine_LoadsTheModsFolder()
     {
         // Arrange
         string overhaul = Path.Combine(ModsFolder, "Overhaul");
@@ -50,7 +49,7 @@ public class ModSelectionTests
         ModAt(overhaul);
 
         // Act
-        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystemMock);
+        IReadOnlyList<ModFolder> mods = ModSelection.Resolve(new LaunchOptions(null, [], false), ModsFolder, _fileSystemMock);
 
         // Assert
         Assert.Equal(["Overhaul"], mods.Select(mod => mod.Name));
@@ -60,7 +59,7 @@ public class ModSelectionTests
     public void Resolve_NothingToLoad_ThrowsInvalidModFolderPointingAtTheModsFolder()
     {
         // Act
-        Exception? exception = Record.Exception(() => ModSelection.Resolve(new LaunchOptions(null, [], false), LauncherDirectory, _fileSystemMock));
+        Exception? exception = Record.Exception(() => ModSelection.Resolve(new LaunchOptions(null, [], false), ModsFolder, _fileSystemMock));
 
         // Assert
         Assert.Equal(

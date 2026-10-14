@@ -1,13 +1,14 @@
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Pe;
+using BBTAG_IM.Launcher.Debugging;
 using BBTAG_IM.Launcher.Injection;
 
 namespace BBTAG_IM.Launcher;
 
-internal sealed record LaunchResult(PayloadStatus Status, int ProcessId);
+internal sealed record LaunchResult(PayloadStatus Status, int ProcessId, string? DebuggerNote);
 
-internal sealed class GameLauncher(PayloadInjector injector, ILog log)
+internal sealed class GameLauncher(PayloadInjector injector, VisualStudioAttacher debugger, ILog log)
 {
     private const string SteamAppIdVariable = "SteamAppId";
     private const string SteamGameIdVariable = "SteamGameId";
@@ -29,16 +30,17 @@ internal sealed class GameLauncher(PayloadInjector injector, ILog log)
         try
         {
             var gate = EntryPointGate.HoldAtEntryPoint(process, process.ImageBase() + entryPointRva);
+            var debuggerNote = debugger.AttachTo(process.ProcessId);
             var status = injector.Inject(process, session);
 
             if (status != PayloadStatus.Ready)
             {
                 process.Terminate();
-                return new LaunchResult(status, (int)process.ProcessId);
+                return new LaunchResult(status, (int)process.ProcessId, debuggerNote);
             }
 
             gate.Release();
-            return new LaunchResult(status, (int)process.ProcessId);
+            return new LaunchResult(status, (int)process.ProcessId, debuggerNote);
         }
         catch
         {

@@ -19,6 +19,29 @@ public class LaunchSessionTests
     }
 
     [Fact]
+    public void Parse_SessionWaitingForADebugger_KeepsTheChoice()
+    {
+        // Arrange
+        LaunchSession session = new(@"D:\Steam\steamapps\common\BBTAG", @"D:\BBTAG_IM\logs\BBTAG_IM.log", [], WaitForDebugger: true);
+
+        // Act
+        LaunchSession parsed = LaunchSession.Parse(session.Serialize());
+
+        // Assert
+        Assert.True(parsed.WaitForDebugger);
+    }
+
+    [Fact]
+    public void Parse_TextWithoutTheDebuggerChoice_DoesNotWait()
+    {
+        // Act
+        LaunchSession parsed = LaunchSession.Parse("game=C:\\Game\nlog=C:\\log.txt\n");
+
+        // Assert
+        Assert.False(parsed.WaitForDebugger);
+    }
+
+    [Fact]
     public void Parse_TextWithBlankLinesAndUnknownKeys_IgnoresThem()
     {
         // Act

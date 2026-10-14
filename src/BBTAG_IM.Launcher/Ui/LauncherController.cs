@@ -24,8 +24,9 @@ internal sealed class LauncherController
         List<string> startupMessages = [];
         _launcherDirectory = launcherDirectory;
         _settingsStore = SettingsStores.Launcher(fileSystem, launcherDirectory);
-        _settings = _settingsStore.Load();
-        _options = ParseOptions(arguments, startupMessages);
+        var settings = TryLoadSettings(startupMessages);
+        _settings = settings ?? new LauncherSettings();
+        _options = settings is null ? null : ParseOptions(arguments, startupMessages);
 
         if (_options is not null)
             _allMods = _settings.InLoadOrder(DiscoverMods(_options, fileSystem, startupMessages));
@@ -66,6 +67,19 @@ internal sealed class LauncherController
 
     public void Close() => _session?.Dispose();
 
+    private LauncherSettings? TryLoadSettings(List<string> messages)
+    {
+        try
+        {
+            return _settingsStore.Load();
+        }
+        catch (InvalidSettingsFileException exception)
+        {
+            messages.Add(exception.Message);
+            return null;
+        }
+    }
+
     private static LaunchOptions? ParseOptions(IReadOnlyList<string> arguments, List<string> messages)
     {
         try
@@ -88,7 +102,7 @@ internal sealed class LauncherController
     {
         try
         {
-            return ModSelection.Resolve(options, _launcherDirectory, fileSystem);
+            return ModSelection.Resolve(options, _settings.ModsDirectory(_launcherDirectory), fileSystem);
         }
         catch (Exception exception) when (LaunchErrors.IsExpected(exception))
         {

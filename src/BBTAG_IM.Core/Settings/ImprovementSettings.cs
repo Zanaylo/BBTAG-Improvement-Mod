@@ -25,6 +25,8 @@ public sealed class ImprovementSettings
 
     public float? PaletteDetailWidth { get; set; }
 
+    public string? ScriptEditor { get; set; }
+
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, Dictionary<int, string>> Palettes { get; } = new(StringComparer.OrdinalIgnoreCase);
 

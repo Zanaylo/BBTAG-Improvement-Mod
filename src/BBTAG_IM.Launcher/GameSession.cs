@@ -6,6 +6,7 @@ using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Tables;
 using BBTAG_IM.Launcher.CheatEngine;
+using BBTAG_IM.Launcher.Debugging;
 using BBTAG_IM.Launcher.Injection;
 using BBTAG_IM.Launcher.Ui;
 
@@ -68,7 +69,13 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
     {
         Report(attempt == 1 ? "Starting the game." : $"Starting the game again (try {attempt} of {RestartPolicy.MaximumAttempts}).");
 
+        if (settings.WaitForDebugger)
+            Report($"WaitForDebugger is on. Attach Visual Studio to BBTAG.exe with Native code. The game waits up to {DebuggerWait.Limit.TotalMinutes:0} minutes.");
+
         var result = await Task.Run(() => StartGame(log));
+
+        if (result.DebuggerNote is { } debuggerNote)
+            Report(debuggerNote);
 
         if (result.Status != PayloadStatus.Ready)
         {
@@ -120,9 +127,9 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         foreach (var mod in context.Mods)
             log.Info($"Mod: {mod.Name}");
 
-        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.RootPath).ToArray());
+        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.RootPath).ToArray(), settings.WaitForDebugger);
         var injector = new PayloadInjector(Path.Combine(context.LauncherDirectory, PayloadContract.DllFileName));
-        return new GameLauncher(injector, log).Launch(session, context.Target);
+        return new GameLauncher(injector, new VisualStudioAttacher(), log).Launch(session, context.Target);
     }
 
     private async Task<DateTime?> AttachCheatEngineAsync(Process game, CheatTable table, IReadOnlyCollection<int> toEnable, ILog log)

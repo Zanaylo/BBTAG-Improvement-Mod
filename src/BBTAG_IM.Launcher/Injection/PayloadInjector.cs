@@ -16,7 +16,8 @@ internal sealed class PayloadInjector(string payloadPath)
         var module = LoadPayload(process);
 
         using var sessionText = process.WriteString(session.Serialize());
-        return (PayloadStatus)process.RunThread((nint)(module + _startRva), sessionText.Address, StartTimeout);
+        var timeout = session.WaitForDebugger ? StartTimeout + DebuggerWait.Limit : StartTimeout;
+        return (PayloadStatus)process.RunThread((nint)(module + _startRva), sessionText.Address, timeout);
     }
 
     private uint LoadPayload(RemoteProcess process)

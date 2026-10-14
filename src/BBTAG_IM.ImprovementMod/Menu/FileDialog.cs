@@ -8,6 +8,7 @@ internal enum FileDialogPurpose
 {
     Import,
     Export,
+    Program,
 }
 
 internal sealed record FileDialogAnswer(FileDialogPurpose Purpose, IReadOnlyList<string> Paths);
@@ -16,9 +17,11 @@ internal sealed unsafe class FileDialog
 {
     private const int ManyFilesLength = 64 * 1024;
     private const int OneFileLength = 1024;
-    private const string Filter = "Palettes (*.impl)\0*.impl\0\0";
-    private const string Extension = "impl";
-    private const string ThreadName = "Palette file dialog";
+    private const string PaletteFilter = "Palettes (*.impl)\0*.impl\0\0";
+    private const string PaletteExtension = "impl";
+    private const string ProgramFilter = "Programs (*.exe)\0*.exe\0\0";
+    private const string ProgramExtension = "exe";
+    private const string ThreadName = "File dialog";
     private const int Closed = 0;
     private const int Opened = 1;
 
@@ -30,6 +33,8 @@ internal sealed unsafe class FileDialog
     public void OpenPalettes() => Start(FileDialogPurpose.Import, "Import palettes", "");
 
     public void SavePalette(string fileName) => Start(FileDialogPurpose.Export, "Export palette", fileName);
+
+    public void ChooseProgram() => Start(FileDialogPurpose.Program, "Choose the program that opens scripts", "");
 
     public FileDialogAnswer? Take() => Interlocked.Exchange(ref _answer, null);
 
@@ -50,7 +55,12 @@ internal sealed unsafe class FileDialog
     {
         try
         {
-            var paths = purpose == FileDialogPurpose.Import ? AskForFiles(title) : AskForNewFile(title, fileName);
+            var paths = purpose switch
+            {
+                FileDialogPurpose.Import => AskForFiles(title, PaletteFilter, PaletteExtension, Comdlg32.AllowMultipleFiles),
+                FileDialogPurpose.Program => AskForFiles(title, ProgramFilter, ProgramExtension, 0),
+                _ => AskForNewFile(title, fileName),
+            };
 
             if (paths.Count > 0)
                 Volatile.Write(ref _answer, new FileDialogAnswer(purpose, paths));
@@ -61,12 +71,12 @@ internal sealed unsafe class FileDialog
         }
     }
 
-    private static IReadOnlyList<string> AskForFiles(string title)
+    private static IReadOnlyList<string> AskForFiles(string title, string filter, string extension, int extraFlags)
     {
         var buffer = new char[ManyFilesLength];
-        var flags = Comdlg32.PathMustExist | Comdlg32.FileMustExist | Comdlg32.KeepWorkingDirectory | Comdlg32.AllowMultipleFiles | Comdlg32.Explorer;
+        var flags = Comdlg32.PathMustExist | Comdlg32.FileMustExist | Comdlg32.KeepWorkingDirectory | Comdlg32.Explorer | extraFlags;
 
-        return Ask(buffer, title, flags, Comdlg32.GetOpenFileName) ? OpenFileSelection.Paths(new string(buffer)) : [];
+        return Ask(buffer, title, filter, extension, flags, Comdlg32.GetOpenFileName) ? OpenFileSelection.Paths(new string(buffer)) : [];
     }
 
     private static IReadOnlyList<string> AskForNewFile(string title, string fileName)
@@ -75,17 +85,17 @@ internal sealed unsafe class FileDialog
         fileName.AsSpan(0, Math.Min(fileName.Length, OneFileLength - 1)).CopyTo(buffer);
         var flags = Comdlg32.PathMustExist | Comdlg32.KeepWorkingDirectory | Comdlg32.OverwritePrompt;
 
-        if (!Ask(buffer, title, flags, Comdlg32.GetSaveFileName))
+        if (!Ask(buffer, title, PaletteFilter, PaletteExtension, flags, Comdlg32.GetSaveFileName))
             return [];
 
         return [new string(buffer, 0, Array.IndexOf(buffer, '\0'))];
     }
 
-    private static bool Ask(char[] buffer, string title, int flags, DialogCall show)
+    private static bool Ask(char[] buffer, string title, string filterText, string extensionText, int flags, DialogCall show)
     {
         var workingDirectory = Environment.CurrentDirectory;
 
-        fixed (char* file = buffer, filter = Filter, caption = title, extension = Extension)
+        fixed (char* file = buffer, filter = filterText, caption = title, extension = extensionText)
         {
             var dialog = new OpenFileName
             {

@@ -250,4 +250,66 @@ public class LauncherSettingsTests
     }
 
     private static ModFolder Mod(string name) => new(name, $@"D:\BBTAG\mods\{name}", [], null, null, []);
+
+    [Fact]
+    public void ModsDirectory_NoFolderSaved_IsTheModsFolderNextToTheLauncher()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        string directory = settings.ModsDirectory(@"D:\BBTAG_IM");
+
+        // Assert
+        Assert.Equal(@"D:\BBTAG_IM\mods", directory);
+    }
+
+    [Fact]
+    public void ModsDirectory_BlankFolderSaved_IsTheModsFolderNextToTheLauncher()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModsFolder = "  " };
+
+        // Act
+        string directory = settings.ModsDirectory(@"D:\BBTAG_IM");
+
+        // Assert
+        Assert.Equal(@"D:\BBTAG_IM\mods", directory);
+    }
+
+    [Fact]
+    public void ModsDirectory_FullPathSaved_UsesThatFolder()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModsFolder = @"D:\Steam\common\BBTAG\mods" };
+
+        // Act
+        string directory = settings.ModsDirectory(@"D:\BBTAG_IM");
+
+        // Assert
+        Assert.Equal(@"D:\Steam\common\BBTAG\mods", directory);
+    }
+
+    [Fact]
+    public void ModsDirectory_RelativePathSaved_IsRelativeToTheLauncher()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModsFolder = @"..\BBTAG\mods" };
+
+        // Act
+        string directory = settings.ModsDirectory(@"D:\Games\BBTAG_IM");
+
+        // Assert
+        Assert.Equal(@"D:\Games\BBTAG\mods", directory);
+    }
+
+    [Fact]
+    public void WaitForDebugger_NewSettings_IsOff()
+    {
+        // Act
+        LauncherSettings settings = new();
+
+        // Assert
+        Assert.False(settings.WaitForDebugger);
+    }
 }

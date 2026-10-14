@@ -19,6 +19,7 @@ internal sealed class DevScripts(
     ScriptFileFinder finder,
     ScriptDatabaseFolder databaseFolder,
     IReadOnlyDictionary<int, int> gameSizes,
+    Func<string?> scriptEditor,
     ILog log)
 {
     private const uint EffectsRecordOffset = ScriptRecord.Length;
@@ -64,14 +65,14 @@ internal sealed class DevScripts(
         var paths = dev.Script(character.Code, effects);
 
         if (_sessions.FirstOrDefault(session => session.Live.RecordAddress == record && !session.HasEnded) is { } open)
-            return $"Opened in {ScriptEditor.Open(open.Paths.Source, FirstLine)}.";
+            return OpenInEditor(open.Paths);
 
         try
         {
             var session = Start(character.Code, effects, record, paths);
             _sessions.Add(session);
             SafeLog.Info(log, $"Editing {Path.GetFileName(paths.Source)} live from {paths.Source}.");
-            return $"Opened in {ScriptEditor.Open(paths.Source, FirstLine)}. Save the file to apply it.";
+            return OpenInEditor(paths);
         }
         catch (Exception exception) when (exception is InvalidScriptException or InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
         {
@@ -105,6 +106,17 @@ internal sealed class DevScripts(
         }
 
         return recovered;
+    }
+
+    private string OpenInEditor(ScriptPaths paths)
+    {
+        var program = scriptEditor();
+        var file = Path.GetFileName(paths.Source);
+        ScriptEditor.Open(paths.Source, FirstLine, program, log);
+
+        return program is null
+            ? $"Pick the program for {file} in the Open with window. Save the file to apply it."
+            : $"Opening {file} in {Path.GetFileNameWithoutExtension(program)}. Save the file to apply it.";
     }
 
     private ScriptSession Start(string code, bool effects, uint recordAddress, ScriptPaths paths)

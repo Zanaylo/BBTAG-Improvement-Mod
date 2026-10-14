@@ -1,60 +1,75 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using BBTAG_IM.Core.Logging;
+using BBTAG_IM.Core.Scripting.Dev;
+using BBTAG_IM.ImprovementMod.Frames;
+using BBTAG_IM.Native;
 
 namespace BBTAG_IM.ImprovementMod.Dev;
 
-internal static class ScriptEditor
+internal static unsafe class ScriptEditor
 {
-    private const string VisualStudioCodeFolder = "Microsoft VS Code";
-    private const string VisualStudioCodeExecutable = "Code.exe";
-    private const string VisualStudioFinder = @"Microsoft Visual Studio\Installer\vswhere.exe";
     private const string Notepad = "notepad.exe";
+    private const string ThreadName = "Script editor";
 
-    public static string Open(string path, int line)
+    public static void Open(string script, int line, string? program, ILog log)
     {
-        if (VisualStudioCode() is { } code)
-        {
-            Start(code, $"-g \"{path}:{line}\"");
-            return "VS Code";
-        }
+        var thread = new Thread(() => OpenNow(script, line, program, log)) { IsBackground = true, Name = ThreadName };
 
-        if (VisualStudio() is { } studio)
-        {
-            Start(studio, $"/edit \"{path}\"");
-            return "Visual Studio";
-        }
+        if (OperatingSystem.IsWindows())
+            thread.SetApartmentState(ApartmentState.STA);
 
-        Start(Notepad, $"\"{path}\"");
-        return "Notepad";
+        thread.Start();
     }
 
-    private static string? VisualStudioCode()
+    private static void OpenNow(string script, int line, string? program, ILog log)
     {
-        string[] candidates =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", VisualStudioCodeFolder, VisualStudioCodeExecutable),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), VisualStudioCodeFolder, VisualStudioCodeExecutable),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), VisualStudioCodeFolder, VisualStudioCodeExecutable),
-        ];
+        try
+        {
+            if (program is null)
+            {
+                AskForProgram(script, line, log);
+                return;
+            }
 
-        return candidates.FirstOrDefault(File.Exists);
+            if (!File.Exists(program))
+            {
+                SafeLog.Error(log, $"{program} was not found, so the Open with window asks for another program.");
+                AskForProgram(script, line, log);
+                return;
+            }
+
+            Start(program, ScriptEditorProgram.Arguments(program, script, line));
+        }
+        catch (Win32Exception exception)
+        {
+            SafeLog.Error(log, $"{Path.GetFileName(script)} could not be opened: {exception.Message}");
+        }
     }
 
-    private static string? VisualStudio()
+    private static void AskForProgram(string script, int line, ILog log)
     {
-        var finder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), VisualStudioFinder);
+        var result = ShowOpenWith(script);
 
-        if (!File.Exists(finder))
-            return null;
+        if (result >= 0 || result == Shell32.Cancelled)
+            return;
 
-        using var process = Process.Start(new ProcessStartInfo(finder, "-latest -property productPath")
+        SafeLog.Error(log, $"The Open with window could not be shown (0x{result:X8}), so {Path.GetFileName(script)} opens in Notepad.");
+        Start(Notepad, ScriptEditorProgram.Arguments(Notepad, script, line));
+    }
+
+    private static int ShowOpenWith(string script)
+    {
+        fixed (char* file = script)
         {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true,
-        });
+            var information = new OpenAsInfo
+            {
+                File = (nint)file,
+                Flags = Shell32.OpenWithExecute | Shell32.OpenWithHideAlwaysUse,
+            };
 
-        var studio = process?.StandardOutput.ReadToEnd().Trim();
-        return File.Exists(studio) ? studio : null;
+            return Shell32.OpenWithDialog(0, ref information);
+        }
     }
 
     private static void Start(string program, string arguments) =>

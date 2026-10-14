@@ -6,7 +6,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class DevSection(DevScripts scripts, MatchExit exit, string databaseFolder) : IMenuSection
+internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, string databaseFolder) : IMenuSection
 {
     public const string Name = "Dev";
 
@@ -17,9 +17,7 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, string data
 
     public string Title => Name;
 
-    public void Reopened()
-    {
-    }
+    public void Reopened() => editor.Reopened();
 
     public void Draw()
     {
@@ -29,6 +27,8 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, string data
         if (!scripts.HasCommandNames)
             MenuText.Muted($"Commands show as numbers. Put the BBTAG command lists (command_db.json and its folders) in {databaseFolder} to see their names.");
 
+        ImGui.Spacing();
+        editor.Draw();
         ImGui.Spacing();
         DrawCharacters();
         DrawSessions();

@@ -62,10 +62,21 @@ internal static class PayloadStartup
         var game = LoadedModule.MainModule();
 
         log.Info($"Payload loaded into {game.Path} at 0x{game.BaseAddress:X8}.");
+        WaitForDebugger(session, log);
         ExitHooks.Install(game, log);
         PatchExecutable(mods, game, session.GameDirectory, log);
         RedirectModFiles(mods, game, session.GameDirectory, fileSystem, log);
         PluginLoader.StartAll(mods, Path.GetDirectoryName(session.LogPath) ?? session.GameDirectory, log);
+    }
+
+    private static void WaitForDebugger(LaunchSession session, ILog log)
+    {
+        if (!session.WaitForDebugger)
+            return;
+
+        log.Info($"Waiting up to {DebuggerWait.Limit.TotalMinutes:0} minutes for a debugger. Attach to BBTAG.exe (process {Environment.ProcessId}) with Native code.");
+        var attached = new DebuggerWait(Kernel32.IsDebuggerPresent, TimeProvider.System, Thread.Sleep).Wait();
+        log.Info(attached ? "A debugger is attached. Loading the mods." : "No debugger was attached. Loading the mods anyway.");
     }
 
     private static void PatchExecutable(IReadOnlyList<ModFolder> mods, LoadedModule game, string gameDirectory, ILog log)

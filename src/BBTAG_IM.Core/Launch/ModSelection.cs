@@ -7,12 +7,11 @@ public static class ModSelection
 {
     public const string ModsFolderName = "mods";
 
-    public static IReadOnlyList<ModFolder> Resolve(LaunchOptions options, string launcherDirectory, IFileSystem fileSystem)
+    public static IReadOnlyList<ModFolder> Resolve(LaunchOptions options, string modsDirectory, IFileSystem fileSystem)
     {
         if (options.ModFolders.Count > 0)
             return options.ModFolders.Select(folder => ModFolder.Inspect(folder, fileSystem)).ToArray();
 
-        var modsDirectory = Path.Combine(launcherDirectory, ModsFolderName);
         var discovered = ModDiscovery.InModsDirectory(modsDirectory, fileSystem);
 
         if (discovered.Count == 0)

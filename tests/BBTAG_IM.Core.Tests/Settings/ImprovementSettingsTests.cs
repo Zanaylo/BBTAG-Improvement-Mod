@@ -26,6 +26,16 @@ public class ImprovementSettingsTests
         Assert.Equal((BoxStyle.DefaultFill, BoxStyle.DefaultOutline), (settings.Hitboxes.Fill, settings.Hitboxes.Outline));
     }
 
+    [Fact]
+    public void Constructor_NewSettings_AskForTheScriptEditorEveryTime()
+    {
+        // Act
+        ImprovementSettings settings = new();
+
+        // Assert
+        Assert.Null(settings.ScriptEditor);
+    }
+
     [Theory]
     [InlineData(BoxKind.Hurtbox)]
     [InlineData(BoxKind.Hitbox)]

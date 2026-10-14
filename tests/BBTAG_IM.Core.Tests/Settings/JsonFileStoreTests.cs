@@ -12,6 +12,7 @@ public class JsonFileStoreTests
     private const string ModDirectory = @"D:\BBTAG\mods\BBTAG-Improvement-Mod";
     private const string LauncherSettingsPath = @"D:\BBTAG\BBTAG_IM.json";
     private const string ImprovementSettingsPath = @"D:\BBTAG\mods\BBTAG-Improvement-Mod\ImprovementMod.json";
+    private const string BrokenOnLineTwo = "{\n  \"ModsFolder\": \"D:\\Jogos\\mods\"\n}";
 
     private readonly Faker _faker = new();
 
@@ -36,17 +37,61 @@ public class JsonFileStoreTests
     }
 
     [Fact]
-    public void Load_BrokenFile_ReturnsDefaults()
+    public void Load_BrokenFile_ThrowsInvalidSettingsFileNamingTheLine()
     {
         // Arrange
         JsonFileStore<LauncherSettings> store = CreateLauncherStore();
-        FileContains(LauncherSettingsPath, "{ not json");
+        FileContains(LauncherSettingsPath, BrokenOnLineTwo);
 
         // Act
-        LauncherSettings settings = store.Load();
+        Exception? exception = Record.Exception(() => store.Load());
 
         // Assert
-        Assert.Empty(settings.ScriptSelections);
+        Assert.Equal(
+            "BBTAG_IM.json has a mistake on line 2, so it was not read. Fix it or delete it. It is not saved over until then.",
+            Assert.IsType<InvalidSettingsFileException>(exception).Message);
+    }
+
+    [Fact]
+    public void Save_OverABrokenFile_ThrowsInvalidSettingsFile()
+    {
+        // Arrange
+        JsonFileStore<LauncherSettings> store = CreateLauncherStore();
+        FileContains(LauncherSettingsPath, BrokenOnLineTwo);
+
+        // Act
+        Exception? exception = Record.Exception(() => store.Save(new LauncherSettings()));
+
+        // Assert
+        Assert.IsType<InvalidSettingsFileException>(exception);
+    }
+
+    [Fact]
+    public void Save_OverABrokenFile_LeavesTheFileAsItIs()
+    {
+        // Arrange
+        JsonFileStore<LauncherSettings> store = CreateLauncherStore();
+        FileContains(LauncherSettingsPath, BrokenOnLineTwo);
+
+        // Act
+        Record.Exception(() => store.Save(new LauncherSettings()));
+
+        // Assert
+        _fileSystemMock.DidNotReceive().WriteAllText(LauncherSettingsPath, Arg.Any<string>());
+    }
+
+    [Fact]
+    public void Save_OverAValidFile_WritesTheSettings()
+    {
+        // Arrange
+        JsonFileStore<LauncherSettings> store = CreateLauncherStore();
+        FileContains(LauncherSettingsPath, "{ \"CheatEnginePath\": null }");
+
+        // Act
+        store.Save(new LauncherSettings());
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(LauncherSettingsPath, Arg.Any<string>());
     }
 
     [Fact]

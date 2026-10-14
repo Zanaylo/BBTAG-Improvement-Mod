@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
 
 namespace BBTAG_IM.Core.Settings;
@@ -8,6 +9,10 @@ public sealed class LauncherSettings
     public const string FileName = "BBTAG_IM.json";
 
     public string? CheatEnginePath { get; set; }
+
+    public string? ModsFolder { get; set; }
+
+    public bool WaitForDebugger { get; set; }
 
     public bool RunCheatEngineAsAdmin { get; set; } = true;
 
@@ -21,6 +26,10 @@ public sealed class LauncherSettings
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public List<string> ModOrder { get; } = [];
+
+    public string ModsDirectory(string launcherDirectory) => string.IsNullOrWhiteSpace(ModsFolder)
+        ? Path.Combine(launcherDirectory, ModSelection.ModsFolderName)
+        : Path.GetFullPath(ModsFolder, launcherDirectory);
 
     public bool IsModEnabled(string modName) => !DisabledMods.Contains(modName);
 

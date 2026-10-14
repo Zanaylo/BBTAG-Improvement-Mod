@@ -8,17 +8,7 @@ public sealed class JsonFileStore<T>(IFileSystem fileSystem, string path, JsonTy
 {
     public string Path => path;
 
-    public T Load()
-    {
-        try
-        {
-            return Read();
-        }
-        catch (JsonException)
-        {
-            return new T();
-        }
-    }
+    public T Load() => Read();
 
     public T? TryLoad()
     {
@@ -26,10 +16,16 @@ public sealed class JsonFileStore<T>(IFileSystem fileSystem, string path, JsonTy
         {
             return Read();
         }
-        catch (Exception exception) when (exception is JsonException or IOException)
+        catch (IOException)
         {
             return null;
         }
+    }
+
+    public void Save(T settings)
+    {
+        Read();
+        fileSystem.WriteAllText(path, JsonSerializer.Serialize(settings, typeInfo));
     }
 
     private T Read()
@@ -37,8 +33,13 @@ public sealed class JsonFileStore<T>(IFileSystem fileSystem, string path, JsonTy
         if (!fileSystem.FileExists(path))
             return new T();
 
-        return JsonSerializer.Deserialize(fileSystem.ReadAllText(path), typeInfo) ?? new T();
+        try
+        {
+            return JsonSerializer.Deserialize(fileSystem.ReadAllText(path), typeInfo) ?? new T();
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidSettingsFileException(path, exception.LineNumber);
+        }
     }
-
-    public void Save(T settings) => fileSystem.WriteAllText(path, JsonSerializer.Serialize(settings, typeInfo));
 }

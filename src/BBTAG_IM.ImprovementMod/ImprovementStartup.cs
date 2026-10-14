@@ -133,12 +133,20 @@ internal static class ImprovementStartup
         var bossFight = AddBossFight(frames, code, roster, stages, bosses, log);
         AddOwnerlessTakemiGuard(frames, code, log);
         AddSittingOutSpawnGate(frames, code, addresses.Game, log);
-        var dev = AddDev(frames, gameModule, code, game, roster, places, log);
+        var dev = AddDev(frames, gameModule, code, game, roster, places, menuSettings, log);
 
         return new GameFeatures(new TrainingSection(menuSettings, pause, bossFight), new PaletteSection(editor, choices, editorWindow, assignmentsWindow), dev, [assignmentsWindow, editorWindow]);
     }
 
-    private static IMenuSection AddDev(FrameDispatcher frames, LoadedModule gameModule, CodeImage code, GameView game, CharacterRoster roster, DataPlaces places, ILog log)
+    private static IMenuSection AddDev(
+        FrameDispatcher frames,
+        LoadedModule gameModule,
+        CodeImage code,
+        GameView game,
+        CharacterRoster roster,
+        DataPlaces places,
+        MenuSettings menuSettings,
+        ILog log)
     {
         var databaseFolder = Path.Combine(places.ModFolder, ScriptDatabaseFolderName);
 
@@ -148,11 +156,11 @@ internal static class ImprovementStartup
             var sizes = table.Read(game.Memory);
             var dev = DevFolder.ForMod(places.ModFolder);
             var database = new ScriptDatabaseFolder(places.Files, databaseFolder);
-            var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, sizes, log);
+            var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, sizes, () => menuSettings.Current.ScriptEditor, log);
             frames.Add("Script editing", scripts.OnPresent);
             ScriptCrashGuard.Install(gameModule, scripts.Recover, log);
             log.Info($"Script editing ready: {sizes.Count} script commands read at 0x{table.Address:X8}. Command names {(database.Exists ? "come from " + databaseFolder : "are missing, so commands show as numbers")}.");
-            return new DevSection(scripts, new MatchExit(game), databaseFolder);
+            return new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), databaseFolder);
         }
         catch (Exception exception) when (exception is GameLayoutException or HookException)
         {
