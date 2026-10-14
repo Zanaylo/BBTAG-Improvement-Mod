@@ -11,7 +11,8 @@ internal sealed record EntityFields(
     int OffsetY = 0,
     int Rotation = 0,
     int ScaleX = 1000,
-    int ScaleY = 1000);
+    int ScaleY = 1000,
+    int CharacterIndex = 0);
 
 internal static class EntityMemory
 {
@@ -23,6 +24,7 @@ internal static class EntityMemory
     {
         memory.Map(address, Length)
             .Int32At(address + 0x10, fields.Status)
+            .Int32At(address + 0x34, fields.CharacterIndex)
             .UInt32At(address + 0x4C, boxList)
             .Int32At(address + 0x94, hurtboxes)
             .Int32At(address + 0x98, hitboxes)

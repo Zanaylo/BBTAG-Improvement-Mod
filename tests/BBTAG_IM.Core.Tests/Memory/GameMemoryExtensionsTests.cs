@@ -87,4 +87,66 @@ public class GameMemoryExtensionsTests
         // Assert
         Assert.Equal([0x14, 0x00, 0x00, 0x00], _memoryMock.BytesFrom(Address, 4));
     }
+
+    [Fact]
+    public void ReadText_FieldEndedByZero_ReturnsTheTextBeforeTheZero()
+    {
+        // Arrange
+        _memoryMock.Map(Address, 32).BytesAt(Address, "takemikazuchi\0old"u8);
+
+        // Act
+        string text = _memoryMock.ReadText(Address, 32);
+
+        // Assert
+        Assert.Equal("takemikazuchi", text);
+    }
+
+    [Fact]
+    public void ReadText_FieldFilledToTheEnd_ReturnsTheWholeField()
+    {
+        // Arrange
+        _memoryMock.Map(Address, 4).BytesAt(Address, "boss"u8);
+
+        // Act
+        string text = _memoryMock.ReadText(Address, 4);
+
+        // Assert
+        Assert.Equal("boss", text);
+    }
+
+    [Fact]
+    public void AddressLoadedBy_GetterThatLoadsAnAddress_ReturnsTheAddress()
+    {
+        // Arrange
+        _memoryMock.Map(Address, 6).BytesAt(Address, [0xB8, 0xD0, 0xDA, 0xE5, 0x00, 0xC3]);
+
+        // Act
+        uint? loaded = _memoryMock.AddressLoadedBy(Address);
+
+        // Assert
+        Assert.Equal(0x00E5DAD0u, loaded);
+    }
+
+    [Fact]
+    public void AddressLoadedBy_GetterOverwrittenByAJump_ReturnsNull()
+    {
+        // Arrange
+        _memoryMock.Map(Address, 6).BytesAt(Address, [0xE9, 0x00, 0x00, 0x00, 0x30, 0xC3]);
+
+        // Act
+        uint? loaded = _memoryMock.AddressLoadedBy(Address);
+
+        // Assert
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public void AddressLoadedBy_GetterNotReadable_ReturnsNull()
+    {
+        // Act
+        uint? loaded = _memoryMock.AddressLoadedBy(Address);
+
+        // Assert
+        Assert.Null(loaded);
+    }
 }

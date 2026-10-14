@@ -8,7 +8,7 @@
         d:DesignHeight="860"
         x:Class="BBTAG_IM.Launcher.Ui.LauncherWindow"
         x:DataType="ui:LauncherViewModel"
-        Title="BBTAG Improvement Mod"
+        Title="BBTAG Mod Loader"
         Width="820"
         Height="860"
         MinWidth="640"
@@ -18,9 +18,15 @@
     <x:Static Member="ui:LauncherDesignData.ViewModel" />
   </Design.DataContext>
 
+  <Window.Styles>
+    <Style Selector="Button:disabled PathIcon">
+      <Setter Property="Opacity" Value="0.25" />
+    </Style>
+  </Window.Styles>
+
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Margin="16,16,16,8" Spacing="6">
-      <TextBlock Text="BBTAG Improvement Mod" FontSize="22" FontWeight="SemiBold" />
+      <TextBlock Text="BBTAG Mod Loader" FontSize="22" FontWeight="SemiBold" />
       <TextBlock Text="{Binding GameText}" TextWrapping="Wrap" />
       <TextBlock Text="{Binding ExecutableText}" TextWrapping="Wrap" />
       <DockPanel Margin="0,8,0,0">
@@ -42,88 +48,29 @@
           <TextBlock DockPanel.Dock="Top"
                      Margin="0,0,0,8"
                      TextWrapping="Wrap"
-                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins." />
+                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order." />
           <ListBox ItemsSource="{Binding Mods}" IsEnabled="{Binding CanChangeMods}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="ui:ModEntry">
-                <CheckBox IsChecked="{Binding IsEnabled}">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Contents}" Opacity="0.75" TextWrapping="Wrap" />
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button ToolTip.Tip="Move up" AutomationProperties.Name="Move up" IsEnabled="{Binding CanMoveUp}" Click="OnMoveUpClick">
+                      <PathIcon Width="12" Height="8" Data="M 0,8 L 6,0 L 12,8 Z" />
+                    </Button>
+                    <Button ToolTip.Tip="Move down" AutomationProperties.Name="Move down" IsEnabled="{Binding CanMoveDown}" Click="OnMoveDownClick">
+                      <PathIcon Width="12" Height="8" Data="M 0,0 L 12,0 L 6,8 Z" />
+                    </Button>
                   </StackPanel>
-                </CheckBox>
+                  <CheckBox IsChecked="{Binding IsEnabled}">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Contents}" Opacity="0.75" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </CheckBox>
+                </DockPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
-        </DockPanel>
-      </TabItem>
-
-      <TabItem Header="Improvement Mod">
-        <StackPanel Margin="0,8,0,0" Spacing="8">
-          <TextBlock TextWrapping="Wrap" Text="{Binding ImprovementCaption}" />
-          <CheckBox IsVisible="{Binding HasImprovementMod}"
-                    IsChecked="{Binding FrameLimiter}"
-                    Content="Turn V-Sync off and hold the game at 60 fps" />
-          <TextBlock IsVisible="{Binding HasImprovementMod}"
-                     Margin="28,0,0,0"
-                     Opacity="0.75"
-                     TextWrapping="Wrap"
-                     Text="Less input delay than V-Sync while the game keeps a steady 60 fps, so online matches run at the right speed." />
-          <CheckBox IsVisible="{Binding HasImprovementMod}"
-                    Margin="0,8,0,0"
-                    IsChecked="{Binding HitboxViewer}"
-                    Content="Show hitboxes in training mode" />
-          <TextBlock IsVisible="{Binding HasImprovementMod}"
-                     Margin="28,0,0,0"
-                     Opacity="0.75"
-                     TextWrapping="Wrap"
-                     Text="Blue boxes show where a character can be hit. Red boxes show attacks. Only training matches draw them." />
-        </StackPanel>
-      </TabItem>
-
-      <TabItem Header="Palettes">
-        <DockPanel Margin="0,8,0,0">
-          <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Text="{Binding PalettesCaption}" />
-          <Grid IsVisible="{Binding HasPalettes}" ColumnDefinitions="180,*">
-            <ListBox ItemsSource="{Binding PaletteCharacters}" SelectedItem="{Binding SelectedPaletteCharacter}">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="ui:CharacterPaletteChoices">
-                  <TextBlock Text="{Binding Name}" />
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-            <ScrollViewer Grid.Column="1" Margin="12,0,0,0">
-              <ItemsControl ItemsSource="{Binding SelectedPaletteCharacter.Colors}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="ui:PaletteColorSlot">
-                    <Grid Margin="0,2,12,2" ColumnDefinitions="70,*,Auto">
-                      <TextBlock VerticalAlignment="Center" Text="{Binding Label}" />
-                      <ui:WheelComboBox Grid.Column="1"
-                                HorizontalAlignment="Stretch"
-                                ItemsSource="{Binding Options}"
-                                SelectedItem="{Binding Selected}"
-                                ToolTip.Tip="{Binding Details}">
-                        <ui:WheelComboBox.ItemTemplate>
-                          <DataTemplate x:DataType="ui:PaletteOption">
-                            <TextBlock Text="{Binding Label}" />
-                          </DataTemplate>
-                        </ui:WheelComboBox.ItemTemplate>
-                      </ui:WheelComboBox>
-                      <Border Grid.Column="2"
-                              Width="40"
-                              Height="40"
-                              Margin="8,0,0,0"
-                              BorderBrush="Gray"
-                              BorderThickness="1"
-                              ToolTip.Tip="{Binding Details}">
-                        <Image Source="{Binding Preview}" RenderOptions.BitmapInterpolationMode="None" />
-                      </Border>
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Grid>
         </DockPanel>
       </TabItem>
 

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Palettes;
 
@@ -14,10 +13,10 @@ public sealed class CharacterRoster(IGameMemory memory, uint? getter)
         BytePattern.Parse("33 FF E8 ?? ?? ?? ?? 8B 80 00 2E 00 00 83 C0 01 0F 84"),
         CallOffset: 2);
 
-    private const byte MoveToEax = 0xB8;
-    private const int GetterLength = 5;
     private const uint RecordLength = 0xB8;
     private const uint ShortNameOffset = 0x40;
+    private const uint SpriteFolderOffset = 0xB0;
+    private const uint LastIndexOffset = 0x2E00;
     private const int TextLength = 0x20;
     private const char WordSeparator = '_';
     private const int GamePrefixLength = 1;
@@ -39,20 +38,55 @@ public sealed class CharacterRoster(IGameMemory memory, uint? getter)
             : new CharacterIdentity(index, code, code);
     }
 
+    public string? CodeOf(int index) => Record(index) is { } record ? Code(record) : null;
+
+    public int? LastIndex =>
+        Table() is { } table && memory.CanRead(table + LastIndexOffset, sizeof(int))
+            ? memory.ReadInt32(table + LastIndexOffset)
+            : null;
+
+    public bool Contains(int index) => index >= 0 && index <= LastIndex;
+
+    public int? IndexOf(string code)
+    {
+        if (LastIndex is not { } lastIndex)
+            return null;
+
+        for (var index = 0; index <= lastIndex; index++)
+        {
+            if (Record(index) is { } record && Code(record) == code)
+                return index;
+        }
+
+        return null;
+    }
+
+    public bool EnsureSpriteFolder(int index, SpriteFolder folder)
+    {
+        if (Record(index) is not { } record)
+            return false;
+
+        var field = record + SpriteFolderOffset;
+
+        if (memory.ReadInt32(field) == (int)folder || !memory.CanWrite(field, sizeof(int)))
+            return false;
+
+        Span<byte> value = stackalloc byte[sizeof(int)];
+        BitConverter.TryWriteBytes(value, (int)folder);
+        memory.Write(field, value);
+        return true;
+    }
+
     private uint? Record(int index)
     {
-        if (index < 0 || getter is not { } address || !memory.CanRead(address, GetterLength))
+        if (index < 0 || Table() is not { } table)
             return null;
 
-        Span<byte> code = stackalloc byte[GetterLength];
-        memory.Read(address, code);
-
-        if (code[0] != MoveToEax)
-            return null;
-
-        var record = memory.ReadUInt32(address + 1) + (uint)index * RecordLength;
+        var record = table + (uint)index * RecordLength;
         return memory.CanRead(record, (int)RecordLength) ? record : null;
     }
+
+    private uint? Table() => getter is { } address ? memory.AddressLoadedBy(address) : null;
 
     private string? Code(uint record) => Text(record) is var code && Characters.IsCode(code) ? code : null;
 
@@ -64,14 +98,7 @@ public sealed class CharacterRoster(IGameMemory memory, uint? getter)
         return Words.ToTitleCase(words.Replace(WordSeparator, ' ').ToLowerInvariant()).Trim();
     }
 
-    private string Text(uint address)
-    {
-        Span<byte> bytes = stackalloc byte[TextLength];
-        memory.Read(address, bytes);
-        var terminator = bytes.IndexOf((byte)0);
-
-        return Encoding.Latin1.GetString(terminator < 0 ? bytes : bytes[..terminator]);
-    }
+    private string Text(uint address) => memory.ReadText(address, TextLength);
 
     private static CharacterIdentity Numbered(int index) => new(index, $"{Characters.NumberedPrefix}{index}", $"{Characters.NumberedPrefix}{index}");
 }

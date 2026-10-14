@@ -211,6 +211,32 @@ public class CheatTableTests
         Assert.Equal(expected, contains);
     }
 
+    [Fact]
+    public void Describe_NestedScriptId_ReturnsItsDescription()
+    {
+        // Arrange
+        CheatTable table = CheatTable.Parse(Table(Entry(2, "Group", null, Entry(3, "\"SLOT  Get &amp; Set Override\"", Script))));
+
+        // Act
+        string description = table.Describe(3);
+
+        // Assert
+        Assert.Equal("SLOT Get & Set Override", description);
+    }
+
+    [Fact]
+    public void Describe_IdThatIsNotInTheTable_NamesTheId()
+    {
+        // Arrange
+        CheatTable table = CheatTable.Parse(Table(Entry(1, "Main", Script)));
+
+        // Act
+        string description = table.Describe(99);
+
+        // Assert
+        Assert.Equal("script 99", description);
+    }
+
     private static string Table(params string[] entries) =>
         $"<?xml version=\"1.0\" encoding=\"utf-8\"?><CheatTable CheatEngineTableVersion=\"46\"><CheatEntries>{string.Concat(entries)}</CheatEntries></CheatTable>";
 

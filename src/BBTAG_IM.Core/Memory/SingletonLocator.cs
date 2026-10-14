@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using Iced.Intel;
 
 namespace BBTAG_IM.Core.Memory;
@@ -8,8 +7,6 @@ public sealed record SingletonPattern(string Name, BytePattern Site, int CallOff
 public sealed class SingletonLocator(CodeImage image)
 {
     private const int Bitness = 32;
-    private const byte CallOpcode = 0xE8;
-    private const int CallLength = 5;
     private const int MaximumGetterLength = 160;
 
     public uint Locate(SingletonPattern pattern) => AddressLoadedBy(LocateGetter(pattern), pattern);
@@ -17,12 +14,7 @@ public sealed class SingletonLocator(CodeImage image)
     public uint LocateGetter(SingletonPattern pattern)
     {
         var call = image.FindSingle(pattern.Site, pattern.Name) + (uint)pattern.CallOffset;
-        var callBytes = image.Slice(call, CallLength);
-
-        if (callBytes.Length < CallLength || callBytes[0] != CallOpcode)
-            throw new GameLayoutException($"{pattern.Name} does not call its getter. {GameLayoutException.UnsupportedVersion}");
-
-        var getter = (uint)(call + CallLength + BinaryPrimitives.ReadInt32LittleEndian(callBytes[1..]));
+        var getter = image.CallTarget(call, pattern.Name);
         AddressLoadedBy(getter, pattern);
         return getter;
     }

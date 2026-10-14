@@ -4,6 +4,7 @@ using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Settings;
+using BBTAG_IM.Core.Tables;
 using BBTAG_IM.Launcher.CheatEngine;
 using BBTAG_IM.Launcher.Injection;
 using BBTAG_IM.Launcher.Ui;
@@ -79,7 +80,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         var gameExit = game.WaitForExitAsync();
         Report("The game is running.");
 
-        var attachedAt = context.Table is null ? null : await AttachCheatEngineAsync(game, selection(), log);
+        var attachedAt = context.Table is null ? null : await AttachCheatEngineAsync(game, context.Table, selection(), log);
 
         if (attachedAt is null || _host is null)
             return await GameClosedAsync(game, gameExit);
@@ -124,7 +125,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         return new GameLauncher(injector, log).Launch(session, context.Target);
     }
 
-    private async Task<DateTime?> AttachCheatEngineAsync(Process game, IReadOnlyCollection<int> toEnable, ILog log)
+    private async Task<DateTime?> AttachCheatEngineAsync(Process game, CheatTable table, IReadOnlyCollection<int> toEnable, ILog log)
     {
         var cheatEngine = new CheatEngineLocator(new PhysicalFileSystem()).Locate(settings.CheatEnginePath, ProgramFilesDirectories());
 
@@ -155,8 +156,8 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
             Report($"Cheat Engine is attached. Turning on {toEnable.Count} script(s). Stay in the menus until they are on.");
             var enabling = Stopwatch.StartNew();
             await Task.Run(() => EnableAll(bridge, toEnable));
-            var state = await WaitForScriptsAsync(bridge, game, enabling);
-            await ReportScriptsAsync(bridge, toEnable, state, enabling.Elapsed);
+            var state = await WaitForScriptsAsync(bridge, table, game, enabling);
+            await ReportScriptsAsync(bridge, table, toEnable, state, enabling.Elapsed);
             StartPolling(bridge);
             return attachedAt;
         }
@@ -173,17 +174,25 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         }
     }
 
-    private async Task<ActivationState> WaitForScriptsAsync(BridgeConnection bridge, Process game, Stopwatch enabling)
+    private async Task<ActivationState> WaitForScriptsAsync(BridgeConnection bridge, CheatTable table, Process game, Stopwatch enabling)
     {
         var activation = new ScriptActivation();
+        var retries = new FailedScriptRetries();
 
         while (!game.HasExited)
         {
-            var busy = await Task.Run(bridge.IsBusy);
-            var state = activation.Observe(busy, enabling.Elapsed);
+            var state = activation.Observe(await Task.Run(bridge.Status), enabling.Elapsed);
+
+            if (state == ActivationState.TimedOut)
+                return state;
 
             if (state != ActivationState.TurningOn)
-                return state;
+            {
+                if (!await ActOnQuietScriptsAsync(bridge, table, retries, state))
+                    return state;
+
+                activation.Reset();
+            }
 
             view.ShowStatus($"Turning on the scripts ({enabling.Elapsed.TotalSeconds:0} s). Stay in the menus. Starting a match now crashes the game.");
             await Task.Delay(PollInterval);
@@ -192,17 +201,37 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         return ActivationState.TurningOn;
     }
 
-    private async Task ReportScriptsAsync(BridgeConnection bridge, IReadOnlyCollection<int> requested, ActivationState state, TimeSpan elapsed)
+    private async Task<bool> ActOnQuietScriptsAsync(BridgeConnection bridge, CheatTable table, FailedScriptRetries retries, ActivationState state)
+    {
+        var failures = await Task.Run(bridge.Failures);
+        var retry = retries.SelectForRetry(failures.Select(failure => failure.Id));
+
+        if (retry.Count > 0)
+        {
+            LogFailures(table, failures);
+            Report($"Turning {retry.Count} script(s) on again: {Describe(table, retry)}.");
+            await Task.Run(() => EnableAll(bridge, retry));
+            return true;
+        }
+
+        if (state != ActivationState.Stuck)
+            return false;
+
+        Report("Some scripts wait for scripts that did not turn on. They stop waiting now.");
+        retries.EndRetries();
+        await Task.Run(bridge.CancelWaits);
+        return true;
+    }
+
+    private async Task ReportScriptsAsync(BridgeConnection bridge, CheatTable table, IReadOnlyCollection<int> requested, ActivationState state, TimeSpan elapsed)
     {
         if (state == ActivationState.TurningOn)
             return;
 
         var active = await Task.Run(bridge.ActiveScripts);
         view.ShowActiveScripts(active);
-        var off = requested.Where(scriptId => !active.Contains(scriptId)).ToArray();
-
-        if (off.Length > 0)
-            Report($"These scripts did not turn on: {string.Join(", ", off)}. Check Cheat Engine for an error message.");
+        var failures = await Task.Run(bridge.Failures);
+        LogFailures(table, failures);
 
         if (state == ActivationState.TimedOut)
         {
@@ -210,8 +239,25 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
             return;
         }
 
+        var off = requested.Where(scriptId => !active.Contains(scriptId)).Concat(failures.Select(failure => failure.Id)).Distinct().ToArray();
+
+        if (off.Length > 0)
+        {
+            Report($"These scripts did not turn on: {Describe(table, off)}. A match may crash. Close the game and start it again from the launcher.");
+            return;
+        }
+
         Report($"The scripts are on after {elapsed.TotalSeconds:0} s ({active.Count} active). You can start a match now.");
     }
+
+    private void LogFailures(CheatTable table, IEnumerable<ScriptFailure> failures)
+    {
+        foreach (var failure in failures)
+            _log?.Info($"\"{table.Describe(failure.Id)}\" did not turn on. Cheat Engine says: {failure.Reason}");
+    }
+
+    private static string Describe(CheatTable table, IEnumerable<int> scriptIds) =>
+        string.Join(", ", scriptIds.Select(table.Describe));
 
     private void StartPolling(BridgeConnection bridge)
     {

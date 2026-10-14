@@ -5,7 +5,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class ColorAssignmentCombo(MenuSettings settings)
+internal sealed class ColorAssignmentCombo(MenuSettings settings, GameColorCount gameColors)
 {
     public static readonly Vector4 AssignedText = new(0.30f, 0.85f, 0.39f, 1);
 
@@ -14,7 +14,7 @@ internal sealed class ColorAssignmentCombo(MenuSettings settings)
     public void Draw(string folder, string assignment)
     {
         var assigned = settings.Current.ColorOf(folder, assignment);
-        var colors = Math.Max(PaletteTable.StockColors, settings.Current.HighestColor(folder));
+        var colors = Math.Max(gameColors.Current, settings.Current.HighestColor(folder));
 
         if (assigned is not null)
             ImGui.PushStyleColor(ImGuiCol.Text, AssignedText);

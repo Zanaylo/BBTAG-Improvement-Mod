@@ -17,6 +17,8 @@ public sealed class ImprovementSettings
 
     public bool HitboxOrigins { get; set; } = true;
 
+    public int HitboxHeight { get; set; }
+
     public string PaletteCreator { get; set; } = "";
 
     public float? MenuFontSize { get; set; }

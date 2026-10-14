@@ -14,6 +14,7 @@ public sealed record CollisionBox(BoxKind Kind, float X, float Y, float Width, f
 public sealed record Entity(
     int Status,
     uint Owner,
+    int CharacterIndex,
     bool FacingLeft,
     int PositionX,
     int PositionY,
@@ -30,6 +31,7 @@ public sealed record Entity(
 
     private const int Length = 0x310;
     private const int StatusField = 0x10;
+    private const int CharacterIndexField = 0x34;
     private const int BoxListField = 0x4C;
     private const int HurtboxCountField = 0x94;
     private const int HitboxCountField = 0x98;
@@ -63,6 +65,7 @@ public sealed record Entity(
         return new Entity(
             Int32(fields, StatusField),
             (uint)Int32(fields, OwnerField),
+            Int32(fields, CharacterIndexField),
             Int32(fields, FacingLeftField) != 0,
             Int32(fields, PositionXField),
             Int32(fields, PositionYField),

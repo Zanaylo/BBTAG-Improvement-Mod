@@ -94,4 +94,31 @@ public class CodeImageTests
         GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
         Assert.Equal("0x00500000 is outside the game code.", layoutException.Message);
     }
+
+    [Fact]
+    public void CallTarget_CallInstruction_ReturnsTheAddressItCalls()
+    {
+        // Arrange
+        CodeImage image = new([new CodeBlock(FirstBlock, [0x90, 0xE8, 0x0A, 0x00, 0x00, 0x00, 0xC3])]);
+
+        // Act
+        uint target = image.CallTarget(FirstBlock + 1, "Fate");
+
+        // Assert
+        Assert.Equal(FirstBlock + 1 + 5 + 0x0A, target);
+    }
+
+    [Fact]
+    public void CallTarget_InstructionThatIsNoCall_ThrowsGameLayoutExceptionNamingIt()
+    {
+        // Arrange
+        CodeImage image = CreateCodeImage();
+
+        // Act
+        Exception? exception = Record.Exception(() => image.CallTarget(FirstBlock, "Fate"));
+
+        // Assert
+        GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
+        Assert.Equal("Fate does not call its getter. This game version is not supported.", layoutException.Message);
+    }
 }

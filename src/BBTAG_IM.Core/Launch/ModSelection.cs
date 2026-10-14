@@ -17,7 +17,7 @@ public static class ModSelection
 
         if (discovered.Count == 0)
             throw new InvalidModFolderException(
-                $"No mods to load. Put mod folders inside {modsDirectory}, or drag a mod folder onto the launcher.");
+                $"No mods to load. Put mod folders inside {modsDirectory}, or drag a mod folder onto the Mod Loader.");
 
         return discovered;
     }

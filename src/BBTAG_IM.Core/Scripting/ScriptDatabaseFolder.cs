@@ -1,0 +1,144 @@
+using System.Globalization;
+using System.Text.Json;
+using BBTAG_IM.Core.IO;
+
+namespace BBTAG_IM.Core.Scripting;
+
+public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
+{
+    public const string CommandsFile = "command_db.json";
+
+    private const string NamedValuesFolder = "named_values";
+    private const string SlotsFolder = "slot_db";
+    private const string UponsFolder = "upon_db";
+    private const string GlobalFile = "global.json";
+    private const string JsonExtension = ".json";
+
+    public bool Exists => fileSystem.FileExists(Path.Combine(folder, CommandsFile));
+
+    public ScriptDatabase Load()
+    {
+        if (!Exists)
+            throw new InvalidScriptDatabaseException($"{CommandsFile} was not found in {folder}.");
+
+        return new ScriptDatabase(
+            Commands(),
+            Names(SlotsFolder, GlobalFile),
+            Names(UponsFolder, GlobalFile),
+            Names(NamedValuesFolder, "hit_animation.json"),
+            Names(NamedValuesFolder, "move_condition.json"),
+            Inputs());
+    }
+
+    public ScriptDatabase ForCharacter(ScriptDatabase database, string characterCode) =>
+        database.WithCharacterNames(
+            Names(SlotsFolder, characterCode + JsonExtension),
+            Names(UponsFolder, characterCode + JsonExtension));
+
+    private IEnumerable<CommandDefinition> Commands()
+    {
+        using var document = Parse(Path.Combine(folder, CommandsFile)) ?? throw new InvalidScriptDatabaseException($"{CommandsFile} cannot be read.");
+        var commands = new List<CommandDefinition>();
+
+        foreach (var entry in document.RootElement.EnumerateObject())
+        {
+            if (HasLayout(entry.Value))
+                commands.Add(Command(entry));
+        }
+
+        return commands;
+    }
+
+    private static CommandDefinition Command(JsonProperty entry)
+    {
+        if (!int.TryParse(entry.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+            throw new InvalidScriptDatabaseException($"\"{entry.Name}\" is not a command number.");
+
+        var data = entry.Value;
+        var name = data.TryGetProperty("name", out var nameValue) ? nameValue.GetString() : null;
+
+        return new CommandDefinition(
+            id,
+            string.IsNullOrEmpty(name) ? CommandDefinition.UnknownName(id) : name,
+            Arguments(data),
+            SlotTypeArguments(data),
+            Hex(data));
+    }
+
+    private static bool HasLayout(JsonElement data) => data.TryGetProperty("format", out _) || data.TryGetProperty("size", out _);
+
+    private static IReadOnlyList<CommandArgument> Arguments(JsonElement data) =>
+        data.TryGetProperty("format", out var format)
+            ? CommandFormat.Parse(format.GetString() ?? string.Empty)
+            : CommandFormat.ForSize(data.GetProperty("size").GetInt32());
+
+    private static HashSet<int> SlotTypeArguments(JsonElement data) =>
+        data.TryGetProperty("type_check", out var typeCheck)
+            ? typeCheck.EnumerateArray().Select(index => index.GetInt32()).ToHashSet()
+            : [];
+
+    private static HexArguments Hex(JsonElement data)
+    {
+        if (!data.TryGetProperty("hex", out var hex))
+            return HexArguments.None;
+
+        return hex.ValueKind switch
+        {
+            JsonValueKind.True => HexArguments.All,
+            JsonValueKind.Array => HexArguments.Only(hex.EnumerateArray().Select(index => index.GetInt32())),
+            _ => HexArguments.None,
+        };
+    }
+
+    private InputNames Inputs()
+    {
+        var normal = Parse(Path.Combine(folder, NamedValuesFolder, "normal_inputs.json"));
+
+        using (normal)
+        {
+            return new InputNames(
+                Names(NamedValuesFolder, "move_inputs.json"),
+                Group(normal, "grouped_values"),
+                Group(normal, "button_byte"),
+                Group(normal, "direction_byte"));
+        }
+    }
+
+    private NameTable Names(string subfolder, string file)
+    {
+        using var document = Parse(Path.Combine(folder, subfolder, file));
+        return document is null ? NameTable.Empty : Table(document.RootElement);
+    }
+
+    private static NameTable Group(JsonDocument? document, string group) =>
+        document is not null && document.RootElement.TryGetProperty(group, out var element) ? Table(element) : NameTable.Empty;
+
+    private static NameTable Table(JsonElement element)
+    {
+        var entries = new List<KeyValuePair<int, string>>();
+
+        foreach (var entry in element.EnumerateObject())
+        {
+            if (entry.Value.ValueKind == JsonValueKind.String
+                && int.TryParse(entry.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+                entries.Add(new KeyValuePair<int, string>(value, entry.Value.GetString()!));
+        }
+
+        return new NameTable(entries);
+    }
+
+    private JsonDocument? Parse(string path)
+    {
+        if (!fileSystem.FileExists(path))
+            return null;
+
+        try
+        {
+            return JsonDocument.Parse(fileSystem.ReadAllText(path), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidScriptDatabaseException($"{path} is not valid JSON: {exception.Message}");
+        }
+    }
+}

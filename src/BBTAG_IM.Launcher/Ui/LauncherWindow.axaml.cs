@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Launcher.Ui;
 
@@ -34,6 +35,16 @@ internal sealed partial class LauncherWindow : Window
             return;
 
         await _controller.PlayAsync();
+    }
+
+    private void OnMoveUpClick(object? sender, RoutedEventArgs e) => MoveMod(sender, ModMove.Up);
+
+    private void OnMoveDownClick(object? sender, RoutedEventArgs e) => MoveMod(sender, ModMove.Down);
+
+    private static void MoveMod(object? sender, ModMove move)
+    {
+        if (sender is Control { DataContext: ModEntry mod })
+            mod.Move(move);
     }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)

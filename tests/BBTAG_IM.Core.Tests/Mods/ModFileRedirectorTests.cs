@@ -24,14 +24,30 @@ public class ModFileRedirectorTests
         _fileSystemMock.EnumerateFilesRecursively(ModDirectory + @"\data").Returns([ModFile]);
     }
 
-    public ModFileRedirector CreateModFileRedirector(string executableDirectory = GameDirectory)
+    public ModFileRedirector CreateModFileRedirector(string executableDirectory = GameDirectory, DevOverlay? dev = null)
     {
         ModFolder mod = new("Overhaul", ModDirectory, [new ModDataRoot(ModDirectory + @"\data", "data")], null, null, []);
         return new ModFileRedirector(
             ModFileIndex.Build([mod], _fileSystemMock),
             GameDirectory,
-            executableDirectory
+            executableDirectory,
+            dev
         );
+    }
+
+    [Fact]
+    public void RedirectOpen_FileInTheDevFolder_WinsOverTheMods()
+    {
+        // Arrange
+        string devFile = GameDirectory + @"\mods\DEV\data\char\char_adh_col.pac";
+        _fileSystemMock.FileExists(devFile).Returns(true);
+        ModFileRedirector redirector = CreateModFileRedirector(dev: new DevOverlay(_fileSystemMock, GameDirectory + @"\mods\DEV", _ => null));
+
+        // Act
+        string? redirected = redirector.RedirectOpen(GameFile, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(devFile, redirected);
     }
 
     [Theory]

@@ -19,7 +19,7 @@ public static class HitboxScene
     public static bool IsVisible(GameView game, ImprovementSettings settings) =>
         settings.HitboxViewer && game.InTrainingMatch;
 
-    public static HitboxFrame Collect(GameView game)
+    public static HitboxFrame Collect(GameView game, ICharacterFates fates, float lift)
     {
         if (game.EntityList is not { } list || !game.Memory.CanRead(list, EntityListLength))
             return HitboxFrame.Empty;
@@ -27,7 +27,7 @@ public static class HitboxScene
         Span<byte> bytes = stackalloc byte[EntityListLength];
         game.Memory.Read(list, bytes);
         ReadOnlySpan<uint> entities = MemoryMarshal.Cast<byte, uint>(bytes);
-        var characters = entities[..GameView.CharacterSlots];
+        Dictionary<uint, BoxPlacement> placements = [];
         List<HitboxShape> boxes = [];
         List<Vector2> origins = [];
 
@@ -36,16 +36,18 @@ public static class HitboxScene
             if (entities[slot] == 0 || Entity.Read(game.Memory, entities[slot]) is not { } entity)
                 continue;
 
-            if (slot >= GameView.CharacterSlots && !entity.IsActive)
+            if (slot < GameView.CharacterSlots)
+                placements[entities[slot]] = new BoxPlacement(FateScale.Of(fates.Of(entity.CharacterIndex)), lift);
+            else if (!entity.IsActive)
                 continue;
 
-            if (entity.Owner == 0 || !characters.Contains(entity.Owner) || entity.Boxes.Count == 0)
+            if (entity.Owner == 0 || !placements.TryGetValue(entity.Owner, out var placement) || entity.Boxes.Count == 0)
                 continue;
 
             foreach (var box in entity.Boxes)
-                boxes.Add(new HitboxShape(box.Kind, HitboxGeometry.Corners(entity, box)));
+                boxes.Add(new HitboxShape(box.Kind, HitboxGeometry.Corners(entity, box, placement)));
 
-            origins.Add(HitboxGeometry.Origin(entity));
+            origins.Add(HitboxGeometry.Origin(entity, placement));
         }
 
         return new HitboxFrame(boxes, origins);

@@ -7,22 +7,27 @@ public readonly record struct Quad(Vector2 A, Vector2 B, Vector2 C, Vector2 D)
     public Quad Map(Func<Vector2, Vector2> transform) => new(transform(A), transform(B), transform(C), transform(D));
 }
 
+public readonly record struct BoxPlacement(float Scale, float Lift)
+{
+    public static BoxPlacement Native { get; } = new(1, 0);
+}
+
 public static class HitboxGeometry
 {
     private const float WorldUnitsPerGameUnit = 0.368f;
     private const float FixedPointScale = 1000f;
     private const float FullTurnDegrees = 360f;
 
-    public static Vector2 Origin(Entity entity) =>
+    public static Vector2 Origin(Entity entity, BoxPlacement placement) =>
         new(
             ToWorld(entity.PositionX - entity.PivotX + entity.OffsetX),
-            ToWorld(entity.PositionY + entity.OffsetY));
+            ToWorld(entity.PositionY + entity.OffsetY) + placement.Lift);
 
-    public static Quad Corners(Entity entity, CollisionBox box)
+    public static Quad Corners(Entity entity, CollisionBox box, BoxPlacement placement)
     {
-        var origin = Origin(entity);
-        var scaleX = entity.ScaleX / FixedPointScale;
-        var scaleY = entity.ScaleY / FixedPointScale;
+        var origin = Origin(entity, placement);
+        var scaleX = entity.ScaleX / FixedPointScale * placement.Scale;
+        var scaleY = entity.ScaleY / FixedPointScale * placement.Scale;
         var direction = entity.FacingLeft ? 1 : -1;
         var left = direction * Scaled(box.X, scaleX);
         var width = direction * Scaled(box.Width, scaleX);

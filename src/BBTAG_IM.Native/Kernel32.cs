@@ -16,6 +16,9 @@ public static unsafe partial class Kernel32
     [LibraryImport(Library, SetLastError = true)]
     public static partial nint VirtualAlloc(nint address, nuint size, uint allocationType, uint protect);
 
+    [LibraryImport(Library)]
+    public static partial int MultiByteToWideChar(uint codePage, uint flags, byte* text, int length, char* wide, int wideLength);
+
     [LibraryImport(Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool VirtualFree(nint address, nuint size, uint freeType);
@@ -30,6 +33,12 @@ public static unsafe partial class Kernel32
 
     [LibraryImport(Library)]
     public static partial nint GetCurrentProcess();
+
+    [LibraryImport(Library)]
+    public static partial uint GetCurrentProcessId();
+
+    [LibraryImport(Library)]
+    public static partial uint GetProcessId(nint process);
 
     [LibraryImport(Library, EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint GetModuleHandle(string? moduleName);

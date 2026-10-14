@@ -1,19 +1,24 @@
 using System.Numerics;
+using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.Hitboxes;
 using BBTAG_IM.Core.Overlay;
+using BBTAG_IM.Core.Selection;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.ImprovementMod.Training;
 using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause) : IMenuSection
+internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause, BossFightControl? bossFight) : IMenuSection
 {
     public const string Name = "Training";
 
     private const int TypeColumns = 4;
     private const float Transparent = 0;
     private const float Opaque = 1;
+    private const int LowestHeight = -100;
+    private const int HighestHeight = 100;
+    private const string NoBossLabel = "Off";
 
     public string Title => Name;
 
@@ -32,9 +37,25 @@ internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause) 
         ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Hitboxes)})");
         MenuText.Tooltip("Shows during training matches only.");
 
+        DrawHeight();
         ImGui.Spacing();
         DrawPause();
         DrawBoxTypes();
+        ImGui.Spacing();
+        DrawBossFight();
+    }
+
+    private void DrawHeight()
+    {
+        var height = settings.Current.HitboxHeight;
+
+        if (ImGui.SliderInt("Box height", ref height, LowestHeight, HighestHeight))
+            settings.Current.HitboxHeight = height;
+
+        if (ImGui.IsItemDeactivatedAfterEdit())
+            settings.Save(_ => { });
+
+        MenuText.Tooltip("Moves every box and origin up or down. Raise it until the boxes sit on the characters. Ctrl+click to type a number.");
     }
 
     private void DrawPause()
@@ -70,6 +91,43 @@ internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause) 
         if (!pause.CanPause)
             MenuText.Muted("Pause works during training matches.");
     }
+
+    private void DrawBossFight()
+    {
+        if (bossFight is null)
+            return;
+
+        Boss?[] choices = [null, .. bossFight.Bosses];
+        var current = Array.IndexOf(choices, bossFight.Chosen);
+
+        if (ImGui.BeginCombo("Boss fight", NameOf(choices[current])))
+        {
+            for (var choice = 0; choice < choices.Length; choice++)
+                DrawBossChoice(bossFight, choices[choice], choice == current);
+
+            ImGui.EndCombo();
+        }
+
+        var next = WheelChoice.Next(current, choices.Length, MenuCombo.WheelSteps());
+
+        if (next != current)
+            bossFight.Choose(choices[next]);
+
+        MenuText.Tooltip("Needs the overhaul with its table turned on. Pick a boss, then confirm any team for Player 2 and any stage on character select. Player 2 becomes the boss alone and the match is played on the boss stage. This is a test and can still crash. It turns off when the game closes.");
+
+        if (bossFight.NotReady is { } notReady)
+            MenuText.Muted(notReady);
+    }
+
+    private static void DrawBossChoice(BossFightControl control, Boss? boss, bool selected)
+    {
+        if (ImGui.Selectable(NameOf(boss), selected) && !selected)
+            control.Choose(boss);
+
+        MenuCombo.KeepSelectedInView(selected);
+    }
+
+    private static string NameOf(Boss? boss) => boss?.Name ?? NoBossLabel;
 
     private void DrawBoxTypes()
     {

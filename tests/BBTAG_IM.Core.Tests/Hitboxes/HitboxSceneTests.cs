@@ -2,6 +2,7 @@ using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.Hitboxes;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Tests.Support;
+using NSubstitute;
 
 namespace BBTAG_IM.Core.Tests.Hitboxes;
 
@@ -16,8 +17,11 @@ public class HitboxSceneTests
     private const uint EntityStride = 0x1000;
     private const uint FirstBoxList = 0x0A000000;
     private const int ProjectileSlot = 10;
+    private const float NoLift = 0;
+    private const int Yosuke = 17;
 
     private readonly FakeGameMemory _memoryMock = new();
+    private readonly ICharacterFates _fatesMock = Substitute.For<ICharacterFates>();
 
     public HitboxSceneTests()
     {
@@ -35,7 +39,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -49,7 +53,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Equal([BoxKind.Hurtbox, BoxKind.Hitbox], shapes.Select(shape => shape.Kind));
@@ -64,7 +68,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Equal([BoxKind.Hitbox], shapes.Select(shape => shape.Kind));
@@ -79,7 +83,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -94,7 +98,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -109,7 +113,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -124,7 +128,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        HitboxFrame frame = HitboxScene.Collect(game);
+        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, NoLift);
 
         // Assert
         Assert.Equal(2, frame.Origins.Count);
@@ -138,7 +142,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        HitboxFrame frame = HitboxScene.Collect(game);
+        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, NoLift);
 
         // Assert
         Assert.Empty(frame.Origins);
@@ -152,10 +156,40 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
 
         // Assert
         Assert.Single(shapes);
+    }
+
+    [Fact]
+    public void Collect_ProjectileOfAPersonaCharacter_ScalesItsBoxesByThatFate()
+    {
+        // Arrange
+        _fatesMock.Of(Yosuke).Returns(Fate.Persona);
+        EntityInSlot(0, new EntityFields(Owner: Entity(0), CharacterIndex: Yosuke));
+        EntityInSlot(ProjectileSlot, new EntityFields(Owner: Entity(0)), (1, 0, 0, 100, 100));
+        GameView game = CreateGameView();
+
+        // Act
+        Quad box = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes.Single().World;
+
+        // Assert
+        Assert.Equal(34, box.B.X - box.A.X);
+    }
+
+    [Fact]
+    public void Collect_Lift_RaisesEveryOrigin()
+    {
+        // Arrange
+        EntityInSlot(0, new EntityFields(Owner: Entity(0)), (0, 0, 0, 10, 10));
+        GameView game = CreateGameView();
+
+        // Act
+        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, 12);
+
+        // Assert
+        Assert.Equal(12, frame.Origins.Single().Y);
     }
 
     [Theory]

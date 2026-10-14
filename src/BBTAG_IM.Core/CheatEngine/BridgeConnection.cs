@@ -8,6 +8,8 @@ public sealed class BridgeConnection(Stream pipe) : IDisposable
 {
     private const int HeaderSize = sizeof(uint);
     private const int MaximumReplySize = 1 << 20;
+    private const int StatusCountCount = 3;
+    private const int FailureFieldCount = 2;
 
     private readonly Lock _lock = new();
 
@@ -23,15 +25,24 @@ public sealed class BridgeConnection(Stream pipe) : IDisposable
             .Select(id => int.Parse(id, CultureInfo.InvariantCulture))
             .ToHashSet();
 
-    public bool IsBusy()
+    public BridgeStatus Status()
     {
-        var reply = Request(BridgeScript.BusyCommand);
+        var reply = Request(BridgeScript.StatusCommand);
+        var counts = reply.Split(BridgeScript.IdSeparator);
 
-        if (!int.TryParse(reply, NumberStyles.None, CultureInfo.InvariantCulture, out var turningOn))
+        if (counts.Length != StatusCountCount || !counts.All(IsCount))
             throw new BridgeException($"Cheat Engine answered \"{reply}\" when asked how many scripts are still turning on.");
 
-        return turningOn > 0;
+        return new BridgeStatus(ParseCount(counts[0]), ParseCount(counts[1]), ParseCount(counts[2]));
     }
+
+    public IReadOnlyList<ScriptFailure> Failures() =>
+        Request(BridgeScript.FailuresCommand)
+            .Split(BridgeScript.FailureSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(ParseFailure)
+            .ToArray();
+
+    public void CancelWaits() => Request(BridgeScript.CancelCommand);
 
     public void Close()
     {
@@ -47,6 +58,20 @@ public sealed class BridgeConnection(Stream pipe) : IDisposable
 
         if (reply == BridgeScript.MissingReply)
             throw new BridgeException($"Cheat Engine has no script with id {scriptId} in the loaded table.");
+    }
+
+    private static bool IsCount(string text) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _);
+
+    private static int ParseCount(string text) => int.Parse(text, NumberStyles.None, CultureInfo.InvariantCulture);
+
+    private static ScriptFailure ParseFailure(string line)
+    {
+        var fields = line.Split(BridgeScript.ReasonSeparator, FailureFieldCount);
+
+        if (fields.Length != FailureFieldCount || !IsCount(fields[0]))
+            throw new BridgeException($"Cheat Engine answered \"{line}\" when asked which scripts failed.");
+
+        return new ScriptFailure(ParseCount(fields[0]), fields[1]);
     }
 
     private string Request(string command)

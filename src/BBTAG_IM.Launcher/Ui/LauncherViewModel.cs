@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Launcher.Ui;
 
@@ -13,18 +14,13 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     private string _status = "";
     private bool _canPlay;
     private bool _canChangeMods = true;
-    private bool _frameLimiter;
-    private bool _hitboxViewer = true;
-    private CharacterPaletteChoices? _selectedPaletteCharacter;
     private bool _showCheatEngineWindow = true;
 
     public event Action<ScriptNode>? ScriptToggled;
 
     public event Action<ModEntry>? ModToggled;
 
-    public event Action<bool>? FrameLimiterChanged;
-
-    public event Action<bool>? HitboxViewerChanged;
+    public event Action<ModEntry, ModMove>? ModMoveRequested;
 
     public event Action<bool>? ShowCheatEngineWindowChanged;
 
@@ -40,7 +36,10 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
             _mods = value;
 
             foreach (var mod in value)
+            {
                 mod.Toggled += toggled => ModToggled?.Invoke(toggled);
+                mod.MoveRequested += (moved, move) => ModMoveRequested?.Invoke(moved, move);
+            }
         }
     }
 
@@ -51,12 +50,6 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     }
 
     public string? TableName { get; init; }
-
-    public string? ImprovementModName { get; init; }
-
-    public string? PalettesFolder { get; init; }
-
-    public IReadOnlyList<CharacterPaletteChoices> PaletteCharacters { get; init; } = [];
 
     public ObservableCollection<string> Messages { get; } = [];
 
@@ -77,40 +70,9 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
 
     public bool HasTable => TableName is not null;
 
-    public bool HasImprovementMod => ImprovementModName is not null;
-
-    public bool HasPalettes => PaletteCharacters.Count > 0;
-
-    public string PalettesCaption => (HasImprovementMod, HasPalettes) switch
-    {
-        (false, _) => "Put the BBTAG-Improvement-Mod folder inside the mods folder to use palettes.",
-        (true, false) => $"No palettes yet. Put .impl palette files in {PalettesFolder}, one folder per character (for example palettes\\Aegis), then open the launcher again.",
-        (true, true) => $"Pick a palette for any color of a character. It replaces that color from the next match, on your screen only. Palettes come from {PalettesFolder}.",
-    };
-
-    public CharacterPaletteChoices? SelectedPaletteCharacter
-    {
-        get => _selectedPaletteCharacter;
-        set => SetProperty(ref _selectedPaletteCharacter, value);
-    }
-
-    public bool HitboxViewer
-    {
-        get => _hitboxViewer;
-        set
-        {
-            if (SetProperty(ref _hitboxViewer, value))
-                HitboxViewerChanged?.Invoke(value);
-        }
-    }
-
     public string ScriptsCaption => HasTable
         ? $"Scripts from {TableName}. Ticked scripts turn on when the game starts. The Core stays on because the overhaul needs it."
         : "No mod has a Cheat Engine table, so there are no scripts to choose.";
-
-    public string ImprovementCaption => HasImprovementMod
-        ? $"Options of {ImprovementModName}, saved inside that folder. The frame limiter changes from the next game start. The hitbox viewer changes right away, even during a match."
-        : "Put the BBTAG-Improvement-Mod folder inside the mods folder to use these options.";
 
     public string Status
     {
@@ -122,16 +84,6 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     {
         get => _canPlay;
         set => SetProperty(ref _canPlay, value);
-    }
-
-    public bool FrameLimiter
-    {
-        get => _frameLimiter;
-        set
-        {
-            if (SetProperty(ref _frameLimiter, value))
-                FrameLimiterChanged?.Invoke(value);
-        }
     }
 
     public bool ShowCheatEngineWindow
@@ -151,14 +103,6 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
 
         while (Messages.Count > MaximumMessages)
             Messages.RemoveAt(0);
-    }
-
-    public void ShowImprovementOptions(bool frameLimiter, bool hitboxViewer)
-    {
-        _frameLimiter = frameLimiter;
-        _hitboxViewer = hitboxViewer;
-        OnPropertyChanged(nameof(FrameLimiter));
-        OnPropertyChanged(nameof(HitboxViewer));
     }
 
     public void KeepMessagesOf(LauncherViewModel previous)

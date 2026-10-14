@@ -9,8 +9,10 @@ public sealed class GameView(IGameMemory memory, GameAddresses addresses)
 
     private const uint ModeOffset = 0x114;
     private const uint StateOffset = 0x118;
+    private const uint FirstChosenCharacterOffset = 0x27A8;
     private const uint FirstPaletteIndexOffset = 0x27B0;
     private const uint PaletteIndexStride = 0x28;
+    private const uint ChosenStageOffset = 0x284C;
     private const uint FirstPaletteTableOffset = 0xB44;
     private const uint PaletteTableStride = 0x20BDC;
     private const uint EntityListOffset = 0xA4210;
@@ -28,7 +30,18 @@ public sealed class GameView(IGameMemory memory, GameAddresses addresses)
 
     public bool InTrainingMatch => Mode == GameMode.Training && State == GameState.Match;
 
+    public uint? BattleAddress => addresses.Battle == 0 ? null : addresses.Battle;
+
     public uint? EntityList => memory.ReadPointer(addresses.Battle + EntityListOffset);
+
+    public int? ChosenCharacter(int slot)
+    {
+        var field = addresses.Game + FirstChosenCharacterOffset + (uint)slot * PaletteIndexStride;
+        return memory.CanRead(field, sizeof(int)) ? memory.ReadInt32(field) : null;
+    }
+
+    public int? ChosenStage =>
+        memory.CanRead(addresses.Game + ChosenStageOffset, sizeof(int)) ? memory.ReadInt32(addresses.Game + ChosenStageOffset) : null;
 
     public uint PaletteIndexAddress(int slot) => addresses.Game + FirstPaletteIndexOffset + (uint)slot * PaletteIndexStride;
 

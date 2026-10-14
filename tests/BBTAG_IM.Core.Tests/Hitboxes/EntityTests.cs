@@ -27,6 +27,19 @@ public class EntityTests
     }
 
     [Fact]
+    public void Read_EntityObject_ReadsItsCharacterIndex()
+    {
+        // Arrange
+        EntityMemory.Write(_memoryMock, Address, new EntityFields(CharacterIndex: 26));
+
+        // Act
+        Entity? entity = Entity.Read(_memoryMock, Address);
+
+        // Assert
+        Assert.Equal(26, entity!.CharacterIndex);
+    }
+
+    [Fact]
     public void Read_HurtboxesAndHitboxes_ReadsEveryBoxInOrder()
     {
         // Arrange

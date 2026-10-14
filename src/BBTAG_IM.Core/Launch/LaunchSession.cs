@@ -52,7 +52,7 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
         }
 
         if (gameDirectory is null || logPath is null)
-            throw new InvalidLaunchSessionException("The launcher did not say where the game and the log are.");
+            throw new InvalidLaunchSessionException("The Mod Loader did not say where the game and the log are.");
 
         return new LaunchSession(gameDirectory, logPath, modFolders);
     }

@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace BBTAG_IM.Core.Memory;
 
 public sealed record CodeBlock(uint Address, byte[] Bytes)
@@ -7,6 +9,9 @@ public sealed record CodeBlock(uint Address, byte[] Bytes)
 
 public sealed class CodeImage(IReadOnlyList<CodeBlock> blocks)
 {
+    private const byte CallOpcode = 0xE8;
+    private const int CallLength = 5;
+
     public uint FindSingle(BytePattern pattern, string name)
     {
         var matches = blocks
@@ -19,6 +24,16 @@ public sealed class CodeImage(IReadOnlyList<CodeBlock> blocks)
             0 => throw new GameLayoutException($"{name} was not found in the game code. {GameLayoutException.UnsupportedVersion}"),
             _ => throw new GameLayoutException($"{name} was found {matches.Length} times in the game code. {GameLayoutException.UnsupportedVersion}"),
         };
+    }
+
+    public uint CallTarget(uint call, string name)
+    {
+        var callBytes = Slice(call, CallLength);
+
+        if (callBytes.Length < CallLength || callBytes[0] != CallOpcode)
+            throw new GameLayoutException($"{name} does not call its getter. {GameLayoutException.UnsupportedVersion}");
+
+        return (uint)(call + CallLength + BinaryPrimitives.ReadInt32LittleEndian(callBytes[1..]));
     }
 
     public ReadOnlySpan<byte> Slice(uint address, int length)

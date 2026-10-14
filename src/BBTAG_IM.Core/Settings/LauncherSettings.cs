@@ -19,6 +19,9 @@ public sealed class LauncherSettings
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public HashSet<string> DisabledMods { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> ModOrder { get; } = [];
+
     public bool IsModEnabled(string modName) => !DisabledMods.Contains(modName);
 
     public void EnableMod(string modName, bool enabled)
@@ -29,7 +32,30 @@ public sealed class LauncherSettings
             DisabledMods.Add(modName);
     }
 
-    public IReadOnlyList<ModFolder> EnabledOf(IEnumerable<ModFolder> mods) => mods.Where(mod => IsModEnabled(mod.Name)).ToArray();
+    public IReadOnlyList<ModFolder> EnabledOf(IEnumerable<ModFolder> mods) => InLoadOrder(mods).Where(mod => IsModEnabled(mod.Name)).ToArray();
+
+    public IReadOnlyList<ModFolder> InLoadOrder(IEnumerable<ModFolder> mods) => mods.OrderBy(mod => LoadRankOf(mod.Name)).ToArray();
+
+    public void MoveMod(IReadOnlyList<string> loadOrder, string modName, ModMove move)
+    {
+        var order = loadOrder.ToList();
+        var from = order.FindIndex(name => IsSameMod(name, modName));
+        var to = from + (int)move;
+
+        if (from >= 0 && to >= 0 && to < order.Count)
+            (order[from], order[to]) = (order[to], order[from]);
+
+        ModOrder.Clear();
+        ModOrder.AddRange(order);
+    }
+
+    private int LoadRankOf(string modName)
+    {
+        var rank = ModOrder.FindIndex(name => IsSameMod(name, modName));
+        return rank < 0 ? int.MaxValue : rank;
+    }
+
+    private static bool IsSameMod(string name, string other) => string.Equals(name, other, StringComparison.OrdinalIgnoreCase);
 
     public IReadOnlyList<int>? SelectionFor(string tableName) => ScriptSelections.GetValueOrDefault(tableName);
 

@@ -1,6 +1,6 @@
 namespace BBTAG_IM.Core.Mods;
 
-public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, string executableDirectory)
+public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, string executableDirectory, DevOverlay? dev = null)
 {
     public const uint OpenExisting = 3;
 
@@ -39,11 +39,15 @@ public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, 
         var besideExecutable = _runsFromModFolder ? KeyBesideExecutable(path) : null;
 
         if (besideExecutable is not null)
-            return (readsExistingFile ? index.Resolve(besideExecutable) : null) ?? Path.Join(gameDirectory, besideExecutable);
+            return (readsExistingFile ? Resolve(besideExecutable) : null) ?? Path.Join(gameDirectory, besideExecutable);
 
         var key = GamePathKey.From(path, gameDirectory);
-        return readsExistingFile && key is not null ? index.Resolve(key) : null;
+        return readsExistingFile && key is not null ? Resolve(key) : null;
     }
+
+    public string? ResolveBelowDev(string key) => index.Resolve(key) ?? (File.Exists(Path.Join(gameDirectory, key)) ? Path.Join(gameDirectory, key) : null);
+
+    private string? Resolve(string key) => dev?.Resolve(key) ?? index.Resolve(key);
 
     private string? KeyBesideExecutable(string? path) =>
         Path.IsPathFullyQualified(path ?? "") ? GamePathKey.From(path, executableDirectory) : null;

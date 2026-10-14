@@ -4,6 +4,8 @@ using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
 using BBTAG_IM.Core.Patching;
 using BBTAG_IM.Core.Pe;
+using BBTAG_IM.Core.Scripting.Dev;
+using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Native;
 using BBTAG_IM.Native.Hooks;
 using BBTAG_IM.Payload.Hooks;
@@ -60,6 +62,7 @@ internal static class PayloadStartup
         var game = LoadedModule.MainModule();
 
         log.Info($"Payload loaded into {game.Path} at 0x{game.BaseAddress:X8}.");
+        ExitHooks.Install(game, log);
         PatchExecutable(mods, game, session.GameDirectory, log);
         RedirectModFiles(mods, game, session.GameDirectory, fileSystem, log);
         PluginLoader.StartAll(mods, Path.GetDirectoryName(session.LogPath) ?? session.GameDirectory, log);
@@ -97,6 +100,28 @@ internal static class PayloadStartup
             log.Info($"{mod}: {files} file(s) layered over the game data.");
 
         var executableDirectory = Path.GetDirectoryName(game.Path) ?? gameDirectory;
-        FileApiHooks.Install(game, new ModFileRedirector(index, gameDirectory, executableDirectory), log);
+        var redirector = new ModFileRedirector(index, gameDirectory, executableDirectory);
+        FileApiHooks.Install(game, WithDevFolder(redirector, index, gameDirectory, executableDirectory, fileSystem, log), log);
+    }
+
+    private static ModFileRedirector WithDevFolder(
+        ModFileRedirector redirector,
+        ModFileIndex index,
+        string gameDirectory,
+        string executableDirectory,
+        IFileSystem fileSystem,
+        ILog log)
+    {
+        var devFolder = Path.Combine(gameDirectory, ModSelection.ModsFolderName, DevFolder.Name);
+        var launcher = SettingsStores.Launcher(fileSystem, gameDirectory).TryLoad() ?? new LauncherSettings();
+
+        if (!launcher.IsModEnabled(DevFolder.Name))
+        {
+            log.Info($"The {DevFolder.Name} folder is turned off in the Mod Loader, so its files are not read live.");
+            return redirector;
+        }
+
+        log.Info($"Files in {devFolder} are read live and win over every other mod. A folder named like an archive is packed into it when the game opens it.");
+        return new ModFileRedirector(index, gameDirectory, executableDirectory, new DevOverlay(fileSystem, devFolder, redirector.ResolveBelowDev));
     }
 }

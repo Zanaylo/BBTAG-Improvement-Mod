@@ -78,6 +78,62 @@ public class GameViewTests
     }
 
     [Theory]
+    [InlineData(0, 0x00E5B8A8u)]
+    [InlineData(3, 0x00E5B920u)]
+    public void ChosenCharacter_SlotChoice_ReadsTheCharacterThePlayerPicked(int slot, uint field)
+    {
+        // Arrange
+        _memoryMock.Map(field, sizeof(int)).Int32At(field, 53);
+        GameView view = CreateGameView();
+
+        // Act
+        int? character = view.ChosenCharacter(slot);
+
+        // Assert
+        Assert.Equal(53, character);
+    }
+
+    [Fact]
+    public void ChosenCharacter_GameObjectUnreadable_ReturnsNull()
+    {
+        // Arrange
+        GameView view = CreateGameView();
+
+        // Act
+        int? character = view.ChosenCharacter(0);
+
+        // Assert
+        Assert.Null(character);
+    }
+
+    [Fact]
+    public void ChosenStage_StageWrittenInTheGameObject_ReadsIt()
+    {
+        // Arrange
+        _memoryMock.Map(GameObject + 0x284C, sizeof(int)).Int32At(GameObject + 0x284C, 119);
+        GameView view = CreateGameView();
+
+        // Act
+        int? stage = view.ChosenStage;
+
+        // Assert
+        Assert.Equal(119, stage);
+    }
+
+    [Fact]
+    public void ChosenStage_GameObjectUnreadable_ReturnsNull()
+    {
+        // Arrange
+        GameView view = CreateGameView();
+
+        // Act
+        int? stage = view.ChosenStage;
+
+        // Assert
+        Assert.Null(stage);
+    }
+
+    [Theory]
     [InlineData(0, 0x014A82E4u)]
     [InlineData(2, 0x014E9A9Cu)]
     public void PaletteTableAddress_Slot_PointsIntoTheCharacterGraphicsOfTheBattleObject(int slot, uint expected)

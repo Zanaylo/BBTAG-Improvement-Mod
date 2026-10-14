@@ -100,5 +100,154 @@ public class LauncherSettingsTests
         Assert.Equal(["A", "C"], enabled.Select(mod => mod.Name));
     }
 
+    [Fact]
+    public void EnabledOf_SavedLoadOrder_ReturnsTheEnabledModsInThatOrder()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModOrder = { "C", "B", "A" } };
+        settings.EnableMod("B", false);
+        ModFolder[] mods = [Mod("A"), Mod("B"), Mod("C")];
+
+        // Act
+        IReadOnlyList<ModFolder> enabled = settings.EnabledOf(mods);
+
+        // Assert
+        Assert.Equal(["C", "A"], enabled.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void InLoadOrder_NothingSaved_KeepsTheGivenOrder()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+        ModFolder[] mods = [Mod("A"), Mod("B"), Mod("C")];
+
+        // Act
+        IReadOnlyList<ModFolder> ordered = settings.InLoadOrder(mods);
+
+        // Assert
+        Assert.Equal(["A", "B", "C"], ordered.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void InLoadOrder_SavedOrder_PutsTheModsInThatOrder()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModOrder = { "C", "A", "B" } };
+        ModFolder[] mods = [Mod("A"), Mod("B"), Mod("C")];
+
+        // Act
+        IReadOnlyList<ModFolder> ordered = settings.InLoadOrder(mods);
+
+        // Assert
+        Assert.Equal(["C", "A", "B"], ordered.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void InLoadOrder_ModNotInTheSavedOrder_LoadsItAfterTheSavedOnes()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModOrder = { "C", "B" } };
+        ModFolder[] mods = [Mod("A"), Mod("B"), Mod("C")];
+
+        // Act
+        IReadOnlyList<ModFolder> ordered = settings.InLoadOrder(mods);
+
+        // Assert
+        Assert.Equal(["C", "B", "A"], ordered.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void InLoadOrder_SavedNameInAnotherCase_StillOrdersTheMod()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModOrder = { "c", "a", "b" } };
+        ModFolder[] mods = [Mod("A"), Mod("B"), Mod("C")];
+
+        // Act
+        IReadOnlyList<ModFolder> ordered = settings.InLoadOrder(mods);
+
+        // Assert
+        Assert.Equal(["C", "A", "B"], ordered.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void MoveMod_Up_SwapsTheModWithTheOneAbove()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        settings.MoveMod(["A", "B", "C"], "C", ModMove.Up);
+
+        // Assert
+        Assert.Equal(["A", "C", "B"], settings.ModOrder);
+    }
+
+    [Fact]
+    public void MoveMod_Down_SwapsTheModWithTheOneBelow()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        settings.MoveMod(["A", "B", "C"], "A", ModMove.Down);
+
+        // Assert
+        Assert.Equal(["B", "A", "C"], settings.ModOrder);
+    }
+
+    [Fact]
+    public void MoveMod_UpFromTheTop_KeepsTheOrder()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        settings.MoveMod(["A", "B", "C"], "A", ModMove.Up);
+
+        // Assert
+        Assert.Equal(["A", "B", "C"], settings.ModOrder);
+    }
+
+    [Fact]
+    public void MoveMod_DownFromTheBottom_KeepsTheOrder()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        settings.MoveMod(["A", "B", "C"], "C", ModMove.Down);
+
+        // Assert
+        Assert.Equal(["A", "B", "C"], settings.ModOrder);
+    }
+
+    [Fact]
+    public void MoveMod_NameInAnotherCase_MovesTheMod()
+    {
+        // Arrange
+        LauncherSettings settings = new();
+
+        // Act
+        settings.MoveMod(["A", "B", "C"], "b", ModMove.Up);
+
+        // Assert
+        Assert.Equal(["B", "A", "C"], settings.ModOrder);
+    }
+
+    [Fact]
+    public void MoveMod_UnknownMod_SavesTheOrderUnchanged()
+    {
+        // Arrange
+        LauncherSettings settings = new() { ModOrder = { "Old" } };
+
+        // Act
+        settings.MoveMod(["A", "B"], "Missing", ModMove.Up);
+
+        // Assert
+        Assert.Equal(["A", "B"], settings.ModOrder);
+    }
+
     private static ModFolder Mod(string name) => new(name, $@"D:\BBTAG\mods\{name}", [], null, null, []);
 }

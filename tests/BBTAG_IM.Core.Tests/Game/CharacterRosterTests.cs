@@ -15,7 +15,10 @@ public class CharacterRosterTests
     private const uint PatchedTable = 0x30000000;
     private const uint RecordLength = 0xB8;
     private const uint ShortNameOffset = 0x40;
+    private const uint LastIndexOffset = 0x2E00;
+    private const uint SpriteFolderOffset = 0xB0;
     private const int Ragna = 0;
+    private const int Take = 53;
     private const int Kohaku = 120;
 
     private readonly FakeGameMemory _memoryMock = new();
@@ -62,6 +65,34 @@ public class CharacterRosterTests
 
         // Assert
         Assert.Equal(new CharacterIdentity(Ragna, "Ragna", "Ragna"), identity);
+    }
+
+    [Fact]
+    public void CodeOf_CharacterOfTheGame_ReturnsItsFileCode()
+    {
+        // Arrange
+        RosterAt(Table);
+        RecordAt(Table, Ragna, "brg", "B_RAGNA");
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        string? code = roster.CodeOf(Ragna);
+
+        // Assert
+        Assert.Equal("brg", code);
+    }
+
+    [Fact]
+    public void CodeOf_RosterNotFound_ReturnsNull()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        string? code = roster.CodeOf(Ragna);
+
+        // Assert
+        Assert.Null(code);
     }
 
     [Fact]
@@ -168,9 +199,179 @@ public class CharacterRosterTests
         Assert.Equal("Character 120", identity.Folder);
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(120, true)]
+    [InlineData(121, false)]
+    [InlineData(-1, false)]
+    public void Contains_RosterEndingAtAnIndex_AcceptsOnlyIndexesUpToIt(int index, bool expected)
+    {
+        // Arrange
+        RosterAt(Table);
+        LastIndexAt(Table, Kohaku);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        bool contains = roster.Contains(index);
+
+        // Assert
+        Assert.Equal(expected, contains);
+    }
+
+    [Fact]
+    public void LastIndex_RosterEndingAtAnIndex_ReturnsIt()
+    {
+        // Arrange
+        RosterAt(Table);
+        LastIndexAt(Table, Kohaku);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        int? lastIndex = roster.LastIndex;
+
+        // Assert
+        Assert.Equal(Kohaku, lastIndex);
+    }
+
+    [Fact]
+    public void LastIndex_RosterNotFound_ReturnsNull()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        int? lastIndex = roster.LastIndex;
+
+        // Assert
+        Assert.Null(lastIndex);
+    }
+
+    [Fact]
+    public void Contains_RosterNotFound_AcceptsNoIndex()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        bool contains = roster.Contains(Ragna);
+
+        // Assert
+        Assert.False(contains);
+    }
+
+    [Fact]
+    public void Contains_RosterCountUnreadable_AcceptsNoIndex()
+    {
+        // Arrange
+        RosterAt(Table);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        bool contains = roster.Contains(Ragna);
+
+        // Assert
+        Assert.False(contains);
+    }
+
+    private void LastIndexAt(uint table, int lastIndex) => _memoryMock.Map(table + LastIndexOffset, sizeof(int)).Int32At(table + LastIndexOffset, lastIndex);
+
+    [Fact]
+    public void IndexOf_CodeInTheRoster_ReturnsItsIndex()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Kohaku);
+        RecordAt(Table, Take, "bta", "TAKEMIKAZUCHI");
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        int? index = roster.IndexOf("bta");
+
+        // Assert
+        Assert.Equal(Take, index);
+    }
+
+    [Fact]
+    public void IndexOf_CodeNotInTheRoster_ReturnsNull()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Take);
+        RecordAt(Table, Take, "bta", "TAKEMIKAZUCHI");
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        int? index = roster.IndexOf("mko");
+
+        // Assert
+        Assert.Null(index);
+    }
+
+    [Fact]
+    public void IndexOf_RosterNotFound_ReturnsNull()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        int? index = roster.IndexOf("bta");
+
+        // Assert
+        Assert.Null(index);
+    }
+
+    [Fact]
+    public void EnsureSpriteFolder_RecordWithAnotherFolder_WritesTheFolder()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Take);
+        RecordAt(Table, Take, "bta", "TAKEMIKAZUCHI");
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        bool changed = roster.EnsureSpriteFolder(Take, SpriteFolder.Char2x);
+
+        // Assert
+        Assert.True(changed);
+        Assert.Equal(2, _memoryMock.Int32From(Table + Take * RecordLength + SpriteFolderOffset));
+    }
+
+    [Fact]
+    public void EnsureSpriteFolder_RecordAlreadyUsingTheFolder_ChangesNothing()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Take);
+        RecordAt(Table, Take, "bta", "TAKEMIKAZUCHI");
+        _memoryMock.Int32At(Table + Take * RecordLength + SpriteFolderOffset, 2);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        bool changed = roster.EnsureSpriteFolder(Take, SpriteFolder.Char2x);
+
+        // Assert
+        Assert.False(changed);
+    }
+
+    [Fact]
+    public void EnsureSpriteFolder_RosterNotFound_ChangesNothing()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        bool changed = roster.EnsureSpriteFolder(Take, SpriteFolder.Char2x);
+
+        // Assert
+        Assert.False(changed);
+    }
+
     private void RosterAt(uint table)
     {
         _memoryMock.Map(Getter, 8).BytesAt(Getter, [0xB8, 0, 0, 0, 0, GameCode.Return]).UInt32At(Getter + 1, table);
+    }
+
+    private void RosterAt(uint table, int lastIndex)
+    {
+        RosterAt(table);
+        _memoryMock.Map(table + LastIndexOffset, sizeof(int)).Int32At(table + LastIndexOffset, lastIndex);
     }
 
     private void RecordAt(uint table, int index, string code, string shortName)

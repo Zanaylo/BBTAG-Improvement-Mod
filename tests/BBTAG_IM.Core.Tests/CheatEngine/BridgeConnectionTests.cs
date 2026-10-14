@@ -96,34 +96,97 @@ public class BridgeConnectionTests
         Assert.Empty(active);
     }
 
+    [Fact]
+    public void Status_CheatEngineCountsPendingRunningAndWaitingScripts_ReturnsTheCounts()
+    {
+        // Arrange
+        BridgeConnection connection = CreateBridgeConnection();
+        _pipeMock.Reply("2,5,1");
+
+        // Act
+        BridgeStatus status = connection.Status();
+
+        // Assert
+        Assert.Equal(new BridgeStatus(2, 5, 1), status);
+        Assert.Equal(["status"], _pipeMock.Sent);
+    }
+
     [Theory]
-    [InlineData("3", true)]
-    [InlineData("0", false)]
-    public void IsBusy_CountOfScriptsTurningOn_IsTrueOnlyAboveZero(string reply, bool expected)
+    [InlineData("ok")]
+    [InlineData("1,2")]
+    [InlineData("1,x,3")]
+    public void Status_ReplyThatIsNotThreeCounts_ThrowsBridgeException(string reply)
     {
         // Arrange
         BridgeConnection connection = CreateBridgeConnection();
         _pipeMock.Reply(reply);
 
         // Act
-        bool busy = connection.IsBusy();
+        Exception? exception = Record.Exception(() => connection.Status());
 
         // Assert
-        Assert.Equal(expected, busy);
+        Assert.IsType<BridgeException>(exception);
     }
 
     [Fact]
-    public void IsBusy_ReplyThatIsNotACount_ThrowsBridgeException()
+    public void Failures_CheatEngineListsFailedScripts_ReturnsTheirIdsAndReasons()
+    {
+        // Arrange
+        BridgeConnection connection = CreateBridgeConnection();
+        _pipeMock.Reply("21539\tError in line 4: Wait condition failed.\n3430\tNot all code is injectable.");
+
+        // Act
+        IReadOnlyList<ScriptFailure> failures = connection.Failures();
+
+        // Assert
+        Assert.Equal(
+            [new ScriptFailure(21539, "Error in line 4: Wait condition failed."), new ScriptFailure(3430, "Not all code is injectable.")],
+            failures);
+        Assert.Equal(["failures"], _pipeMock.Sent);
+    }
+
+    [Fact]
+    public void Failures_NothingFailed_ReturnsEmpty()
+    {
+        // Arrange
+        BridgeConnection connection = CreateBridgeConnection();
+        _pipeMock.Reply("");
+
+        // Act
+        IReadOnlyList<ScriptFailure> failures = connection.Failures();
+
+        // Assert
+        Assert.Empty(failures);
+    }
+
+    [Theory]
+    [InlineData("21539")]
+    [InlineData("abc\treason")]
+    public void Failures_LineWithoutAnIdAndAReason_ThrowsBridgeException(string reply)
+    {
+        // Arrange
+        BridgeConnection connection = CreateBridgeConnection();
+        _pipeMock.Reply(reply);
+
+        // Act
+        Exception? exception = Record.Exception(() => connection.Failures());
+
+        // Assert
+        Assert.IsType<BridgeException>(exception);
+    }
+
+    [Fact]
+    public void CancelWaits_CheatEngineAnswersOk_SendsTheCancelCommand()
     {
         // Arrange
         BridgeConnection connection = CreateBridgeConnection();
         _pipeMock.Reply("ok");
 
         // Act
-        Exception? exception = Record.Exception(() => connection.IsBusy());
+        connection.CancelWaits();
 
         // Assert
-        Assert.IsType<BridgeException>(exception);
+        Assert.Equal(["cancel"], _pipeMock.Sent);
     }
 
     [Fact]

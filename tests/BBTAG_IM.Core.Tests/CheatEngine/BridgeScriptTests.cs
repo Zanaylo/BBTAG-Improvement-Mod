@@ -49,4 +49,48 @@ public class BridgeScriptTests
         // Assert
         Assert.Matches(handlerPattern, lua);
     }
+
+    [Theory]
+    [InlineData(@"""status"" then\s+return bbtagImStatus\(\)")]
+    [InlineData(@"""failures"" then\s+return bbtagImFailureReport\(\)")]
+    [InlineData(@"""cancel"" then\s+bbtagImCancelWaits = true")]
+    public void For_GameProcessId_AnswersTheActivationCommands(string handlerPattern)
+    {
+        // Act
+        string lua = BridgeScript.For(GameProcessId);
+
+        // Assert
+        Assert.Matches(handlerPattern, lua);
+    }
+
+    [Fact]
+    public void For_GameProcessId_HoldsEveryScriptActivationUntilTheBridgeReleasesIt()
+    {
+        // Act
+        string lua = BridgeScript.For(GameProcessId);
+
+        // Assert
+        Assert.Matches(@"if record\.Type == vtAutoAssembler then\s+record\.OnActivate = bbtagImGate", lua);
+    }
+
+    [Fact]
+    public void For_GameProcessId_KeepsTheReasonCheatEngineGivesForAFailedScript()
+    {
+        // Act
+        string lua = BridgeScript.For(GameProcessId);
+
+        // Assert
+        Assert.Matches(@"function bbtagImRecordFailure\(failed, reason, reasonText\)\s+bbtagImFailures\[failed\.ID\] = bbtagImReason\(reasonText\)", lua);
+        Assert.Contains("record.OnActivationFailure = bbtagImRecordFailure", lua);
+    }
+
+    [Fact]
+    public void For_GameProcessId_ReplacesTheTableWaitWithOneTheBridgeCanCount()
+    {
+        // Act
+        string lua = BridgeScript.For(GameProcessId);
+
+        // Assert
+        Assert.Contains("GeneralTools.WaitForCondition = bbtagImWaitForCondition", lua);
+    }
 }

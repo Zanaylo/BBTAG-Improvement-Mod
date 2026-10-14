@@ -8,5 +8,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] arguments) => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments);
 
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<LauncherApp>().UsePlatformDetect();
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<LauncherApp>()
+            .UsePlatformDetect()
+            .With(new Win32PlatformOptions
+            {
+                RenderingMode = [Win32RenderingMode.Software],
+                CompositionMode = [Win32CompositionMode.RedirectionSurface],
+            });
 }

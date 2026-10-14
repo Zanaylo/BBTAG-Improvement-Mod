@@ -64,7 +64,7 @@ public class ModSelectionTests
 
         // Assert
         Assert.Equal(
-            $"No mods to load. Put mod folders inside {ModsFolder}, or drag a mod folder onto the launcher.",
+            $"No mods to load. Put mod folders inside {ModsFolder}, or drag a mod folder onto the Mod Loader.",
             Assert.IsType<InvalidModFolderException>(exception).Message);
     }
 

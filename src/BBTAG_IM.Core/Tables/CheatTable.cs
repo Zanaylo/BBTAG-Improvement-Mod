@@ -18,12 +18,14 @@ public sealed partial class CheatTable
 
     private readonly HashSet<int> _toggleableIds;
     private readonly int[] _requiredIds;
+    private readonly Dictionary<int, string> _descriptions;
 
     private CheatTable(IReadOnlyList<TableScript> scripts)
     {
         Scripts = scripts;
         _toggleableIds = Flatten(scripts).Where(script => script.CanToggle).Select(script => script.Id).ToHashSet();
         _requiredIds = scripts.Where(IsCore).Select(script => script.Id).ToArray();
+        _descriptions = Flatten(scripts).DistinctBy(script => script.Id).ToDictionary(script => script.Id, script => script.Description);
     }
 
     public IReadOnlyList<TableScript> Scripts { get; }
@@ -31,6 +33,8 @@ public sealed partial class CheatTable
     public bool ContainsScript(int id) => _toggleableIds.Contains(id);
 
     public bool IsRequired(int id) => _requiredIds.Contains(id);
+
+    public string Describe(int id) => _descriptions.GetValueOrDefault(id) ?? $"script {id}";
 
     public IReadOnlyList<int> SelectionToEnable(IReadOnlyList<int>? savedSelection) =>
         _requiredIds.Concat((savedSelection ?? []).Where(ContainsScript)).Distinct().ToArray();

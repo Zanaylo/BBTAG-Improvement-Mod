@@ -1,26 +1,21 @@
-using Avalonia.Threading;
 using BBTAG_IM.Core.CheatEngine;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
-using BBTAG_IM.Core.Palettes;
 using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Launcher.Ui;
 
 internal sealed class LauncherController
 {
-    private static readonly TimeSpan OptionsCheckInterval = TimeSpan.FromSeconds(1);
-
     private readonly string _launcherDirectory;
     private readonly LaunchOptions? _options;
     private readonly JsonFileStore<LauncherSettings> _settingsStore;
     private readonly LauncherSettings _settings;
-    private readonly IReadOnlyList<ModFolder> _allMods = [];
+    private IReadOnlyList<ModFolder> _allMods = [];
     private readonly List<int> _selection = [];
 
     private LaunchContext? _context;
-    private SettingsWatcher<ImprovementSettings>? _improvement;
     private GameSession? _session;
 
     public LauncherController(IReadOnlyList<string> arguments, string launcherDirectory)
@@ -33,13 +28,9 @@ internal sealed class LauncherController
         _options = ParseOptions(arguments, startupMessages);
 
         if (_options is not null)
-            _allMods = DiscoverMods(_options, fileSystem, startupMessages);
+            _allMods = _settings.InLoadOrder(DiscoverMods(_options, fileSystem, startupMessages));
 
         ViewModel = Load(startupMessages);
-
-        var optionsCheck = new DispatcherTimer { Interval = OptionsCheckInterval };
-        optionsCheck.Tick += (_, _) => ShowOptionsChangedElsewhere();
-        optionsCheck.Start();
     }
 
     public event Action<LauncherViewModel>? ViewModelReplaced;
@@ -109,22 +100,16 @@ internal sealed class LauncherController
     private LauncherViewModel Load(List<string> messages, LauncherViewModel? previous = null)
     {
         _context = ResolveContext(messages);
-        _improvement = _context?.ImprovementStore is { } store ? new SettingsWatcher<ImprovementSettings>(store, new PhysicalFileSystem()) : null;
-        var improvement = _improvement?.Current ?? new ImprovementSettings();
         _selection.Clear();
         _selection.AddRange(_context?.Table?.SelectionToEnable(_settings.SelectionFor(_context.TableName)) ?? []);
 
         var viewModel = CreateViewModel(_context);
-        viewModel.FrameLimiter = improvement.FrameLimiter;
-        viewModel.HitboxViewer = improvement.HitboxViewer;
-        viewModel.SelectedPaletteCharacter = viewModel.PaletteCharacters.FirstOrDefault();
         viewModel.ShowCheatEngineWindow = _settings.ShowCheatEngineWindow;
         viewModel.ShowActiveScripts(_selection.ToHashSet());
         viewModel.CanPlay = _context is not null;
         viewModel.ScriptToggled += OnScriptToggled;
         viewModel.ModToggled += OnModToggled;
-        viewModel.FrameLimiterChanged += OnFrameLimiterChanged;
-        viewModel.HitboxViewerChanged += OnHitboxViewerChanged;
+        viewModel.ModMoveRequested += OnModMoveRequested;
         viewModel.ShowCheatEngineWindowChanged += OnShowCheatEngineWindowChanged;
 
         if (previous is not null)
@@ -159,112 +144,55 @@ internal sealed class LauncherController
         {
             GameText = context is null ? "" : $"Game: {context.GameDirectory}",
             ExecutableText = context is null ? "" : $"Runs: {context.Target.ExecutablePath}",
-            Mods = _allMods.Select(mod => new ModEntry(mod.Name, ModContents.Describe(mod, ModPlugin.IsPlugin), _settings.IsModEnabled(mod.Name))).ToArray(),
+            Mods = _allMods.Select(ToEntry).ToArray(),
             TableName = context?.Table is null ? null : context.TableName,
-            ImprovementModName = context?.ImprovementMod?.Name,
-            PalettesFolder = context?.Palettes?.Folder,
-            PaletteCharacters = context?.Palettes is { } palettes ? CreatePaletteCharacters(palettes) : [],
             Scripts = context?.Table is { } table ? ScriptNode.From(table) : [],
         };
 
-    private IReadOnlyList<CharacterPaletteChoices> CreatePaletteCharacters(PaletteLibrary library) =>
-        library.CharactersWithPalettes()
-            .Select(character => new CharacterPaletteChoices(character, () => CreatePaletteColors(library, character)))
-            .ToArray();
-
-    private IReadOnlyList<PaletteColorSlot> CreatePaletteColors(PaletteLibrary library, string character)
-    {
-        var palettes = library.Load(character);
-        palettes.Problems.ToList().ForEach(ViewModel.Report);
-        PaletteOption[] options = [PaletteOption.GameColors, .. palettes.Palettes.Select(palette => new PaletteOption(palette.Name, palette))];
-
-        return Enumerable.Range(1, PaletteTable.StockColors)
-            .Select(color => CreatePaletteColor(character, color, options))
-            .ToArray();
-    }
-
-    private PaletteColorSlot CreatePaletteColor(string character, int color, IReadOnlyList<PaletteOption> options)
-    {
-        var chosen = _improvement?.Current.PaletteFor(character, color);
-        var selected = OptionFor(options, chosen);
-
-        if (chosen is not null && selected == PaletteOption.GameColors)
-            ViewModel.Report($"{character} color {color} was set to the palette {chosen}, which is no longer in the palettes folder.");
-
-        var slot = new PaletteColorSlot(color, options, selected);
-        slot.Changed += changed => OnPaletteChosen(character, changed);
-        return slot;
-    }
-
-    private void ShowOptionsChangedElsewhere()
-    {
-        if (_improvement is null || !RefreshImprovement(_improvement))
-            return;
-
-        var options = _improvement.Current;
-        ViewModel.ShowImprovementOptions(options.FrameLimiter, options.HitboxViewer);
-
-        foreach (var character in ViewModel.PaletteCharacters)
+    private ModEntry ToEntry(ModFolder mod, int position) =>
+        new(mod.Name, ModContents.Describe(mod, ModPlugin.IsPlugin), _settings.IsModEnabled(mod.Name))
         {
-            foreach (var slot in character.LoadedColors)
-                slot.Show(OptionFor(slot.Options, options.PaletteFor(character.Name, slot.Number)));
-        }
-
-        ViewModel.Report("The options were changed in the game menu.");
-    }
-
-    private static bool RefreshImprovement(SettingsWatcher<ImprovementSettings> improvement)
-    {
-        try
-        {
-            return improvement.Refresh();
-        }
-        catch (Exception exception) when (LaunchErrors.IsSettingsWriteError(exception))
-        {
-            return false;
-        }
-    }
-
-    private static PaletteOption OptionFor(IReadOnlyList<PaletteOption> options, string? paletteName) =>
-        options.FirstOrDefault(option => option.Palette?.Name.Equals(paletteName, StringComparison.OrdinalIgnoreCase) == true)
-            ?? PaletteOption.GameColors;
+            CanMoveUp = position > 0,
+            CanMoveDown = position < _allMods.Count - 1,
+        };
 
     private void OnModToggled(ModEntry mod)
     {
         if (_session is not null)
             return;
 
+        SaveModChange(() => _settings.EnableMod(mod.Name, mod.IsEnabled));
+        Reload(mod.IsEnabled ? $"{mod.Name} is on." : $"{mod.Name} is off and will not load.");
+    }
+
+    private void OnModMoveRequested(ModEntry mod, ModMove move)
+    {
+        if (_session is not null)
+            return;
+
+        SaveModChange(() => _settings.MoveMod(_allMods.Select(folder => folder.Name).ToArray(), mod.Name, move));
+        _allMods = _settings.InLoadOrder(_allMods);
+        Reload(move == ModMove.Up ? $"{mod.Name} moved up." : $"{mod.Name} moved down.");
+    }
+
+    private void SaveModChange(Action change)
+    {
         try
         {
-            _settings.EnableMod(mod.Name, mod.IsEnabled);
+            change();
             _settingsStore.Save(_settings);
         }
         catch (Exception exception) when (LaunchErrors.IsSettingsWriteError(exception))
         {
             ViewModel.Report(exception.Message);
         }
+    }
 
-        ViewModel = Load([mod.IsEnabled ? $"{mod.Name} is on." : $"{mod.Name} is off and will not load."], ViewModel);
+    private void Reload(string message)
+    {
+        ViewModel = Load([message], ViewModel);
         ViewModelReplaced?.Invoke(ViewModel);
     }
-
-    private void OnPaletteChosen(string character, PaletteColorSlot slot)
-    {
-        var palette = slot.Selected.Palette?.Name;
-
-        SaveImprovementSettings(
-            settings => settings.ChoosePalette(character, slot.Number, palette),
-            palette is null
-                ? $"{character} color {slot.Number} uses the game colors from the next match."
-                : $"{character} color {slot.Number} uses the palette {palette} from the next match.");
-    }
-
-    private void OnHitboxViewerChanged(bool turnOn) =>
-        SaveImprovementSettings(
-            settings => settings.HitboxViewer = turnOn,
-            turnOn
-                ? "Hitboxes show during training matches."
-                : "Hitboxes stay hidden.");
 
     private async void OnScriptToggled(ScriptNode script)
     {
@@ -292,29 +220,6 @@ internal sealed class LauncherController
                 await _session.ShowWindowAsync(visible);
         }
         catch (Exception exception) when (exception is BridgeException || LaunchErrors.IsSettingsWriteError(exception))
-        {
-            ViewModel.Report(exception.Message);
-        }
-    }
-
-    private void OnFrameLimiterChanged(bool turnOn) =>
-        SaveImprovementSettings(
-            settings => settings.FrameLimiter = turnOn,
-            turnOn
-                ? "The frame limiter turns V-Sync off and holds 60 fps from the next game start."
-                : "The game uses its native V-Sync setting again from the next game start.");
-
-    private void SaveImprovementSettings(Action<ImprovementSettings> change, string confirmation)
-    {
-        if (_improvement is null)
-            return;
-
-        try
-        {
-            _improvement.Change(change);
-            ViewModel.Report(confirmation);
-        }
-        catch (Exception exception) when (LaunchErrors.IsSettingsWriteError(exception))
         {
             ViewModel.Report(exception.Message);
         }

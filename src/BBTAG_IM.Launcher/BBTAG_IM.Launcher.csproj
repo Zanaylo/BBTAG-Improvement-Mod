@@ -4,7 +4,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>BBTAG_IM.Launcher</RootNamespace>
-    <AssemblyName>BBTAG_IM_Launcher</AssemblyName>
+    <AssemblyName>BBTAG_Mod_Loader</AssemblyName>
+    <Product>BBTAG Mod Loader</Product>
     <RuntimeIdentifier>win-x86</RuntimeIdentifier>
     <PlatformTarget>x86</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
