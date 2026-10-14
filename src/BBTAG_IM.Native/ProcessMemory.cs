@@ -20,7 +20,7 @@ public sealed unsafe class ProcessMemory : IGameMemory
     public bool CanRead(uint address, int length) => Covers(address, length, needsWrite: false);
 
     public bool CanWrite(uint address, int length) => Covers(address, length, needsWrite: true);
-    //foda-se depois eu vejo essa merda
+
     public void Read(uint address, Span<byte> destination) =>
         new ReadOnlySpan<byte>((void*)(nint)address, destination.Length).CopyTo(destination);
 
