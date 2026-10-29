@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Compiling;
+using BBTAG_IM.Core.Scripting.EditorHelp;
 using BBTAG_IM.Core.Tests.Support;
 
 namespace BBTAG_IM.Core.Tests.Scripting;
@@ -8,6 +9,7 @@ public class ScriptDecompilerTests
 {
     private const int SlotType = 2;
     private const int ConstantType = 0;
+    private const string BlankLine = "\n\n";
 
     [Fact]
     public void Decompile_StateWithUponAndIf_WritesNestedBlocks()
@@ -19,7 +21,7 @@ public class ScriptDecompilerTests
             .Command(4, SlotType, 51).Command(5)
             .Command(1)
             .Build();
-        string expected = """
+        string expected = ScriptStubs.EditorSettings + BlankLine + """
             @State
             def NmlAtk5A():
 
@@ -46,7 +48,7 @@ public class ScriptDecompilerTests
             .Command(ScriptTestDatabase.Damage, 1).Command(56).Command(57)
             .Command(1)
             .Build();
-        string expected = """
+        string expected = ScriptStubs.EditorSettings + BlankLine + """
             @RawState
             def Odd():
                 Damage(1)
@@ -115,6 +117,99 @@ public class ScriptDecompilerTests
 
         // Assert
         Assert.IsType<InvalidScriptException>(exception);
+    }
+
+    [Fact]
+    public void Decompile_StateNameOfAStateInTheFile_WritesItWithoutQuotes()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("NmlAtk2B").Command(ScriptTestDatabase.SharedGatling, "NmlAtk5B").Command(1)
+            .State("NmlAtk5B").Command(1)
+            .Build();
+
+        // Act
+        string text = CreateScriptDecompiler().Decompile(Read(bytes));
+
+        // Assert
+        Assert.Contains("    SharedGatling(NmlAtk5B)\n", text);
+    }
+
+    [Fact]
+    public void Decompile_StateNameThatIsNotInTheFile_KeepsTheQuotes()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("NmlAtk2B").Command(ScriptTestDatabase.SharedGatling, "CmnActStand").Command(1)
+            .Build();
+
+        // Act
+        string text = CreateScriptDecompiler().Decompile(Read(bytes));
+
+        // Assert
+        Assert.Contains("    SharedGatling('CmnActStand')\n", text);
+    }
+
+    [Fact]
+    public void Decompile_BBToolsStyle_KeepsStateNamesInQuotes()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("NmlAtk2B").Command(ScriptTestDatabase.SharedGatling, "NmlAtk5B").Command(1)
+            .State("NmlAtk5B").Command(1)
+            .Build();
+        ScriptDecompiler decompiler = new(ScriptTestDatabase.Create(), ScriptStyle.BBTools);
+
+        // Act
+        string text = decompiler.Decompile(Read(bytes));
+
+        // Assert
+        Assert.Contains("    SharedGatling('NmlAtk5B')\n", text);
+    }
+
+    [Fact]
+    public void Decompile_StateNamesWithoutQuotes_CompileBackToTheSameBytes()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("NmlAtk2B").Command(ScriptTestDatabase.SharedGatling, "5B").Command(1)
+            .State("5B").Command(1)
+            .Build();
+
+        // Act
+        string text = CreateScriptDecompiler().Decompile(Read(bytes));
+        CompiledScript compiled = new ScriptCompiler(ScriptTestDatabase.Create()).Compile(text);
+
+        // Assert
+        Assert.Contains("SharedGatling(__5B)", text);
+        Assert.Equal(bytes, compiled.Bytes);
+    }
+
+    [Fact]
+    public void Decompile_ReadableStyle_StartsWithTheEditorSettings()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes().State("NmlAtk5A").Command(1).Build();
+
+        // Act
+        string text = CreateScriptDecompiler().Decompile(Read(bytes));
+
+        // Assert
+        Assert.StartsWith(ScriptStubs.EditorSettings + "\n\n@State\n", text);
+    }
+
+    [Fact]
+    public void Decompile_BBToolsStyle_HasNoEditorSettings()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes().State("NmlAtk5A").Command(1).Build();
+        ScriptDecompiler decompiler = new(ScriptTestDatabase.Create(), ScriptStyle.BBTools);
+
+        // Act
+        string text = decompiler.Decompile(Read(bytes));
+
+        // Assert
+        Assert.StartsWith("@State\n", text);
     }
 
     public ScriptDecompiler CreateScriptDecompiler() => new(ScriptTestDatabase.Create());

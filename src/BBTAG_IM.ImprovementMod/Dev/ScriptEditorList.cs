@@ -7,7 +7,7 @@ namespace BBTAG_IM.ImprovementMod.Dev;
 
 internal sealed class ScriptEditorList(ILog log)
 {
-    private const string ScriptExtension = ".py";
+    private const string ScriptExtension = ".cs";
     private const string VisualStudioFinder = @"Microsoft Visual Studio\Installer\vswhere.exe";
     private const string ThreadName = "Script editor list";
     private const int Idle = 0;

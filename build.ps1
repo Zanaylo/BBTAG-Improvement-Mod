@@ -30,7 +30,12 @@ Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Launcher') -c Relea
 
 $improvementMod = Join-Path $Output 'mods\BBTAG-Improvement-Mod'
 Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.ImprovementMod') -c Release -o $improvementMod
+Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.BBScript') -c Release -o $improvementMod
+Copy-Item (Join-Path $PSScriptRoot 'src\BBTAG_IM.BBScript\Python\bbscript.py') $improvementMod -Force
 New-Item -ItemType Directory -Force (Join-Path $improvementMod 'palettes') | Out-Null
+$editorProject = Join-Path $improvementMod 'bbscript\Scripts'
+New-Item -ItemType Directory -Force $editorProject | Out-Null
+Copy-Item (Join-Path $PSScriptRoot 'resource\Scripts\*') $editorProject -Force
 
 Get-ChildItem $Output -Filter *.pdb -Recurse | Remove-Item -Force
 Copy-Item (Join-Path $PSScriptRoot 'resource\README.txt') $Output -Force

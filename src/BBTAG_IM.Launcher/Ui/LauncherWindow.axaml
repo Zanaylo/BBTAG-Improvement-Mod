@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="using:BBTAG_IM.Launcher.Ui"
+        xmlns:sys="using:System"
         mc:Ignorable="d"
         d:DesignWidth="820"
         d:DesignHeight="860"
@@ -40,7 +41,18 @@
       </DockPanel>
     </StackPanel>
 
-    <ListBox x:Name="MessageList" DockPanel.Dock="Bottom" Height="150" Margin="16,8,16,16" ItemsSource="{Binding Messages}" />
+    <ListBox x:Name="MessageList"
+             DockPanel.Dock="Bottom"
+             Height="150"
+             Margin="16,8,16,16"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ItemsSource="{Binding Messages}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="sys:String">
+          <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
 
     <TabControl Margin="16,0">
       <TabItem Header="Mods">

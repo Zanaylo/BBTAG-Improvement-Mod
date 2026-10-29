@@ -2,7 +2,9 @@ using BBTAG_IM.Core.CheatEngine;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Roster;
 using BBTAG_IM.Core.Settings;
+using BBTAG_IM.Core.Tables;
 
 namespace BBTAG_IM.Launcher.Ui;
 
@@ -17,6 +19,7 @@ internal sealed class LauncherController
 
     private LaunchContext? _context;
     private GameSession? _session;
+    private int _characterCheck;
 
     public LauncherController(IReadOnlyList<string> arguments, string launcherDirectory)
     {
@@ -32,6 +35,7 @@ internal sealed class LauncherController
             _allMods = _settings.InLoadOrder(DiscoverMods(_options, fileSystem, startupMessages));
 
         ViewModel = Load(startupMessages);
+        CheckCharacters(_context);
     }
 
     public event Action<LauncherViewModel>? ViewModelReplaced;
@@ -206,6 +210,41 @@ internal sealed class LauncherController
     {
         ViewModel = Load([message], ViewModel);
         ViewModelReplaced?.Invoke(ViewModel);
+        CheckCharacters(_context);
+    }
+
+    private async void CheckCharacters(LaunchContext? context)
+    {
+        if (context is null)
+            return;
+
+        var check = ++_characterCheck;
+
+        try
+        {
+            var messages = await Task.Run(() => CharacterFileProblems(context));
+
+            if (check == _characterCheck)
+                messages.ToList().ForEach(ViewModel.AddMessage);
+        }
+        catch (Exception exception) when (LaunchErrors.IsExpected(exception))
+        {
+            ViewModel.AddMessage($"The character files could not be checked: {exception.Message}");
+        }
+    }
+
+    private static IReadOnlyList<string> CharacterFileProblems(LaunchContext context)
+    {
+        var fileSystem = new PhysicalFileSystem();
+        var manifests = ModCharacterManifests.Load(context.Mods, fileSystem);
+        var tableCodes = context.TablePath is { } tablePath ? TableRoster.Codes(fileSystem.ReadAllText(tablePath)) : [];
+        string[] roster = [.. tableCodes.Concat(manifests.Manifests.Select(manifest => manifest.Code)).Distinct()];
+
+        if (roster.Length == 0)
+            return manifests.Problems;
+
+        var reports = new ModCharacterAudit(fileSystem, context.GameDirectory).Run(context.Mods, roster);
+        return [.. manifests.Problems, .. CharacterFileMessages.From(reports)];
     }
 
     private async void OnScriptToggled(ScriptNode script)

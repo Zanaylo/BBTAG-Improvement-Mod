@@ -3,18 +3,38 @@ using System.Text;
 
 namespace BBTAG_IM.Core.Scripting;
 
-public sealed class ScriptDecompiler(ScriptDatabase database)
+public sealed class ScriptDecompiler
 {
     private const string Indent = "    ";
-    private const string SlotZero = "SLOT_0";
+    private const string NewLine = "\n";
+    private const string DefaultScriptName = "Script";
+    private const string UnnamedPrefix = "unnamed_";
+    private const string DuplicateMark = "_";
     private const int ConstantType = 0;
     private const int SlotType = 2;
     private const int OperationIndex = 0;
 
-    public string Decompile(ScriptBinary script)
+    private readonly ScriptDatabase database;
+    private readonly IScriptDialect dialect;
+    private HashSet<string> functions = [];
+
+    public ScriptDecompiler(ScriptDatabase database, ScriptStyle style = ScriptStyle.Readable)
+        : this(database, new PythonDialect(database, style))
     {
-        var text = new StringBuilder();
+    }
+
+    public ScriptDecompiler(ScriptDatabase database, IScriptDialect dialect)
+    {
+        this.database = database;
+        this.dialect = dialect;
+    }
+
+    public string Decompile(ScriptBinary script, string scriptName = DefaultScriptName)
+    {
+        var text = new StringBuilder(dialect.Begin(scriptName));
         var instructions = script.Instructions;
+        var identifiers = new Dictionary<string, int>(StringComparer.Ordinal);
+        functions = instructions.Where(instruction => ScriptCommands.StartsFunction(instruction.Id)).Select(instruction => instruction.TextAt(0)).ToHashSet(StringComparer.Ordinal);
         var start = 0;
         var unnamed = 0;
 
@@ -28,38 +48,50 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
             while (end < instructions.Count && !ScriptCommands.StartsFunction(instructions[end].Id))
                 end++;
 
-            if (text.Length > 0)
-                text.Append('\n').Append('\n');
+            if (start > 0)
+                text.Append(dialect.FunctionSeparator);
 
-            AppendFunction(text, instructions, start, end, ref unnamed);
+            AppendFunction(text, instructions, start, end, identifiers, ref unnamed);
             start = end;
         }
 
-        return text.ToString();
+        return text.Append(dialect.End).ToString();
     }
 
-    private void AppendFunction(StringBuilder text, IReadOnlyList<ScriptInstruction> instructions, int start, int end, ref int unnamed)
+    private void AppendFunction(StringBuilder text, IReadOnlyList<ScriptInstruction> instructions, int start, int end, Dictionary<string, int> identifiers, ref int unnamed)
     {
         var opener = instructions[start];
         var structured = Structured(instructions, start, end);
         var name = opener.TextAt(0);
-        var identifier = FunctionNames.ToIdentifier(name);
+        var identifier = dialect.FunctionIdentifier(name);
         var decorator = ScriptDecorators.For(opener.Id, structured is null);
+        var outer = IndentOf(dialect.BodyDepth - 1);
+        string? realName = null;
 
         if (identifier is null)
         {
-            text.Append('@').Append(decorator).Append('(').Append(ScriptLiterals.Text(name)).Append(")\n");
-            identifier = "unnamed_" + unnamed++.ToString(CultureInfo.InvariantCulture);
+            realName = name;
+            identifier = UnnamedPrefix + unnamed++.ToString(CultureInfo.InvariantCulture);
+        }
+        else if (dialect.UniqueFunctionNames && identifiers.TryGetValue(identifier, out var seen))
+        {
+            identifiers[identifier] = seen + 1;
+            realName = name;
+            identifier += DuplicateMark + (seen + 1).ToString(CultureInfo.InvariantCulture);
         }
         else
         {
-            text.Append('@').Append(decorator).Append('\n');
+            identifiers[identifier] = 1;
         }
 
-        text.Append(ScriptKeywords.Def).Append(' ').Append(identifier).Append("():\n");
+        foreach (var line in dialect.FunctionStart(decorator, realName, identifier))
+            text.Append(outer).Append(line).Append(NewLine);
 
         foreach (var line in structured ?? Raw(instructions, start + 1, end))
-            text.Append(line).Append('\n');
+            text.Append(line).Append(NewLine);
+
+        if (dialect.FunctionEnd is { } functionEnd)
+            text.Append(outer).Append(functionEnd).Append(NewLine);
     }
 
     private List<string>? Structured(IReadOnlyList<ScriptInstruction> instructions, int start, int end)
@@ -68,25 +100,26 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
         var index = start + 1;
         var closer = ScriptCommands.CloserOf(instructions[start].Id)!.Value;
 
-        return Block(lines, instructions, end, 1, ref index, closer) && index == end ? lines : null;
+        return Block(lines, instructions, end, dialect.BodyDepth, ref index, closer) && index == end ? lines : null;
     }
 
     private List<string> Raw(IReadOnlyList<ScriptInstruction> instructions, int start, int end)
     {
+        var indent = IndentOf(dialect.BodyDepth);
         var lines = new List<string>();
 
         for (var index = start; index < end; index++)
-            lines.Add(Indent + Call(instructions[index], paired: false));
+            lines.Add(indent + dialect.Statement(Call(instructions[index], paired: false)));
 
-        if (lines.Count == 0)
-            lines.Add(Indent + ScriptKeywords.Pass);
+        if (lines.Count == 0 && dialect.EmptyBlock is { } empty)
+            lines.Add(indent + empty);
 
         return lines;
     }
 
     private bool Block(List<string> lines, IReadOnlyList<ScriptInstruction> instructions, int end, int depth, ref int index, int closer)
     {
-        var indent = string.Concat(Enumerable.Repeat(Indent, depth));
+        var indent = IndentOf(depth);
         var first = lines.Count;
         var afterIf = false;
 
@@ -98,8 +131,8 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
             {
                 index++;
 
-                if (lines.Count == first)
-                    lines.Add(indent + ScriptKeywords.Pass);
+                if (lines.Count == first && dialect.EmptyBlock is { } empty)
+                    lines.Add(indent + empty);
 
                 return true;
             }
@@ -112,12 +145,13 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
                 if (!afterIf)
                     return false;
 
-                lines.Add(indent + ScriptKeywords.Else + ":");
+                lines.AddRange(dialect.ElseStart.Select(line => indent + line));
                 index++;
 
                 if (!Block(lines, instructions, end, depth + 1, ref index, ScriptCommands.EndElse))
                     return false;
 
+                AddBlockEnd(lines, indent, BlockKind.Condition);
                 afterIf = false;
                 continue;
             }
@@ -130,22 +164,21 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
                 if (Header(instruction) is not { } header)
                     return false;
 
-                if (instruction.Id is ScriptCommands.Upon or ScriptCommands.ObjectFunction or ScriptCommands.StateRegister)
+                if (header.Kind == BlockKind.Call && (lines.Count > first || dialect.BlankLineBeforeFirstBlock))
                     lines.Add(string.Empty);
 
-                foreach (var headerLine in header)
-                    lines.Add(indent + headerLine);
-
+                lines.AddRange(header.Lines.Select(line => indent + line));
                 index++;
 
                 if (!Block(lines, instructions, end, depth + 1, ref index, innerCloser))
                     return false;
 
+                AddBlockEnd(lines, indent, header.Kind);
                 afterIf = instruction.Id is ScriptCommands.If or ScriptCommands.IfNot;
                 continue;
             }
 
-            lines.Add(indent + Statement(instruction));
+            lines.Add(indent + dialect.Statement(Statement(instruction)));
             afterIf = false;
             index++;
         }
@@ -153,32 +186,26 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
         return false;
     }
 
-    private string[]? Header(ScriptInstruction instruction)
+    private void AddBlockEnd(List<string> lines, string indent, BlockKind kind)
     {
-        switch (instruction.Id)
+        if (dialect.BlockEnd(kind) is { } blockEnd)
+            lines.Add(indent + blockEnd);
+    }
+
+    private (BlockKind Kind, IReadOnlyList<string> Lines)? Header(ScriptInstruction instruction)
+    {
+        if (instruction.Id is ScriptCommands.If or ScriptCommands.IfNot)
         {
-            case ScriptCommands.If:
-            case ScriptCommands.IfNot:
-                var condition = Operand(instruction, 0);
-                if (condition is null)
-                    return null;
-                var keyword = instruction.Id == ScriptCommands.If ? ScriptKeywords.If : ScriptKeywords.If + " " + ScriptKeywords.Not;
-                return [$"{keyword} {condition}:"];
-            case ScriptCommands.Upon:
-                var upon = database.UponName(instruction.Values[0].Number);
-                return FunctionNames.IsIdentifier(upon) ? [$"{ScriptKeywords.Def} {upon}():"] : null;
-            case ScriptCommands.ObjectFunction:
-                var objectFunction = $"{instruction.Command.Name}_{instruction.Values[0].Number.ToString(CultureInfo.InvariantCulture)}";
-                return instruction.Values[0].Number >= 0 && FunctionNames.IsIdentifier(objectFunction) ? [$"{ScriptKeywords.Def} {objectFunction}():"] : null;
-            case ScriptCommands.StateRegister:
-                var name = FunctionNames.ToIdentifier(instruction.TextAt(0));
-                var input = database.Inputs.NameOf(instruction.Id, instruction.Values[1].Number, instruction.Command.Hex.Contains(1));
-                if (name is null || input is null || !FunctionNames.IsIdentifier(input))
-                    return null;
-                return ["@" + ScriptDecorators.StateRegister, $"{ScriptKeywords.Def} {name}({input}):"];
-            default:
+            if (Operand(instruction, 0) is not { } condition)
                 return null;
+
+            return (BlockKind.Condition, dialect.IfStart(instruction.Id == ScriptCommands.IfNot, condition, instruction.Values[0].Number == ConstantType));
         }
+
+        if (instruction.Id is not (ScriptCommands.Upon or ScriptCommands.ObjectFunction or ScriptCommands.StateRegister))
+            return null;
+
+        return dialect.CallBlockStart(instruction, call => Call(call, paired: true)) is { } lines ? (BlockKind.Call, lines) : null;
     }
 
     private string Statement(ScriptInstruction instruction)
@@ -196,11 +223,11 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
             return assignment;
 
         var call = Call(instruction, paired: true);
-        return ScriptCommands.WritesSlotZero.Contains(instruction.Id) ? $"{SlotZero} = {call}" : call;
+        return ScriptCommands.WritesSlotZero.Contains(instruction.Id) ? $"{dialect.Slot(0)} = {call}" : call;
     }
 
     private string? OperationAssignment(ScriptInstruction instruction) =>
-        Expression(instruction) is { } expression ? $"{SlotZero} = {expression}" : null;
+        Expression(instruction) is { } expression ? $"{dialect.Slot(0)} = {expression}" : null;
 
     private string? OperationIntoAssignment(ScriptInstruction instruction)
     {
@@ -236,19 +263,14 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
         if (!ScriptOperators.IsKnown(operation) || Operand(instruction, 1) is not { } left || Operand(instruction, 3) is not { } right)
             return null;
 
-        return ScriptOperators.Format((ScriptOperator)operation, left, right);
+        return dialect.Operation((ScriptOperator)operation, left, right);
     }
 
     private string Call(ScriptInstruction instruction, bool paired)
     {
         var arguments = paired && CanPair(instruction) ? PairedArguments(instruction) : RawArguments(instruction);
-        return $"{CallName(instruction.Command)}({string.Join(", ", arguments)})";
+        return $"{dialect.CommandName(instruction.Command)}({string.Join(", ", arguments)})";
     }
-
-    private string CallName(CommandDefinition command) =>
-        FunctionNames.IsIdentifier(command.Name) && database.Find(command.Name)?.Id == command.Id
-            ? command.Name
-            : CommandDefinition.UnknownName(command.Id);
 
     private bool CanPair(ScriptInstruction instruction) =>
         instruction.Command.SlotTypeArguments.All(typeIndex =>
@@ -288,26 +310,27 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
         var value = instruction.Values[index];
 
         if (value.IsText)
-            return ScriptLiterals.Text(instruction.TextAt(index));
+            return StateReference(instruction, index, visibleIndex) ?? dialect.Text(instruction.TextAt(index));
 
-        var named = ValueKinds.Of(instruction.Id, visibleIndex) switch
-        {
-            ValueKind.Input => database.Inputs.NameOf(instruction.Id, value.Number, instruction.Command.Hex.Contains(visibleIndex)),
-            ValueKind.Upon => database.UponName(value.Number),
-            ValueKind.HitAnimation => database.HitAnimations.NameOf(value.Number),
-            ValueKind.MoveCondition => database.MoveConditions.NameOf(value.Number),
-            _ => null,
-        };
-
-        return named is not null && FunctionNames.IsIdentifier(named) ? named : Plain(instruction, index, visibleIndex);
+        var hex = instruction.Command.Hex.Contains(visibleIndex);
+        return dialect.Value(new NamedValueRequest(ValueKinds.Of(instruction.Id, visibleIndex), instruction.Id, value.Number, hex, Plain(instruction, index, visibleIndex)));
     }
 
-    private static string Plain(ScriptInstruction instruction, int index, int visibleIndex)
+    private string? StateReference(ScriptInstruction instruction, int index, int visibleIndex)
+    {
+        if (!ValueKinds.IsStateReference(instruction.Id, visibleIndex))
+            return null;
+
+        var name = instruction.TextAt(index);
+        return functions.Contains(name) ? dialect.StateReference(name) : null;
+    }
+
+    private string Plain(ScriptInstruction instruction, int index, int visibleIndex)
     {
         var value = instruction.Values[index];
 
         if (value.IsText)
-            return ScriptLiterals.Text(instruction.TextAt(index));
+            return dialect.Text(instruction.TextAt(index));
 
         var unsigned = instruction.Command.Arguments[index].Kind == ArgumentKind.Unsigned;
         return ScriptLiterals.Number(value.Number, instruction.Command.Hex.Contains(visibleIndex), unsigned);
@@ -317,9 +340,11 @@ public sealed class ScriptDecompiler(ScriptDatabase database)
         instruction.Values[typeIndex].Number switch
         {
             ConstantType => ScriptLiterals.Number(instruction.Values[typeIndex + 1].Number, hex: false, unsigned: false),
-            SlotType => database.SlotName(instruction.Values[typeIndex + 1].Number),
+            SlotType => dialect.Slot(instruction.Values[typeIndex + 1].Number),
             _ => null,
         };
+
+    private static string IndentOf(int depth) => depth <= 0 ? string.Empty : string.Concat(Enumerable.Repeat(Indent, depth));
 
     private static bool IsSlot(ScriptInstruction instruction, int typeIndex) => instruction.Values[typeIndex].Number == SlotType;
 

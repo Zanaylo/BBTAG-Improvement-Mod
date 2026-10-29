@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using BBTAG_IM.Core.CheatEngine;
+using BBTAG_IM.Core.Improvement;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
@@ -15,6 +16,8 @@ namespace BBTAG_IM.Launcher;
 internal sealed class GameSession(LaunchContext context, LauncherSettings settings, ILauncherView view) : IDisposable
 {
     private const string ProgramFiles64Variable = "ProgramW6432";
+    private const string GameErrorPrefix = "In the game: ";
+    private const string CrashMarker = "Unhandled exception";
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan WindowWait = TimeSpan.FromMinutes(2);
@@ -24,6 +27,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
     private CheatEngineHost? _host;
     private CancellationTokenSource? _polling;
     private ILog? _log;
+    private Task _errorFollowing = Task.CompletedTask;
 
     public async Task RunAsync(Func<IReadOnlyCollection<int>> selection)
     {
@@ -86,6 +90,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         using var game = Process.GetProcessById(result.ProcessId);
         var gameExit = game.WaitForExitAsync();
         Report("The game is running.");
+        _errorFollowing = FollowGameErrorsAsync(gameExit);
 
         var attachedAt = context.Table is null ? null : await AttachCheatEngineAsync(game, context.Table, selection(), log);
 
@@ -116,8 +121,37 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
     private async Task<bool> GameClosedAsync(Process game, Task gameExit)
     {
         await gameExit;
+        await _errorFollowing;
         Report($"The game was closed with exit code 0x{game.ExitCode:X8}.");
         return false;
+    }
+
+    private async Task FollowGameErrorsAsync(Task gameExit)
+    {
+        var fileSystem = new PhysicalFileSystem();
+        var logFolder = Path.GetDirectoryName(context.LogPath) ?? context.LauncherDirectory;
+        var improvementErrors = new ErrorLogFollower(fileSystem, Path.Combine(logFolder, ImprovementModContract.LogFileName));
+        var loaderErrors = new ErrorLogFollower(fileSystem, context.LogPath);
+
+        while (await Task.WhenAny(gameExit, Task.Delay(PollInterval)) != gameExit)
+            ReportGameErrors(improvementErrors, loaderErrors);
+
+        ReportGameErrors(improvementErrors, loaderErrors);
+    }
+
+    private void ReportGameErrors(ErrorLogFollower improvementErrors, ErrorLogFollower loaderErrors)
+    {
+        try
+        {
+            foreach (var error in improvementErrors.NewErrors())
+                Report(GameErrorPrefix + error);
+
+            foreach (var crash in loaderErrors.NewErrors().Where(error => error.StartsWith(CrashMarker, StringComparison.Ordinal)))
+                Report(GameErrorPrefix + crash);
+        }
+        catch (IOException)
+        {
+        }
     }
 
     private LaunchResult StartGame(ILog log)

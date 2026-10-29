@@ -249,5 +249,142 @@ public class ScriptCompilerTests
         Assert.IsType<ScriptCompileException>(exception);
     }
 
+    [Fact]
+    public void Compile_StateNameWithoutQuotes_WritesTheName()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk2B():
+                SharedGatling(NmlAtk5B)
+
+            @State
+            def NmlAtk5B():
+                pass
+            """;
+        byte[] expected = new ScriptBytes()
+            .State("NmlAtk2B").Command(ScriptTestDatabase.SharedGatling, "NmlAtk5B").Command(1)
+            .State("NmlAtk5B").Command(1)
+            .Build();
+
+        // Act
+        CompiledScript compiled = CreateScriptCompiler().Compile(source);
+
+        // Assert
+        Assert.Equal(expected, compiled.Bytes);
+    }
+
+    [Fact]
+    public void Compile_StateNameWithoutQuotesThatIsNotInTheFile_ThrowsScriptCompileExceptionWithItsLine()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk2B():
+                SharedGatling(NmlAtk5X)
+            """;
+
+        // Act
+        Exception? exception = Record.Exception(() => CreateScriptCompiler().Compile(source));
+
+        // Assert
+        ScriptCompileException compileException = Assert.IsType<ScriptCompileException>(exception);
+        Assert.Equal(3, compileException.Line);
+        Assert.Contains("'NmlAtk5X'", compileException.Message);
+    }
+
+    [Fact]
+    public void Compile_NameWithoutQuotesWhereTheCommandTakesNoState_ThrowsScriptCompileException()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk2B():
+                sprite(NmlAtk2B, 3)
+            """;
+
+        // Act
+        Exception? exception = Record.Exception(() => CreateScriptCompiler().Compile(source));
+
+        // Assert
+        Assert.IsType<ScriptCompileException>(exception);
+    }
+
+    [Fact]
+    public void FindMistakes_MistakesInSeveralPlaces_ReturnsEachWithItsLine()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk5A():
+                Damag(1200)
+                Damage(1200)
+                if SLOT_2:
+                    Damage(1, 2)
+
+            @Bogus
+            def NmlAtk5B():
+                pass
+
+            @State
+            def NmlAtk2B():
+                SharedGatling(NmlAtk5X)
+            """;
+
+        // Act
+        IReadOnlyList<ScriptCompileException> mistakes = CreateScriptCompiler().FindMistakes(source);
+
+        // Assert
+        Assert.Equal([3, 6, 8, 14], mistakes.Select(mistake => mistake.Line));
+    }
+
+    [Fact]
+    public void FindMistakes_ValidScript_ReturnsNothing()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk5A():
+                Damage(1200)
+            """;
+
+        // Act
+        IReadOnlyList<ScriptCompileException> mistakes = CreateScriptCompiler().FindMistakes(source);
+
+        // Assert
+        Assert.Empty(mistakes);
+    }
+
+    [Fact]
+    public void FindMistakes_SyntaxError_ReturnsIt()
+    {
+        // Arrange
+        string source = """
+            @State
+            def NmlAtk5A():
+                Damage(1200
+            """;
+
+        // Act
+        IReadOnlyList<ScriptCompileException> mistakes = CreateScriptCompiler().FindMistakes(source);
+
+        // Assert
+        Assert.Single(mistakes);
+    }
+
+    [Fact]
+    public void Compile_AfterFindMistakes_StillStopsAtTheFirstMistake()
+    {
+        // Arrange
+        ScriptCompiler compiler = CreateScriptCompiler();
+        compiler.FindMistakes("@State\ndef A():\n    Damag(1)\n");
+
+        // Act
+        Exception? exception = Record.Exception(() => compiler.Compile("@State\ndef A():\n    Damag(1)\n"));
+
+        // Assert
+        Assert.IsType<ScriptCompileException>(exception);
+    }
+
     public ScriptCompiler CreateScriptCompiler() => new(ScriptTestDatabase.Create());
 }

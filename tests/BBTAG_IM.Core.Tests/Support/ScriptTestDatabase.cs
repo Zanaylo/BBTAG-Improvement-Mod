@@ -8,6 +8,7 @@ internal static class ScriptTestDatabase
     public const int ClearUpon = 17;
     public const int CheckInput = 43;
     public const int HitAnimation = 9322;
+    public const int SharedGatling = 14027;
 
     public static ScriptDatabase Create() =>
         new(
@@ -36,6 +37,7 @@ internal static class ScriptTestDatabase
                 Command(57, "endElse", ""),
                 Command(Damage, "Damage", "i"),
                 Command(HitAnimation, "GroundedHitstunAnimation", "i"),
+                Command(SharedGatling, "SharedGatling", "32s"),
                 Command(14001, "Move_Register", "32si", hex: HexArguments.All),
                 Command(14002, "Move_EndRegister", ""),
             ],
@@ -45,9 +47,10 @@ internal static class ScriptTestDatabase
             NameTable.Empty,
             new InputNames(
                 new NameTable([new(172, "INPUT_236")]),
-                new NameTable([new(2, "INPUT_SPECIALMOVE")]),
-                new NameTable([new(1, "A"), new(2, "B")]),
-                new NameTable([new(4, "INPUT_5"), new(1, "INPUT_2")])));
+                new ButtonByteInputs(
+                    new NameTable([new(2, "INPUT_SPECIALMOVE")]),
+                    new NameTable([new(1, "A"), new(2, "B")]),
+                    new NameTable([new(4, "INPUT_5"), new(1, "INPUT_2")]))));
 
     private static CommandDefinition Command(int id, string name, string format, int[]? slots = null, HexArguments? hex = null) =>
         new(id, name, CommandFormat.Parse(format), new HashSet<int>(slots ?? []), hex ?? HexArguments.None);

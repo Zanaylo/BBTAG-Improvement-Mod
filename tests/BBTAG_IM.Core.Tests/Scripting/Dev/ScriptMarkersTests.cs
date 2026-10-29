@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Dev;
 
 namespace BBTAG_IM.Core.Tests.Scripting.Dev;
@@ -67,5 +68,31 @@ public class ScriptMarkersTests
 
         // Assert
         Assert.StartsWith("# !!! BB_Assert line 2\n@State", marked);
+    }
+
+    [Fact]
+    public void Insert_CSharp_UsesACSharpComment()
+    {
+        // Arrange
+        string text = "    {\n        Damag(1);\n    }\n";
+
+        // Act
+        string marked = ScriptMarkers.Insert(text, 2, "Damag is not a known command.", ScriptLanguage.CSharp);
+
+        // Assert
+        Assert.Equal("    {\n        // !!! Damag is not a known command.\n        Damag(1);\n    }\n", marked);
+    }
+
+    [Fact]
+    public void Strip_CSharpMarkers_RemovesThem()
+    {
+        // Arrange
+        string text = "    {\n        // !!! Old mistake\n        // a note\n        Damage(1);\n    }\n";
+
+        // Act
+        string stripped = ScriptMarkers.Strip(text);
+
+        // Assert
+        Assert.Equal("    {\n        // a note\n        Damage(1);\n    }\n", stripped);
     }
 }

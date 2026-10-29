@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <NoWarn>$(NoWarn);CS0660;CS0661;CS1591;CS8321</NoWarn>
+    <DevFolder>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\DEV\'))</DevFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(DevFolder)data\**\*.cs" Link="DEV\%(RecursiveDir)%(Filename)%(Extension)" />
+    <GlobalAnalyzerConfigFiles Include="BBScript.globalconfig" />
+  </ItemGroup>
+
+</Project>

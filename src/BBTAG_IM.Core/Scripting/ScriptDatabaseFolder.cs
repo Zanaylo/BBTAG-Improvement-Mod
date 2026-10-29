@@ -1,12 +1,15 @@
 using System.Globalization;
 using System.Text.Json;
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Scripting.CSharp;
+using BBTAG_IM.Core.Scripting.EditorHelp;
 
 namespace BBTAG_IM.Core.Scripting;
 
 public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 {
     public const string CommandsFile = "command_db.json";
+    public const string EditorProjectFolder = "Scripts";
 
     private const string NamedValuesFolder = "named_values";
     private const string SlotsFolder = "slot_db";
@@ -15,6 +18,28 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
     private const string JsonExtension = ".json";
 
     public bool Exists => fileSystem.FileExists(Path.Combine(folder, CommandsFile));
+
+    public string DocsPath => Path.Combine(folder, ScriptDocsFile.FileName);
+
+    public string UsagePath => Path.Combine(folder, ScriptUsage.FileName);
+
+    public string EditorProjectPath => Path.Combine(folder, EditorProjectFolder, CSharpProject.ProjectFileName);
+
+    public void WriteEditorApi(string api)
+    {
+        var path = Path.Combine(folder, EditorProjectFolder, CSharpApi.FileName);
+
+        if (fileSystem.FileExists(path) && fileSystem.ReadAllText(path) == api)
+            return;
+
+        fileSystem.WriteAllText(path, api);
+    }
+
+    public ScriptUsage LoadUsage() =>
+        fileSystem.FileExists(UsagePath) ? ScriptUsage.Read(fileSystem.ReadAllText(UsagePath)) : ScriptUsage.Empty;
+
+    public ScriptDocs LoadDocs() =>
+        fileSystem.FileExists(DocsPath) ? ScriptDocsFile.Read(fileSystem.ReadAllText(DocsPath)) : ScriptDocs.Empty;
 
     public ScriptDatabase Load()
     {
@@ -98,9 +123,7 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
         {
             return new InputNames(
                 Names(NamedValuesFolder, "move_inputs.json"),
-                Group(normal, "grouped_values"),
-                Group(normal, "button_byte"),
-                Group(normal, "direction_byte"));
+                new ButtonByteInputs(Group(normal, "grouped_values"), Group(normal, "button_byte"), Group(normal, "direction_byte")));
         }
     }
 

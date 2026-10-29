@@ -3,7 +3,9 @@ using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Scripting;
+using BBTAG_IM.Core.Scripting.CSharp;
 using BBTAG_IM.Core.Scripting.Dev;
+using BBTAG_IM.Core.Scripting.EditorHelp;
 using BBTAG_IM.Core.Scripting.Live;
 using BBTAG_IM.ImprovementMod.Frames;
 
@@ -62,7 +64,7 @@ internal sealed class DevScripts(
             return "That character is not in the match anymore.";
 
         var record = game.Memory.ReadUInt32(entity + ScriptRecord.ObjectRecordOffset) + (effects ? EffectsRecordOffset : 0);
-        var paths = dev.Script(character.Code, effects);
+        var paths = Paths(character.Code, effects);
 
         if (_sessions.FirstOrDefault(session => session.Live.RecordAddress == record && !session.HasEnded) is { } open)
             return OpenInEditor(open.Paths);
@@ -108,11 +110,19 @@ internal sealed class DevScripts(
         return recovered;
     }
 
+    private ScriptPaths Paths(string code, bool effects)
+    {
+        var csharp = dev.Script(code, effects);
+        var python = dev.Script(code, effects, ScriptLanguage.Python);
+        return !files.FileExists(csharp.Source) && files.FileExists(python.Source) ? python : csharp;
+    }
+
     private string OpenInEditor(ScriptPaths paths)
     {
         var program = scriptEditor();
         var file = Path.GetFileName(paths.Source);
-        ScriptEditor.Open(paths.Source, FirstLine, program, log);
+        var project = ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp ? databaseFolder.EditorProjectPath : null;
+        ScriptEditor.Open(paths.Source, FirstLine, program, project, log);
 
         return program is null
             ? $"Pick the program for {file} in the Open with window. Save the file to apply it."
@@ -128,18 +138,42 @@ internal sealed class DevScripts(
         if (!game.Memory.CanRead(record.File, bytes.Length) || !game.Memory.ReadBytes(record.File, bytes.Length).AsSpan().SequenceEqual(bytes))
             throw new InvalidScriptException("The game runs a different version of this script than the files have. Load the match again.");
 
-        var database = databaseFolder.Exists ? databaseFolder.ForCharacter(Database(), code) : Database();
+        var csharp = ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp;
+        var database = databaseFolder.Exists && !csharp ? databaseFolder.ForCharacter(Database(), code) : Database();
         var live = new LiveScript(game.Memory, _buffers, recordAddress, ScriptBinary.Read(bytes, database), database);
         var session = new ScriptSession(files, paths, live, database);
 
         Directory.CreateDirectory(Path.GetDirectoryName(paths.Source)!);
         session.Open();
+        WriteEditorStubs(paths, database);
         return session;
     }
 
+    private void WriteEditorStubs(ScriptPaths paths, ScriptDatabase database)
+    {
+        try
+        {
+            var docs = databaseFolder.LoadDocs();
+            var usage = databaseFolder.LoadUsage();
+
+            if (ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp)
+            {
+                databaseFolder.WriteEditorApi(CSharpApi.Write(Database(), docs, usage));
+                return;
+            }
+
+            files.WriteAllText(Path.Combine(Path.GetDirectoryName(paths.Source)!, ScriptStubs.FileName), ScriptStubs.Write(database, docs, usage));
+        }
+        catch (Exception exception) when (exception is InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
+        {
+            SafeLog.Error(log, $"The command descriptions for the editor were not written: {exception.Message}");
+        }
+    }
+
     private ScriptDatabase Database() =>
-        _database ??= (databaseFolder.Exists ? databaseFolder.Load() : new ScriptDatabase([], NameTable.Empty, NameTable.Empty, NameTable.Empty, NameTable.Empty, InputNames.Empty))
-            .WithGameSizes(gameSizes);
+        _database ??= (databaseFolder.Exists ? databaseFolder.Load() : ScriptDatabase.Unnamed)
+            .WithGameSizes(gameSizes)
+            .WithTagNames();
 
     private void Poll(ScriptSession session)
     {

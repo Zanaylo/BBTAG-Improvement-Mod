@@ -1,3 +1,5 @@
+using BBTAG_IM.Core.Scripting.CSharp;
+
 namespace BBTAG_IM.Core.Scripting.Compiling;
 
 public sealed class ScriptCompiler
@@ -9,21 +11,50 @@ public sealed class ScriptCompiler
     private static readonly NameExpression SlotZeroValue = new(SlotZeroName, 0);
 
     private readonly ScriptDatabase database;
-    private readonly CommandEncoder encoder;
+    private readonly ScriptLanguage language;
+    private CommandEncoder encoder;
     private ScriptBuffer buffer = new();
+    private List<ScriptCompileException>? mistakes;
 
-    public ScriptCompiler(ScriptDatabase database)
+    public ScriptCompiler(ScriptDatabase database, ScriptLanguage language = ScriptLanguage.Python)
     {
         this.database = database;
-        encoder = new CommandEncoder(database);
+        this.language = language;
+        encoder = new CommandEncoder(database, new HashSet<string>());
+    }
+
+    public IReadOnlyList<ScriptCompileException> FindMistakes(string source)
+    {
+        var found = new List<ScriptCompileException>();
+        mistakes = found;
+
+        try
+        {
+            Compile(source);
+        }
+        catch (ScriptCompileException exception)
+        {
+            found.Add(exception);
+        }
+        finally
+        {
+            mistakes = null;
+        }
+
+        return found.DistinctBy(mistake => (mistake.Line, mistake.Message)).OrderBy(mistake => mistake.Line).ToList();
     }
 
     public CompiledScript Compile(string source)
     {
-        var functions = ScriptParser.Parse(source);
-        var roots = functions.Select(Root).ToList();
+        var functions = language == ScriptLanguage.CSharp ? CSharpParser.Parse(source) : ScriptParser.Parse(source);
+        var roots = new List<RootFunction>();
+
+        foreach (var function in functions)
+            Collect(() => roots.Add(Root(function)));
+
         var states = roots.Where(root => root.IsState).ToList();
 
+        encoder = new CommandEncoder(database, roots.Select(root => root.Name).ToHashSet(StringComparer.Ordinal));
         buffer = new ScriptBuffer();
         buffer.WriteInt32(states.Count);
 
@@ -88,7 +119,25 @@ public sealed class ScriptCompiler
     private void WriteBody(IReadOnlyList<Statement> body)
     {
         foreach (var statement in body)
-            WriteStatement(statement);
+            Collect(() => WriteStatement(statement));
+    }
+
+    private void Collect(Action write)
+    {
+        if (mistakes is null)
+        {
+            write();
+            return;
+        }
+
+        try
+        {
+            write();
+        }
+        catch (ScriptCompileException exception)
+        {
+            mistakes.Add(exception);
+        }
     }
 
     private void WriteStatement(Statement statement)
@@ -115,6 +164,9 @@ public sealed class ScriptCompiler
                 return;
             case FunctionStatement function:
                 WriteInnerFunction(function);
+                return;
+            case BlockStatement block:
+                WriteCallBlock(block);
                 return;
             default:
                 throw new ScriptCompileException("This kind of line is not supported.", statement.Line);
@@ -168,6 +220,18 @@ public sealed class ScriptCompiler
         }
 
         throw new ScriptCompileException($"{function.Name} is not an upon or a function for another object.", function.Line);
+    }
+
+    private void WriteCallBlock(BlockStatement block)
+    {
+        var command = database.Find(block.Opener.Name) ?? throw new ScriptCompileException($"{block.Opener.Name} is not a known command.", block.Line);
+
+        if (ScriptCommands.CloserOf(command.Id) is not { } closer)
+            throw new ScriptCompileException($"{block.Opener.Name} does not open a block, so it cannot take '() => {{ }}'.", block.Line);
+
+        WriteCall(block.Opener);
+        WriteBody(block.Body);
+        WriteCommand(closer, [], block.EndLine);
     }
 
     private void WriteBlock(int opener, IReadOnlyList<Expression> arguments, FunctionStatement function)

@@ -3,6 +3,7 @@ namespace BBTAG_IM.Core.Scripting.Dev;
 public static class ScriptMarkers
 {
     public const string Prefix = "# !!! ";
+    public const string CSharpPrefix = "// !!! ";
 
     private const string UnixNewLine = "\n";
     private const string WindowsNewLine = "\r\n";
@@ -14,7 +15,7 @@ public static class ScriptMarkers
         return string.Join(newLine, lines.Where(line => !IsMarker(line)));
     }
 
-    public static string Insert(string text, int line, string message)
+    public static string Insert(string text, int line, string message, ScriptLanguage language = ScriptLanguage.Python)
     {
         var newLine = NewLineOf(text);
         var lines = text.Split(newLine).ToList();
@@ -22,11 +23,15 @@ public static class ScriptMarkers
         var target = lines[index];
         var indent = target[..(target.Length - target.TrimStart().Length)];
 
-        lines.Insert(index, indent + Prefix + OneLine(message));
+        lines.Insert(index, indent + (language == ScriptLanguage.CSharp ? CSharpPrefix : Prefix) + OneLine(message));
         return string.Join(newLine, lines);
     }
 
-    private static bool IsMarker(string line) => line.TrimStart().StartsWith(Prefix, StringComparison.Ordinal);
+    private static bool IsMarker(string line)
+    {
+        var text = line.TrimStart();
+        return text.StartsWith(Prefix, StringComparison.Ordinal) || text.StartsWith(CSharpPrefix, StringComparison.Ordinal);
+    }
 
     private static string OneLine(string message) =>
         string.Join(' ', message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));

@@ -17,6 +17,19 @@ Mods tab: tick the mods to load and use the arrows to set the order. When two
 mods replace the same file, the higher one wins. Keep BBTAG-Improvement-Mod
 above BBTAG-OverHaul.
 
+When a ticked mod has a Cheat Engine table with a character roster, the
+message list names every character that lacks files a match needs.
+
+A mod can add up to 8 characters to the game's own BBTAG.exe. Put one file per
+character in a "characters" folder of the mod, like characters\rar.json with
+{ "Code": "rar", "Template": "brg", "Series": "Others" }. The character plays
+like its template. Series is the row on character select: BlazBlue, Persona,
+UnderNight, Rwby or Others.
+
+An error during a match no longer closes the game. The match goes back to
+character select, and the error is written in logs\ImprovementMod.log and shown
+in the Mod Loader message list.
+
 Cheat Engine tab: tick the table scripts you want. Needs Cheat Engine 7.7.
 Wait for "You can start a match now" before starting a match.
 

@@ -99,6 +99,11 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     public void Report(string message)
     {
         Status = message;
+        AddMessage(message);
+    }
+
+    public void AddMessage(string message)
+    {
         Messages.Add($"{DateTime.Now:HH:mm:ss}  {message}");
 
         while (Messages.Count > MaximumMessages)

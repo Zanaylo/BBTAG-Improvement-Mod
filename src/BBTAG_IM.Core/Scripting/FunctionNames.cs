@@ -14,15 +14,18 @@ public static class FunctionNames
 
     public static string? ToIdentifier(string name)
     {
+        var identifier = Mangle(name);
+        return IsIdentifier(identifier) && FromIdentifier(identifier) == name ? identifier : null;
+    }
+
+    public static string Mangle(string name)
+    {
         var identifier = name;
 
         foreach (var (text, replacement) in Replacements)
             identifier = identifier.Replace(text, replacement, StringComparison.Ordinal);
 
-        if (identifier.Length > 0 && char.IsAsciiDigit(identifier[0]))
-            identifier = DigitPrefix + identifier;
-
-        return IsIdentifier(identifier) && FromIdentifier(identifier) == name ? identifier : null;
+        return identifier.Length > 0 && char.IsAsciiDigit(identifier[0]) ? DigitPrefix + identifier : identifier;
     }
 
     public static string FromIdentifier(string identifier)

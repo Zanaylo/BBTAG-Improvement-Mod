@@ -16,11 +16,14 @@ internal static unsafe class Direct3DHooks
     private const int PresentSlot = 17;
     private const int PresentExSlot = 121;
     private const int ResetExSlot = 132;
+    private const int WindowedOffset = 32;
+    private const int RefreshRateOffset = 48;
     private const int PresentationIntervalOffset = 52;
     private const uint PresentIntervalImmediate = 0x80000000;
 
     private static FrameDispatcher s_frames = null!;
     private static bool s_turnVSyncOff;
+    private static bool s_forceWindowed;
 
     private static delegate* unmanaged[Stdcall]<uint, nint*, int> s_createFactory;
     private static delegate* unmanaged[Stdcall]<nint, uint, int, nint, uint, byte*, nint*, int> s_createDevice;
@@ -30,10 +33,11 @@ internal static unsafe class Direct3DHooks
     private static delegate* unmanaged[Stdcall]<nint, nint, nint, nint, nint, int> s_present;
     private static delegate* unmanaged[Stdcall]<nint, nint, nint, nint, nint, uint, int> s_presentEx;
 
-    public static void Install(LoadedModule game, bool turnVSyncOff, FrameDispatcher frames)
+    public static void Install(LoadedModule game, bool turnVSyncOff, bool forceWindowed, FrameDispatcher frames)
     {
         s_frames = frames;
         s_turnVSyncOff = turnVSyncOff;
+        s_forceWindowed = forceWindowed;
         s_createFactory = (delegate* unmanaged[Stdcall]<uint, nint*, int>)ImportHook.Replace(
             game, Direct3DDll, CreateFactoryExport, (nint)(delegate* unmanaged[Stdcall]<uint, nint*, int>)&CreateFactory);
     }
@@ -52,7 +56,7 @@ internal static unsafe class Direct3DHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int CreateDevice(nint factory, uint adapter, int deviceType, nint window, uint behavior, byte* parameters, nint* device)
     {
-        TurnVSyncOff(parameters);
+        AdjustParameters(parameters);
         var result = s_createDevice(factory, adapter, deviceType, window, behavior, parameters, device);
 
         if (result >= 0 && *device != 0)
@@ -64,8 +68,8 @@ internal static unsafe class Direct3DHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int CreateDeviceEx(nint factory, uint adapter, int deviceType, nint window, uint behavior, byte* parameters, nint displayMode, nint* device)
     {
-        TurnVSyncOff(parameters);
-        var result = s_createDeviceEx(factory, adapter, deviceType, window, behavior, parameters, displayMode, device);
+        AdjustParameters(parameters);
+        var result = s_createDeviceEx(factory, adapter, deviceType, window, behavior, parameters, s_forceWindowed ? 0 : displayMode, device);
 
         if (result < 0 || *device == 0)
             return result;
@@ -78,7 +82,7 @@ internal static unsafe class Direct3DHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int Reset(nint device, byte* parameters)
     {
-        TurnVSyncOff(parameters);
+        AdjustParameters(parameters);
         s_frames.OnReset();
         return s_reset(device, parameters);
     }
@@ -86,9 +90,9 @@ internal static unsafe class Direct3DHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int ResetEx(nint device, byte* parameters, nint displayMode)
     {
-        TurnVSyncOff(parameters);
+        AdjustParameters(parameters);
         s_frames.OnReset();
-        return s_resetEx(device, parameters, displayMode);
+        return s_resetEx(device, parameters, s_forceWindowed ? 0 : displayMode);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
@@ -138,9 +142,18 @@ internal static unsafe class Direct3DHooks
             device, PresentExSlot, (nint)(delegate* unmanaged[Stdcall]<nint, nint, nint, nint, nint, uint, int>)&PresentEx);
     }
 
-    private static void TurnVSyncOff(byte* parameters)
+    private static void AdjustParameters(byte* parameters)
     {
-        if (s_turnVSyncOff && parameters is not null)
+        if (parameters is null)
+            return;
+
+        if (s_turnVSyncOff)
             *(uint*)(parameters + PresentationIntervalOffset) = PresentIntervalImmediate;
+
+        if (!s_forceWindowed)
+            return;
+
+        *(int*)(parameters + WindowedOffset) = 1;
+        *(uint*)(parameters + RefreshRateOffset) = 0;
     }
 }

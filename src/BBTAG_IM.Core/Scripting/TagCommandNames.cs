@@ -1,0 +1,39 @@
+namespace BBTAG_IM.Core.Scripting;
+
+public static class TagCommandNames
+{
+    public static IReadOnlyDictionary<int, string> Names { get; } = new Dictionary<int, string>
+    {
+        [26] = "GFX_Unload",
+        [1047] = "RecoilPushbackX",
+        [1072] = "GFX_Rotation",
+        [4045] = "PFX",
+        [4048] = "PFX_Rotation",
+        [4049] = "PFX_Scale",
+        [11054] = "ThrowRange",
+        [11097] = "HPGeneration",
+        [11099] = "SpriteFlip",
+        [12011] = "Gravity",
+        [12034] = "AirFDashDuration",
+        [12045] = "LifestealMultiplierValues",
+        [12059] = "TrainingCounterattack",
+        [17021] = "AttackDefaults_ExceedAccel",
+        [17024] = "AttackDefaults_ReversalAction",
+        [17025] = "AttackDefaults_AirReversalAction",
+        [20000] = "CameraControlEnable",
+        [23023] = "AttackDefaults_Persona",
+        [23084] = "HudEnabler",
+        [23125] = "ExSkillFlash",
+        [23147] = "DepleteHeat",
+        [23157] = "AstralBGM",
+        [23184] = "PersonaSetup",
+        [23185] = "PersonaAttack",
+        [30072] = "AttackDefaults_Clash",
+        [30073] = "AttackDefaults_ClashAssault1",
+        [30074] = "AttackDefaults_ClashAssault2",
+        [30075] = "AttackDefaults_ClashAssault3",
+        [30080] = "SuperPortrait",
+        [30081] = "AssistPortrait",
+        [30089] = "AttackDefaults_ExtraAssault",
+    };
+}

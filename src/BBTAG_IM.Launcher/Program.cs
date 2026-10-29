@@ -6,7 +6,8 @@ namespace BBTAG_IM.Launcher;
 internal static class Program
 {
     [STAThread]
-    private static int Main(string[] arguments) => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments);
+    private static int Main(string[] arguments) =>
+        HeadlessLaunch.IsWanted(arguments) ? HeadlessLaunch.Run(arguments) : BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments);
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<LauncherApp>()

@@ -5,6 +5,8 @@ public sealed class ScriptDatabase
     public const string SlotPrefix = "SLOT_";
     public const string UponPrefix = "upon_";
 
+    public static readonly ScriptDatabase Unnamed = new([], NameTable.Empty, NameTable.Empty, NameTable.Empty, NameTable.Empty, InputNames.Empty);
+
     private readonly Dictionary<int, CommandDefinition> byId;
     private readonly Dictionary<string, CommandDefinition> byName;
 
@@ -51,6 +53,11 @@ public sealed class ScriptDatabase
         return CommandDefinition.IdFromUnknownName(name) is { } id ? Find(id) : null;
     }
 
+    public string CallName(CommandDefinition command) =>
+        FunctionNames.IsIdentifier(command.Name) && Find(command.Name)?.Id == command.Id
+            ? command.Name
+            : CommandDefinition.UnknownName(command.Id);
+
     public CommandDefinition Command(int id) =>
         Find(id) ?? throw new UnknownCommandException(id);
 
@@ -90,6 +97,26 @@ public sealed class ScriptDatabase
         return known.Size == size
             ? known
             : known with { Arguments = CommandFormat.ForSize(size), SlotTypeArguments = new HashSet<int>(), Hex = HexArguments.None };
+    }
+
+    public ScriptDatabase WithTagNames() =>
+        new(
+            byId.Values.Select(WithTagName),
+            Slots,
+            Upons,
+            HitAnimations,
+            MoveConditions.With(TagMoveConditions.Table),
+            Inputs.With(TagMoveInputs.Table, TagNormalInputs.Instance));
+
+    private CommandDefinition WithTagName(CommandDefinition command)
+    {
+        if (!TagCommandNames.Names.TryGetValue(command.Id, out var name))
+            return command;
+
+        if (command.Name != CommandDefinition.UnknownName(command.Id) || byName.ContainsKey(name))
+            return command;
+
+        return command with { Name = name };
     }
 
     public ScriptDatabase WithCharacterNames(NameTable slots, NameTable upons) =>

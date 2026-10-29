@@ -33,3 +33,5 @@ public sealed record FunctionStatement(
     IReadOnlyList<Statement> Body,
     int Line,
     int EndLine) : Statement(Line);
+
+public sealed record BlockStatement(CallExpression Opener, IReadOnlyList<Statement> Body, int Line, int EndLine) : Statement(Line);

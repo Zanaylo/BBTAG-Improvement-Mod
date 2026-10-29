@@ -11,6 +11,7 @@ public class ScriptSessionTests
 {
     private const string Source = @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.py";
     private const string Binary = @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.bin";
+    private const string CSharpSource = @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.cs";
 
     private static readonly DateTime FirstSave = new(2026, 10, 13, 22, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime SecondSave = FirstSave.AddSeconds(5);
@@ -64,6 +65,24 @@ public class ScriptSessionTests
         Assert.Equal(ScriptSessionState.CompileFailed, session.Status.State);
         Assert.Equal(12, _scriptMemory.Memory.Int32From(ScriptMemory.File + 4 + 36 + 36 + 4));
         _fileSystemMock.Received(1).WriteAllText(Source, "@State\ndef A():\n    # !!! Damag is not a known command.\n    Damag(15)\n");
+    }
+
+    [Fact]
+    public void Poll_SourceWithTwoMistakes_MarksBothLines()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damag(15)\n    Damage(1, 2)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Equal(ScriptSessionState.CompileFailed, session.Status.State);
+        Assert.StartsWith("Line 3: Damag is not a known command. (and 1 more mistake)", session.Status.Message);
+        _fileSystemMock.Received(1).WriteAllText(
+            Source,
+            "@State\ndef A():\n    # !!! Damag is not a known command.\n    Damag(15)\n    # !!! Damage takes 1 values but was given 2.\n    Damage(1, 2)\n");
     }
 
     [Fact]
@@ -143,12 +162,64 @@ public class ScriptSessionTests
         Assert.Equal(ScriptSessionState.Reloaded, session.Status.State);
     }
 
-    public ScriptSession CreateScriptSession()
+    [Fact]
+    public void Open_CSharpSourceMissing_WritesTheScriptAsACSharpClass()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(CSharpSource).Returns(false);
+        ScriptSession session = CreateScriptSession(CSharpSource);
+
+        // Act
+        session.Open();
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(CSharpSource, Arg.Is<string>(text => text.Contains("public partial class scr_brg : Script") && text.Contains("        Damage(12);")));
+    }
+
+    [Fact]
+    public void Poll_CSharpSourceWithAMistake_MarksTheLineWithACSharpComment()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(CSharpSource).Returns(true);
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(FirstSave);
+        ScriptSession session = CreateScriptSession(CSharpSource);
+        session.Open();
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(SecondSave);
+        _fileSystemMock.ReadAllText(CSharpSource).Returns("class scr_brg : Script\n{\n    [State]\n    public void A()\n    {\n        Damag(15);\n    }\n}\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Equal(ScriptSessionState.CompileFailed, session.Status.State);
+        _fileSystemMock.Received(1).WriteAllText(CSharpSource, "class scr_brg : Script\n{\n    [State]\n    public void A()\n    {\n        // !!! Damag is not a known command.\n        Damag(15);\n    }\n}\n");
+    }
+
+    [Fact]
+    public void Poll_ValidCSharpSource_AppliesIt()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(CSharpSource).Returns(true);
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(FirstSave);
+        ScriptSession session = CreateScriptSession(CSharpSource);
+        session.Open();
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(SecondSave);
+        _fileSystemMock.ReadAllText(CSharpSource).Returns("class scr_brg : Script\n{\n    [State]\n    public void A()\n    {\n        Damage(15);\n    }\n}\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Equal(ScriptSessionState.Applied, session.Status.State);
+        Assert.Equal(15, _scriptMemory.Memory.Int32From(ScriptMemory.File + 4 + 36 + 36 + 4));
+    }
+
+    public ScriptSession CreateScriptSession(string source = Source)
     {
         _scriptMemory.Load(_loaded);
         ScriptDatabase database = ScriptTestDatabase.Create();
         LiveScript live = new(_scriptMemory.Memory, _scriptBuffersMock, ScriptMemory.Record, ScriptBinary.Read(_loaded, database), database);
-        return new ScriptSession(_fileSystemMock, new ScriptPaths(Source, Binary), live, database);
+        return new ScriptSession(_fileSystemMock, new ScriptPaths(source, Binary), live, database);
     }
 
     private ScriptSession OpenedSession(byte[]? loaded = null)

@@ -82,6 +82,81 @@ public class DevOverlayTests
         Assert.Null(resolved);
     }
 
+    [Fact]
+    public void Provides_FileInTheDevFolder_ReturnsTrue()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Dev + @"\" + Key).Returns(true);
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        bool provided = overlay.Provides(Key);
+
+        // Assert
+        Assert.True(provided);
+    }
+
+    [Fact]
+    public void Provides_LooseArchiveFolder_ReturnsTrueWithoutBuildingTheArchive()
+    {
+        // Arrange
+        LooseFolderWith(Later);
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        bool provided = overlay.Provides(Key);
+
+        // Assert
+        Assert.True(provided);
+        _fileSystemMock.DidNotReceive().WriteAllBytes(Arg.Any<string>(), Arg.Any<byte[]>());
+    }
+
+    [Fact]
+    public void Provides_ArchiveFolderWithOnlySources_ReturnsFalse()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(LooseFolder).Returns(true);
+        _fileSystemMock.EnumerateFiles(LooseFolder).Returns([LooseSource]);
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        bool provided = overlay.Provides(Key);
+
+        // Assert
+        Assert.False(provided);
+    }
+
+    [Theory]
+    [InlineData("scr_brg.cs")]
+    [InlineData("scr_brg.g.cs")]
+    [InlineData("__builtins__.pyi")]
+    public void Provides_ArchiveFolderWithOnlyEditorFiles_ReturnsFalse(string file)
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(LooseFolder).Returns(true);
+        _fileSystemMock.EnumerateFiles(LooseFolder).Returns([LooseFolder + @"\" + file]);
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        bool provided = overlay.Provides(Key);
+
+        // Assert
+        Assert.False(provided);
+    }
+
+    [Fact]
+    public void Provides_NothingInTheDevFolder_ReturnsFalse()
+    {
+        // Arrange
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        bool provided = overlay.Provides(Key);
+
+        // Assert
+        Assert.False(provided);
+    }
+
     public DevOverlay CreateDevOverlay() => new(_fileSystemMock, Dev, key => key == Key ? Original : null);
 
     private void LooseFolderWith(DateTime written)

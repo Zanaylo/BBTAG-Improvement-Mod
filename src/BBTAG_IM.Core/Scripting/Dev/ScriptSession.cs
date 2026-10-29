@@ -31,11 +31,13 @@ public sealed class ScriptSession
         this.files = files;
         this.live = live;
         this.database = database;
-        compiler = new ScriptCompiler(database);
+        compiler = new ScriptCompiler(database, ScriptLanguages.Of(paths.Source));
         Paths = paths;
     }
 
     public ScriptPaths Paths { get; }
+
+    public ScriptLanguage Language => ScriptLanguages.Of(Paths.Source);
 
     public LiveScript Live => live;
 
@@ -46,7 +48,7 @@ public sealed class ScriptSession
     public void Open()
     {
         if (!files.FileExists(Paths.Source))
-            files.WriteAllText(Paths.Source, new ScriptDecompiler(database).Decompile(live.Current));
+            files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
 
         lastSeen = files.LastWriteTimeUtc(Paths.Source);
     }
@@ -107,8 +109,7 @@ public sealed class ScriptSession
         }
         catch (ScriptCompileException exception)
         {
-            Write(ScriptMarkers.Insert(source, exception.Line, exception.Message));
-            Status = new ScriptSessionStatus(ScriptSessionState.CompileFailed, $"Line {exception.Line}: {exception.Message}");
+            MarkMistakes(source, exception);
             return;
         }
 
@@ -120,6 +121,27 @@ public sealed class ScriptSession
         files.WriteAllBytes(Paths.Binary, compiled.Bytes);
         previous = before;
         Status = new ScriptSessionStatus(ScriptSessionState.Applied, Describe(result));
+    }
+
+    private void MarkMistakes(string source, ScriptCompileException first)
+    {
+        var mistakes = compiler.FindMistakes(source);
+
+        if (mistakes.Count == 0)
+            mistakes = [first];
+
+        var marked = mistakes
+            .OrderByDescending(mistake => mistake.Line)
+            .Aggregate(source, (text, mistake) => ScriptMarkers.Insert(text, mistake.Line, mistake.Message, Language));
+        var more = mistakes.Count switch
+        {
+            1 => string.Empty,
+            2 => " (and 1 more mistake)",
+            _ => $" (and {mistakes.Count - 1} more mistakes)",
+        };
+
+        Write(marked);
+        Status = new ScriptSessionStatus(ScriptSessionState.CompileFailed, $"Line {mistakes[0].Line}: {mistakes[0].Message}{more}");
     }
 
     private int? LineToBlame(uint? instruction, CompiledScript working)
@@ -136,7 +158,7 @@ public sealed class ScriptSession
     }
 
     private void Mark(int line, string message) =>
-        Write(ScriptMarkers.Insert(ScriptMarkers.Strip(files.ReadAllText(Paths.Source)), line, message));
+        Write(ScriptMarkers.Insert(ScriptMarkers.Strip(files.ReadAllText(Paths.Source)), line, message, Language));
 
     private void Write(string text)
     {

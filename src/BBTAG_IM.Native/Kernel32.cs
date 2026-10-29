@@ -42,6 +42,12 @@ public static unsafe partial class Kernel32
     public static partial uint GetCurrentProcessId();
 
     [LibraryImport(Library)]
+    public static partial uint GetCurrentThreadId();
+
+    [LibraryImport(Library)]
+    public static partial nint AddVectoredExceptionHandler(uint first, nint handler);
+
+    [LibraryImport(Library)]
     public static partial uint GetProcessId(nint process);
 
     [LibraryImport(Library, EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]

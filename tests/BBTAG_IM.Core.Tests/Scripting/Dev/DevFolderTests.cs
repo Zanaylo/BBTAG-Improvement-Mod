@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Dev;
 
 namespace BBTAG_IM.Core.Tests.Scripting.Dev;
@@ -26,11 +27,23 @@ public class DevFolderTests
         DevFolder dev = DevFolder.ForMod(ModFolder);
 
         // Act
-        ScriptPaths paths = dev.Script("brg", effects: true);
+        ScriptPaths paths = dev.Script("brg", effects: true, ScriptLanguage.Python);
 
         // Assert
         Assert.Equal(
             new ScriptPaths(@"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brgea.py", @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brgea.bin"),
             paths);
+    }
+    [Fact]
+    public void Script_NoLanguageGiven_IsACSharpFile()
+    {
+        // Arrange
+        DevFolder dev = DevFolder.ForMod(ModFolder);
+
+        // Act
+        ScriptPaths paths = dev.Script("brg", effects: false);
+
+        // Assert
+        Assert.Equal(@"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.cs", paths.Source);
     }
 }

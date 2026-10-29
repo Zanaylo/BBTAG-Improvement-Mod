@@ -7,7 +7,8 @@ public sealed class DevOverlay(IFileSystem files, string devFolder, Func<string,
     public const string CacheFolder = ".cache";
 
     private const string ArchiveExtension = ".pac";
-    private const string SourceExtension = ".py";
+
+    private static readonly string[] EditorExtensions = [".py", ".pyi", ".cs"];
 
     private readonly Lock _building = new();
 
@@ -18,19 +19,25 @@ public sealed class DevOverlay(IFileSystem files, string devFolder, Func<string,
         if (files.FileExists(loose))
             return loose;
 
-        if (!key.EndsWith(ArchiveExtension, StringComparison.OrdinalIgnoreCase))
-            return null;
+        var looseFiles = LooseArchiveFiles(key);
+        return looseFiles.Count == 0 ? null : Built(key, looseFiles);
+    }
 
-        var folder = loose[..^ArchiveExtension.Length];
+    public bool Provides(string key) => files.FileExists(Path.Join(devFolder, key)) || LooseArchiveFiles(key).Count > 0;
+
+    private List<string> LooseArchiveFiles(string key)
+    {
+        if (!key.EndsWith(ArchiveExtension, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var folder = Path.Join(devFolder, key)[..^ArchiveExtension.Length];
 
         if (!files.DirectoryExists(folder))
-            return null;
+            return [];
 
-        var looseFiles = files.EnumerateFiles(folder)
-            .Where(file => !file.EndsWith(SourceExtension, StringComparison.OrdinalIgnoreCase))
+        return files.EnumerateFiles(folder)
+            .Where(file => !EditorExtensions.Any(extension => file.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
             .ToList();
-
-        return looseFiles.Count == 0 ? null : Built(key, looseFiles);
     }
 
     private string Built(string key, IReadOnlyList<string> looseFiles)

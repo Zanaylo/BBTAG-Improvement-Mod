@@ -7,7 +7,6 @@ public sealed record DevFolder(string Path)
     private const string DataFolder = "data";
     private const string CharacterFolder = "char";
     private const string EffectsSuffix = "ea";
-    private const string SourceExtension = ".py";
     private const string BinaryExtension = ".bin";
 
     public static DevFolder ForMod(string modFolder)
@@ -22,9 +21,9 @@ public sealed record DevFolder(string Path)
 
     public string ScriptArchiveFolder(string code) => System.IO.Path.Combine(Path, DataFolder, CharacterFolder, ScriptArchiveName(code));
 
-    public ScriptPaths Script(string code, bool effects)
+    public ScriptPaths Script(string code, bool effects, ScriptLanguage language = ScriptLanguage.CSharp)
     {
         var file = System.IO.Path.Combine(ScriptArchiveFolder(code), ScriptFileName(code, effects));
-        return new ScriptPaths(file + SourceExtension, file + BinaryExtension);
+        return new ScriptPaths(file + ScriptLanguages.Extension(language), file + BinaryExtension);
     }
 }

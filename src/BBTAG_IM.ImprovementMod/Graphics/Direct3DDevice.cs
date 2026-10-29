@@ -30,8 +30,31 @@ internal struct LockedRect
     public nint Bits;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct SurfaceDescription
+{
+    public int Format;
+    public int Type;
+    public uint Usage;
+    public int Pool;
+    public int MultiSampleType;
+    public uint MultiSampleQuality;
+    public uint Width;
+    public uint Height;
+}
+
 internal readonly unsafe struct Direct3DDevice(nint device)
 {
+    private const int CreateRenderTargetSlot = 28;
+    private const int GetRenderTargetDataSlot = 32;
+    private const int StretchRectSlot = 34;
+    private const int NoFilter = 0;
+    private const int CreateOffscreenPlainSurfaceSlot = 36;
+    private const int SurfaceGetDescriptionSlot = 12;
+    private const int SurfaceLockSlot = 13;
+    private const int SurfaceUnlockSlot = 14;
+    private const int SystemMemoryPool = 2;
+    private const uint ReadOnlyLock = 0x10;
     private const int ReleaseSlot = 2;
     private const int StateBlockCaptureSlot = 4;
     private const int StateBlockApplySlot = 5;
@@ -162,6 +185,42 @@ internal readonly unsafe struct Direct3DDevice(nint device)
     public void DrawIndexedTriangles(void* vertices, int firstVertex, int vertexCount, ushort* indices, int triangleCount, int stride) =>
         ((delegate* unmanaged[Stdcall]<nint, int, uint, uint, uint, void*, int, void*, uint, int>)Slot(device, DrawIndexedPrimitiveUserPointerSlot))(
             device, PrimitiveType.TriangleList, (uint)firstVertex, (uint)vertexCount, (uint)triangleCount, indices, Index16Format, vertices, (uint)stride);
+
+    public static SurfaceDescription Describe(nint surface)
+    {
+        SurfaceDescription description = default;
+        ((delegate* unmanaged[Stdcall]<nint, SurfaceDescription*, int>)Slot(surface, SurfaceGetDescriptionSlot))(surface, &description);
+        return description;
+    }
+
+    public static LockedRect? LockForReading(nint surface)
+    {
+        LockedRect locked = default;
+        var result = ((delegate* unmanaged[Stdcall]<nint, LockedRect*, nint, uint, int>)Slot(surface, SurfaceLockSlot))(surface, &locked, 0, ReadOnlyLock);
+        return result < 0 ? null : locked;
+    }
+
+    public static void Unlock(nint surface) => ((delegate* unmanaged[Stdcall]<nint, int>)Slot(surface, SurfaceUnlockSlot))(surface);
+
+    public nint CreateReadableSurface(uint width, uint height, int format)
+    {
+        nint surface = 0;
+        var result = ((delegate* unmanaged[Stdcall]<nint, uint, uint, int, int, nint*, nint, int>)Slot(device, CreateOffscreenPlainSurfaceSlot))(device, width, height, format, SystemMemoryPool, &surface, 0);
+        return result < 0 ? 0 : surface;
+    }
+
+    public nint CreatePlainRenderTarget(uint width, uint height, int format)
+    {
+        nint surface = 0;
+        var result = ((delegate* unmanaged[Stdcall]<nint, uint, uint, int, int, uint, int, nint*, nint, int>)Slot(device, CreateRenderTargetSlot))(device, width, height, format, 0, 0, 0, &surface, 0);
+        return result < 0 ? 0 : surface;
+    }
+
+    public bool Stretch(nint source, nint destination) =>
+        ((delegate* unmanaged[Stdcall]<nint, nint, nint, nint, nint, int, int>)Slot(device, StretchRectSlot))(device, source, 0, destination, 0, NoFilter) >= 0;
+
+    public bool CopyRenderTarget(nint renderTarget, nint destination) =>
+        ((delegate* unmanaged[Stdcall]<nint, nint, nint, int>)Slot(device, GetRenderTargetDataSlot))(device, renderTarget, destination) >= 0;
 
     private static nint Slot(nint comObject, int index) => (*(nint**)comObject)[index];
 

@@ -56,4 +56,43 @@ public class NameTableTests
         // Assert
         Assert.Equal("IsInOverdrive", merged.NameOf(51));
     }
+    [Fact]
+    public void DescriptionOf_ValueNamedWithADescription_ReturnsTheDescription()
+    {
+        // Arrange
+        NameTable table = NameTable.Of([new NamedValue(0x2000, "MOVE_GROUND", "Only on the ground.")]);
+
+        // Act
+        string? description = table.DescriptionOf(0x2000);
+
+        // Assert
+        Assert.Equal("Only on the ground.", description);
+    }
+
+    [Fact]
+    public void With_OverrideWithADescription_KeepsTheDescription()
+    {
+        // Arrange
+        NameTable global = new([new(1, "LAST")]);
+        NameTable overrides = NameTable.Of([new NamedValue(2, "PARENT", "The object that made this one.")]);
+
+        // Act
+        NameTable merged = global.With(overrides);
+
+        // Assert
+        Assert.Equal("The object that made this one.", merged.DescriptionOf(2));
+    }
+
+    [Fact]
+    public void Named_NameSharedByTwoValues_IsLeftOut()
+    {
+        // Arrange
+        NameTable table = new([new(182, "INPUT_632146"), new(249, "INPUT_632146"), new(172, "INPUT_236")]);
+
+        // Act
+        IEnumerable<NamedValue> named = table.Named;
+
+        // Assert
+        Assert.Equal(["INPUT_236"], named.Select(value => value.Name));
+    }
 }

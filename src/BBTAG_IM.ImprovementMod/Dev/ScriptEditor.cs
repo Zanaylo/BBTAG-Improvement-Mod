@@ -12,9 +12,12 @@ internal static unsafe class ScriptEditor
     private const string Notepad = "notepad.exe";
     private const string ThreadName = "Script editor";
 
-    public static void Open(string script, int line, string? program, ILog log)
+    private static readonly TimeSpan ProjectLoadTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan WindowCheckInterval = TimeSpan.FromMilliseconds(500);
+
+    public static void Open(string script, int line, string? program, string? project, ILog log)
     {
-        var thread = new Thread(() => OpenNow(script, line, program, log)) { IsBackground = true, Name = ThreadName };
+        var thread = new Thread(() => OpenNow(script, line, program, project, log)) { IsBackground = true, Name = ThreadName };
 
         if (OperatingSystem.IsWindows())
             thread.SetApartmentState(ApartmentState.STA);
@@ -22,7 +25,7 @@ internal static unsafe class ScriptEditor
         thread.Start();
     }
 
-    private static void OpenNow(string script, int line, string? program, ILog log)
+    private static void OpenNow(string script, int line, string? program, string? project, ILog log)
     {
         try
         {
@@ -39,11 +42,33 @@ internal static unsafe class ScriptEditor
                 return;
             }
 
-            Start(program, ScriptEditorProgram.Arguments(program, script, line));
+            OpenProjectFirst(program, project);
+            Start(program, ScriptEditorProgram.Arguments(program, script, line, project));
         }
         catch (Win32Exception exception)
         {
             SafeLog.Error(log, $"{Path.GetFileName(script)} could not be opened: {exception.Message}");
+        }
+    }
+
+    private static void OpenProjectFirst(string program, string? project)
+    {
+        var running = Process.GetProcessesByName(ScriptEditorProgram.VisualStudioProcess).Length > 0;
+
+        if (ScriptEditorProgram.ProjectArguments(program, project, running) is not { } arguments)
+            return;
+
+        using var process = Process.Start(new ProcessStartInfo(program, arguments) { UseShellExecute = false });
+
+        if (process is null)
+            return;
+
+        var deadline = DateTime.UtcNow + ProjectLoadTimeout;
+
+        while (DateTime.UtcNow < deadline && !process.HasExited && process.MainWindowHandle == 0)
+        {
+            Thread.Sleep(WindowCheckInterval);
+            process.Refresh();
         }
     }
 

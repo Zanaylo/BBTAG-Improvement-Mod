@@ -13,4 +13,8 @@
     <InternalsVisibleTo Include="BBTAG_IM.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Scripting\Data\command_sizes.tsv" LogicalName="BBTAG_IM.Core.Scripting.Data.command_sizes.tsv" />
+  </ItemGroup>
+
 </Project>

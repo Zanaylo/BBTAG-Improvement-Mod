@@ -7,17 +7,22 @@ using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Mods;
 using BBTAG_IM.Core.Online;
 using BBTAG_IM.Core.Palettes;
+using BBTAG_IM.Core.Pe;
+using BBTAG_IM.Core.Roster;
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Dev;
 using BBTAG_IM.Core.Scripting.Live;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Sprites;
 using BBTAG_IM.ImprovementMod.Dev;
+using BBTAG_IM.ImprovementMod.Errors;
+using BBTAG_IM.ImprovementMod.Files;
 using BBTAG_IM.ImprovementMod.Frames;
 using BBTAG_IM.ImprovementMod.Graphics;
+using BBTAG_IM.ImprovementMod.Harness;
 using BBTAG_IM.ImprovementMod.Menu;
 using BBTAG_IM.ImprovementMod.Online;
-using BBTAG_IM.ImprovementMod.Palettes;
+using BBTAG_IM.ImprovementMod.Roster;
 using BBTAG_IM.ImprovementMod.Training;
 using BBTAG_IM.Native;
 using BBTAG_IM.Native.Hooks;
@@ -57,6 +62,7 @@ internal static class ImprovementStartup
         var gameModule = LoadedModule.MainModule();
         var memory = new ProcessMemory();
         var frames = new FrameDispatcher(memory, log);
+        var harness = HarnessServer.IsWanted ? HarnessServer.InstallEarly(gameModule, frames, log) : null;
         var menuSettings = new MenuSettings(settings);
         var palettes = new PaletteLibrary(fileSystem, modFolder);
         var catalog = new PaletteCatalog(palettes, work => Task.Run(work));
@@ -72,16 +78,22 @@ internal static class ImprovementStartup
         log.Info($"Game data is read from {string.Join(", ", dataFolders)}.");
         var textures = new MenuTextures();
         var thumbnails = new SpriteThumbnails(new CharacterSprites(fileSystem, dataFolders, log), textures);
-        AddCharSelectPalettes(gameModule, new CharSelectPalettes(fileSystem, dataFolders, catalog, () => settings.Current, Path.Combine(modFolder, CharSelectCacheFolder)), log);
         var code = gameModule.ReadCode();
+        var newCharacters = AddNewCharacters(gameModule, code, memory, ModCharacterManifests.Load(EnabledMods.Of(modFolder, fileSystem), fileSystem), log);
+        var cacheFolder = Path.Combine(modFolder, CharSelectCacheFolder);
+        AddFileSubstitutions(
+            gameModule,
+            new CharSelectPalettes(fileSystem, dataFolders, catalog, () => settings.Current, cacheFolder),
+            new CharacterNameFiles(fileSystem, dataFolders, [.. newCharacters.SelectMany(addition => CharacterNameEntries.For(addition.Manifest))], cacheFolder),
+            log);
         AddWindowResolutions(code, log);
-        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, thumbnails, screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), log);
+        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, thumbnails, screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), harness, log);
         IMenuSection[] sections = [features.Training, features.Palettes, new PerformanceSection(menuSettings, settings.Current.FrameLimiter), features.Dev, new ConfigSection(menuSettings)];
         AddMenu(frames, new ImprovementMenu(menuSettings, playerCount, sections, features.Windows), menuSettings, textures, screenPass, modFolder, log);
         frames.AddReset(screenPass.Release);
         AddFrameLimiter(frames, settings.Current.FrameLimiter, log);
 
-        Direct3DHooks.Install(gameModule, settings.Current.FrameLimiter, frames);
+        Direct3DHooks.Install(gameModule, settings.Current.FrameLimiter, harness is not null, frames);
     }
 
     private static GameFeatures AddGameFeatures(
@@ -96,6 +108,7 @@ internal static class ImprovementStartup
         BackBufferPass screenPass,
         IReadOnlyList<Boss> bosses,
         DataPlaces places,
+        HarnessServer? harness,
         ILog log)
     {
         GameAddresses addresses;
@@ -115,6 +128,9 @@ internal static class ImprovementStartup
         log.Info($"Palettes are read from {catalog.Library.Folder}.");
 
         var game = new GameView(memory, addresses);
+        var matchExit = new MatchExit(game);
+        harness?.Attach(game, matchExit);
+        AddErrorGuard(frames, gameModule, code, game, matchExit, log);
         var roster = new CharacterRoster(memory, LocateRoster(code, log));
         var stages = new StageTable(memory, LocateStages(code, log));
         var editor = new PaletteEditor(game, roster, () => settings.Current, catalog, log, Random.Shared.Next);
@@ -138,6 +154,30 @@ internal static class ImprovementStartup
         return new GameFeatures(new TrainingSection(menuSettings, pause, bossFight), new PaletteSection(editor, choices, editorWindow, assignmentsWindow), dev, [assignmentsWindow, editorWindow]);
     }
 
+    private static void AddErrorGuard(FrameDispatcher frames, LoadedModule gameModule, CodeImage code, GameView game, MatchExit matchExit, ILog log)
+    {
+        try
+        {
+            FrameRecovery.Install(code, gameModule, game, matchExit, log);
+            frames.Add("Error recovery", _ => FrameRecovery.OnPresent());
+            log.Info("Errors during a match skip the step that failed and go back to character select instead of closing the game.");
+        }
+        catch (Exception exception) when (exception is GameLayoutException or PatchFailedException)
+        {
+            log.Error($"{exception.Message} A crash during a match still closes the game.");
+        }
+
+        try
+        {
+            GameErrorGuard.Install(gameModule, matchExit, log);
+            log.Info("Game error boxes are written here. In a match they send it back to character select instead of closing the game.");
+        }
+        catch (HookException exception)
+        {
+            log.Error($"{exception.Message} Game error boxes close the game as usual.");
+        }
+    }
+
     private static IMenuSection AddDev(
         FrameDispatcher frames,
         LoadedModule gameModule,
@@ -158,7 +198,7 @@ internal static class ImprovementStartup
             var database = new ScriptDatabaseFolder(places.Files, databaseFolder);
             var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, sizes, () => menuSettings.Current.ScriptEditor, log);
             frames.Add("Script editing", scripts.OnPresent);
-            ScriptCrashGuard.Install(gameModule, scripts.Recover, log);
+            GameErrorGuard.RollBackScriptsWith(scripts.Recover);
             log.Info($"Script editing ready: {sizes.Count} script commands read at 0x{table.Address:X8}. Command names {(database.Exists ? "come from " + databaseFolder : "are missing, so commands show as numbers")}.");
             return new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), databaseFolder);
         }
@@ -194,16 +234,49 @@ internal static class ImprovementStartup
             catalog.LoadInBackground(folder);
     }
 
-    private static void AddCharSelectPalettes(LoadedModule gameModule, CharSelectPalettes charSelect, ILog log)
+    private static IReadOnlyList<RosterAddition> AddNewCharacters(LoadedModule gameModule, CodeImage code, IGameMemory memory, ManifestLoad manifests, ILog log)
     {
+        if (manifests.Manifests.Count > 0 && OverhaulExecutable.Is(gameModule.Headers.Sections))
+        {
+            log.Info("The overhaul's BBTAG.exe is running and its table builds its own roster, so the characters of the characters folders are not added.");
+            return [];
+        }
+
         try
         {
-            CharSelectFileHook.Install(gameModule, charSelect, log);
+            return NewCharacters.Install(code, memory, manifests, log);
+        }
+        catch (Exception exception) when (exception is GameLayoutException or PatchFailedException)
+        {
+            log.Error($"The new characters were not added: {exception.Message}");
+            return [];
+        }
+    }
+
+    private static void AddFileSubstitutions(LoadedModule gameModule, CharSelectPalettes charSelect, CharacterNameFiles names, ILog log)
+    {
+        FileSubstitution[] substitutions =
+        [
+            new(
+                "char_select_",
+                charSelect.Substitute,
+                file => $"Character select reads {file} with your assigned palettes.",
+                (file, error) => $"Character select keeps the game colors of {file}: {error}"),
+            new(
+                "_idlist.txt",
+                names.Substitute,
+                file => $"{file} is read with the names of the new characters.",
+                (file, error) => $"{file} keeps only the game names: {error}"),
+        ];
+
+        try
+        {
+            FileSubstitutionHook.Install(gameModule, substitutions, log);
             log.Info("Assigned palettes are shown on character select.");
         }
         catch (HookException exception)
         {
-            log.Error($"{exception.Message} Character select keeps the game colors.");
+            log.Error($"{exception.Message} Character select keeps the game colors and the new characters have no names.");
         }
     }
 

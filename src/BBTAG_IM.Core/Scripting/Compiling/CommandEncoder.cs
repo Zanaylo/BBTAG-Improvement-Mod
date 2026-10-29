@@ -1,6 +1,6 @@
 namespace BBTAG_IM.Core.Scripting.Compiling;
 
-public sealed class CommandEncoder(ScriptDatabase database)
+public sealed class CommandEncoder(ScriptDatabase database, IReadOnlySet<string> functions)
 {
     private const int ConstantType = 0;
     private const int SlotType = 2;
@@ -86,10 +86,7 @@ public sealed class CommandEncoder(ScriptDatabase database)
     {
         if (argument.Kind == ArgumentKind.Text)
         {
-            if (expression is not TextExpression text)
-                throw new ScriptCompileException($"{command.Name} expects text in quotes here.", expression.Line);
-
-            buffer.WriteBytes(EncodeText(text, argument.Length));
+            buffer.WriteBytes(EncodeText(TextOf(command, expression, visibleIndex), argument.Length));
             return;
         }
 
@@ -103,6 +100,23 @@ public sealed class CommandEncoder(ScriptDatabase database)
             throw new ScriptCompileException($"{command.Name} expects a number here.", expression.Line);
 
         buffer.WriteInt32(ToInt32(number, expression.Line));
+    }
+
+    private TextExpression TextOf(CommandDefinition command, Expression expression, int visibleIndex) => expression switch
+    {
+        TextExpression text => text,
+        NameExpression name when ValueKinds.IsStateReference(command.Id, visibleIndex) => StateName(name),
+        _ => throw new ScriptCompileException($"{command.Name} expects text in quotes here.", expression.Line),
+    };
+
+    private TextExpression StateName(NameExpression name)
+    {
+        var state = FunctionNames.FromIdentifier(name.Name);
+
+        if (!functions.Contains(state))
+            throw new ScriptCompileException($"{name.Name} is not a state or subroutine in this file. To use one from another file, write it in quotes: {ScriptLiterals.Text(state)}.", name.Line);
+
+        return new TextExpression(state, name.Line);
     }
 
     private int NamedValue(CommandDefinition command, NameExpression name, int visibleIndex)
