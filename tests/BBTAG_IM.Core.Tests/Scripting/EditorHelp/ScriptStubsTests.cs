@@ -140,28 +140,6 @@ public class ScriptStubsTests
         Assert.Contains("UponName = int | Callable[..., Any]\n", stub);
     }
 
-    [Fact]
-    public void Write_WithUsage_SaysWhereTheGameUsesCommandsAndValues()
-    {
-        // Arrange
-        ScriptDatabase database = CreateDatabase();
-        ScriptUsage usage = new();
-        usage.Add("brg", ScriptBinary.Read(
-            new ScriptBytes()
-                .Subroutine("MatchInit").Command(14001, "NmlAtk5A", 0x07).Command(14002).Command(9)
-                .State("NmlAtk5A").Command(ScriptTestDatabase.Damage, 1200).Command(1)
-                .Build(),
-            ScriptTestDatabase.Create()));
-
-        // Act
-        string stub = ScriptStubs.Write(database, _docs, usage);
-
-        // Assert
-        Assert.Contains("Command 9000, 8 bytes.\n\nSets the damage.", stub);
-        Assert.Contains("In the game's scripts: 1 time, 1 character. For example brg NmlAtk5A.", stub);
-        Assert.Contains("0x7 (7): 5A on the ground.\n\nIn the game's scripts: 1 time, 1 character. For example brg NmlAtk5A (registration).", stub);
-    }
-
     private static ScriptDatabase CreateDatabase() =>
         ScriptTestDatabase.Create()
             .WithGameSizes(new Dictionary<int, int> { [ScriptTestDatabase.Damage] = 8, [4] = 12, [43] = 8, [ScriptTestDatabase.SharedGatling] = 36, [23055] = 4, [ScriptTestDatabase.ClearUpon] = 8, [SoulEater] = 68 })

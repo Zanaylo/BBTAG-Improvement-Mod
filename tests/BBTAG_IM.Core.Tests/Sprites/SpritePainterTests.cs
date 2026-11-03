@@ -26,6 +26,19 @@ public class SpritePainterTests
     }
 
     [Fact]
+    public void Colored_SpriteWithColors_GivesEveryPixelItsOpaqueColorAndLeavesIndexZeroClear()
+    {
+        // Arrange
+        IndexedSprite sprite = new(3, 1, [0, Teal, Slate]);
+
+        // Act
+        uint[] pixels = SpritePainter.Colored(sprite, SpritePainter.CharacterColors(Palette.Colors()));
+
+        // Assert
+        Assert.Equal([0x00000000u, 0xFF102030u, 0xFF304050u], pixels);
+    }
+
+    [Fact]
     public void Paint_HalfSize_AveragesTheColorsEachPixelCovers()
     {
         // Arrange

@@ -5,11 +5,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$vsInstaller = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
-if (Test-Path $vsInstaller) {
-    $env:PATH = "$vsInstaller;$env:PATH"
-}
-
 function Invoke-Dotnet {
     & dotnet @args
     if ($LASTEXITCODE -ne 0) {
@@ -25,8 +20,9 @@ if (Test-Path $Output) {
     Get-ChildItem $Output -File | Remove-Item -Force
 }
 
-Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Payload') -c Release -o $Output
-Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Launcher') -c Release -o $Output
+$payloadFolder = Join-Path $PSScriptRoot 'src\BBTAG_IM.Payload\bin\Release\net10.0\win-x86\publish'
+Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Payload') -c Release -o $payloadFolder
+Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.Launcher') -c Release -o $Output "-p:BundledPayload=$(Join-Path $payloadFolder 'BBTAG_IM.dll')"
 
 $improvementMod = Join-Path $Output 'mods\BBTAG-Improvement-Mod'
 Invoke-Dotnet publish (Join-Path $PSScriptRoot 'src\BBTAG_IM.ImprovementMod') -c Release -o $improvementMod

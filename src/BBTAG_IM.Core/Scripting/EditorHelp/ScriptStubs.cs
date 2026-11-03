@@ -29,9 +29,8 @@ public static class ScriptStubs
         (ScriptDecorators.StateRegister, "@StateRegister: registers a move inside MatchInit. The parameter is its input, such as INPUT_5A or INPUT_SPECIALMOVE."),
     ];
 
-    public static string Write(ScriptDatabase database, ScriptDocs docs, ScriptUsage? usage = null)
+    public static string Write(ScriptDatabase database, ScriptDocs docs)
     {
-        usage ??= ScriptUsage.Empty;
         var stub = new StringBuilder();
         stub.Append(Docstring(Header)).Append("\n\nfrom typing import Any, Callable, overload\n\n");
         stub.Append("StateName = str | Callable[..., Any]\n");
@@ -41,17 +40,17 @@ public static class ScriptStubs
             stub.Append("\n\ndef ").Append(name).Append("(*arguments: Any) -> Any:\n").Append(Indent).Append(Docstring(doc)).Append('\n');
 
         foreach (var command in database.Commands.OrderBy(command => command.Id))
-            AppendCommand(stub, database, command, HelpText.Command(command, docs.Command(command.Id), usage));
+            AppendCommand(stub, database, command, HelpText.Command(command, docs.Command(command.Id)));
 
         stub.Append('\n');
 
         foreach (var command in database.Commands.OrderBy(command => command.Id))
             AppendAlias(stub, database, command);
 
-        AppendConstants(stub, Inputs(database, usage));
-        AppendConstants(stub, Values(database.MoveConditions, hex: true, usage, UsageKind.MoveCondition));
-        AppendConstants(stub, Values(database.HitAnimations, hex: false, usage, UsageKind.HitAnimation));
-        AppendConstants(stub, Upons(database, docs, usage));
+        AppendConstants(stub, Inputs(database));
+        AppendConstants(stub, Values(database.MoveConditions, hex: true));
+        AppendConstants(stub, Values(database.HitAnimations, hex: false));
+        AppendConstants(stub, Upons(database, docs));
         AppendConstants(stub, Slots(database, docs));
 
         return stub.ToString();
@@ -96,28 +95,22 @@ public static class ScriptStubs
         }
     }
 
-    private static IEnumerable<(string Name, string Doc)> Inputs(ScriptDatabase database, ScriptUsage usage)
+    private static IEnumerable<(string Name, string Doc)> Inputs(ScriptDatabase database)
     {
-        var normalNames = database.Inputs.Normal.Named.Select(value => value.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var named = database.Inputs.Named.ToList();
         var names = named.Select(value => value.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var numbers = Enumerable.Range(0, InputCount)
             .Select(value => new NamedValue(value, InputNames.Fallback(value, hex: true), "No name is known for this input yet."))
             .Where(value => !names.Contains(value.Name));
 
-        return named.Concat(numbers).Select(value => (value.Name, HelpText.Value(
-            value.Value,
-            hex: true,
-            value.Description,
-            usage,
-            new UsageKey(normalNames.Contains(value.Name) ? UsageKind.NormalInput : UsageKind.MoveInput, value.Value))));
+        return named.Concat(numbers).Select(value => (value.Name, HelpText.Value(value.Value, hex: true, value.Description)));
     }
 
-    private static IEnumerable<(string Name, string Doc)> Values(NameTable table, bool hex, ScriptUsage usage, UsageKind kind) =>
-        table.Named.Select(value => (value.Name, HelpText.Value(value.Value, hex, table.DescriptionOf(value.Value), usage, new UsageKey(kind, value.Value))));
+    private static IEnumerable<(string Name, string Doc)> Values(NameTable table, bool hex) =>
+        table.Named.Select(value => (value.Name, HelpText.Value(value.Value, hex, table.DescriptionOf(value.Value))));
 
-    private static IEnumerable<(string Name, string Doc)> Upons(ScriptDatabase database, ScriptDocs docs, ScriptUsage usage) =>
-        Numbered(database.Upons, UponCount, ScriptDatabase.UponPrefix, upon => HelpText.Upon(upon, docs, usage));
+    private static IEnumerable<(string Name, string Doc)> Upons(ScriptDatabase database, ScriptDocs docs) =>
+        Numbered(database.Upons, UponCount, ScriptDatabase.UponPrefix, upon => HelpText.Upon(upon, docs));
 
     private static IEnumerable<(string Name, string Doc)> Slots(ScriptDatabase database, ScriptDocs docs) =>
         Numbered(database.Slots, SlotCount, ScriptDatabase.SlotPrefix, slot => HelpText.Slot(slot, docs));

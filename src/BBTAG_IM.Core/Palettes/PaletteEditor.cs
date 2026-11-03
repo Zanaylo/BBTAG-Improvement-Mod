@@ -18,7 +18,7 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
         .ToArray();
     private readonly Dictionary<(string Folder, int Color), LeftColors> _leftColors = [];
 
-    private HighlightedEntry? _highlight;
+    private HighlightedEntries? _highlight;
 
     public bool InMatch { get; private set; }
 
@@ -69,13 +69,13 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
         character.Wear(palette is null ? character.Original.Copy() : character.Original.Wearing(palette), palette?.Name);
     }
 
-    public void Highlight(int slot, int file, int entry)
+    public void Highlight(int slot, int file, IReadOnlyCollection<int> entries)
     {
         if (_characters[slot] is not { } character)
             return;
 
         EndHighlight();
-        _highlight = new HighlightedEntry(slot, file, entry);
+        _highlight = new HighlightedEntries(slot, file, entries.ToArray());
         character.NeedsRedraw = true;
     }
 
@@ -178,7 +178,7 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
     {
         var table = Table(character.Slot);
         var colors = _highlight is { } highlight && highlight.Slot == character.Slot
-            ? character.Colors.Flashing(highlight.File, highlight.Entry, highlight.IsLit)
+            ? character.Colors.Flashing(highlight.File, highlight.Entries, highlight.IsLit)
             : character.Colors;
 
         table.Write(character.Color, colors);
@@ -254,13 +254,13 @@ public sealed class PaletteEditor(GameView game, CharacterRoster roster, Func<Im
 
     private sealed record LeftColors(PaletteColors Shown, PaletteColors Original);
 
-    private sealed class HighlightedEntry(int slot, int file, int entry)
+    private sealed class HighlightedEntries(int slot, int file, int[] entries)
     {
         public int Slot => slot;
 
         public int File => file;
 
-        public int Entry => entry;
+        public IReadOnlyCollection<int> Entries => entries;
 
         public int FramesShown { get; set; }
 

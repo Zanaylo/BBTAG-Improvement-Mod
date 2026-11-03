@@ -47,7 +47,7 @@ public sealed class ScriptSession
 
     public void Open()
     {
-        if (!files.FileExists(Paths.Source))
+        if (!files.FileExists(Paths.Source) || OtherLanguageIsNewer())
             files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
 
         lastSeen = files.LastWriteTimeUtc(Paths.Source);
@@ -175,5 +175,11 @@ public sealed class ScriptSession
         return result.AddedFunctions.Count == 0
             ? applied
             : $"{applied} New states or subroutines work after the next match loads: {string.Join(", ", result.AddedFunctions)}.";
+    }
+
+    private bool OtherLanguageIsNewer()
+    {
+        var other = Path.ChangeExtension(Paths.Source, ScriptLanguages.Extension(Language == ScriptLanguage.CSharp ? ScriptLanguage.Python : ScriptLanguage.CSharp));
+        return files.FileExists(other) && files.LastWriteTimeUtc(other) > files.LastWriteTimeUtc(Paths.Source);
     }
 }

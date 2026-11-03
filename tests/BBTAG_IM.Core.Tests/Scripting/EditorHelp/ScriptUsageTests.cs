@@ -109,47 +109,5 @@ public class ScriptUsageTests
         Assert.Equal(1, entry.Characters["brg"]);
     }
 
-    [Fact]
-    public void Describe_UsedEntry_SaysHowOftenAndWhere()
-    {
-        // Arrange
-        ScriptUsage usage = new();
-        usage.Add("brg", Read(new ScriptBytes().State("NmlAtk5A").Command(ScriptTestDatabase.Damage, 1).Command(1).Build()));
-
-        // Act
-        string? text = usage.Describe(new UsageKey(UsageKind.Command, ScriptTestDatabase.Damage));
-
-        // Assert
-        Assert.Equal("In the game's scripts: 1 time, 1 character. For example brg NmlAtk5A.", text);
-    }
-
-    [Fact]
-    public void Describe_SeveralCharacters_ShowsOneExampleOfEachFirst()
-    {
-        // Arrange
-        ScriptUsage usage = new();
-        usage.Add("brg", Read(new ScriptBytes()
-            .State("A").Command(ScriptTestDatabase.Damage, 1).Command(1)
-            .State("B").Command(ScriptTestDatabase.Damage, 1).Command(1)
-            .Build()));
-        usage.Add("bha", Read(new ScriptBytes().State("C").Command(ScriptTestDatabase.Damage, 1).Command(1).Build()));
-
-        // Act
-        string? text = usage.Describe(new UsageKey(UsageKind.Command, ScriptTestDatabase.Damage));
-
-        // Assert
-        Assert.Equal("In the game's scripts: 3 times, 2 characters. For example brg A, bha C, brg B.", text);
-    }
-
-    [Fact]
-    public void Describe_UnusedEntry_ReturnsNull()
-    {
-        // Act
-        string? text = new ScriptUsage().Describe(new UsageKey(UsageKind.Command, ScriptTestDatabase.Damage));
-
-        // Assert
-        Assert.Null(text);
-    }
-
     private static ScriptBinary Read(byte[] bytes) => ScriptBinary.Read(bytes, ScriptTestDatabase.Create());
 }

@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.Game;
+using BBTAG_IM.Core.Hitboxes.Editing;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Memory;
@@ -7,11 +8,13 @@ using BBTAG_IM.Core.Scripting.CSharp;
 using BBTAG_IM.Core.Scripting.Dev;
 using BBTAG_IM.Core.Scripting.EditorHelp;
 using BBTAG_IM.Core.Scripting.Live;
+using BBTAG_IM.Core.Settings;
+using BBTAG_IM.Core.Sprites;
 using BBTAG_IM.ImprovementMod.Frames;
 
 namespace BBTAG_IM.ImprovementMod.Dev;
 
-internal sealed record DevCharacter(int Slot, string Code, string Name);
+internal sealed record DevCharacter(int Slot, string Code, string Name, SpriteFolder Folder);
 
 internal sealed class DevScripts(
     GameView game,
@@ -20,8 +23,8 @@ internal sealed class DevScripts(
     DevFolder dev,
     ScriptFileFinder finder,
     ScriptDatabaseFolder databaseFolder,
-    IReadOnlyDictionary<int, int> gameSizes,
-    Func<string?> scriptEditor,
+    GameCommandTable commandTable,
+    Func<ImprovementSettings> settings,
     ILog log)
 {
     private const uint EffectsRecordOffset = ScriptRecord.Length;
@@ -32,6 +35,9 @@ internal sealed class DevScripts(
     private readonly List<ScriptSession> _sessions = [];
     private readonly ScriptBuffers _buffers = new();
     private readonly ScriptRunners _runners = new(game);
+    private readonly Dictionary<(string Code, bool Effects), IReadOnlyList<CharacterMove>> _moves = [];
+    private CommandList _commands = commandTable.Current(game.Memory);
+    private IReadOnlyDictionary<int, int>? _gameSizes;
     private ScriptDatabase? _database;
 
     public DevFolder Folder => dev;
@@ -52,7 +58,7 @@ internal sealed class DevScripts(
         for (var slot = 0; slot < GameView.CharacterSlots; slot++)
         {
             if (game.CharacterIndex(slot) is { } index && roster.CodeOf(index) is { } code)
-                characters.Add(new DevCharacter(slot, code, roster.Identify(index).Name));
+                characters.Add(new DevCharacter(slot, code, roster.Identify(index).Name, roster.SpriteFolderOf(index) ?? SpriteFolder.Char));
         }
 
         return characters;
@@ -62,6 +68,8 @@ internal sealed class DevScripts(
     {
         if (game.Character(character.Slot) is not { } entity)
             return "That character is not in the match anymore.";
+
+        FollowCommandList();
 
         var record = game.Memory.ReadUInt32(entity + ScriptRecord.ObjectRecordOffset) + (effects ? EffectsRecordOffset : 0);
         var paths = Paths(character.Code, effects);
@@ -76,14 +84,38 @@ internal sealed class DevScripts(
             SafeLog.Info(log, $"Editing {Path.GetFileName(paths.Source)} live from {paths.Source}.");
             return OpenInEditor(paths);
         }
-        catch (Exception exception) when (exception is InvalidScriptException or InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is InvalidScriptException or InvalidScriptDatabaseException or InvalidSpriteDataException or IOException or UnauthorizedAccessException)
         {
             return exception.Message;
         }
     }
 
+    public IReadOnlyList<CharacterMove> Moves(DevCharacter character, bool effects)
+    {
+        if (_moves.TryGetValue((character.Code, effects), out var known))
+            return known;
+
+        try
+        {
+            var moves = MovesOf(character.Code, effects);
+            _moves[(character.Code, effects)] = moves;
+            return moves;
+        }
+        catch (Exception exception) when (exception is InvalidScriptException or InvalidScriptDatabaseException or InvalidSpriteDataException or IOException or UnauthorizedAccessException)
+        {
+            SafeLog.Error(log, $"The {(effects ? "effects" : "moves")} of {character.Name} could not be read from its script: {exception.Message}");
+            _moves[(character.Code, effects)] = [];
+            return [];
+        }
+    }
+
+    private IReadOnlyList<CharacterMove> MovesOf(string code, bool effects) =>
+        finder.Find(code, effects) is { } bytes ? CharacterMoves.Read(bytes, Database(), effects) : [];
+
     public void OnPresent(nint device)
     {
+        FollowCommandList();
+
         foreach (var session in _sessions)
             Poll(session);
 
@@ -110,19 +142,14 @@ internal sealed class DevScripts(
         return recovered;
     }
 
-    private ScriptPaths Paths(string code, bool effects)
-    {
-        var csharp = dev.Script(code, effects);
-        var python = dev.Script(code, effects, ScriptLanguage.Python);
-        return !files.FileExists(csharp.Source) && files.FileExists(python.Source) ? python : csharp;
-    }
+    private ScriptPaths Paths(string code, bool effects) => dev.Script(code, effects, settings().ScriptLanguage);
 
     private string OpenInEditor(ScriptPaths paths)
     {
-        var program = scriptEditor();
+        var program = settings().ScriptEditor;
         var file = Path.GetFileName(paths.Source);
-        var project = ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp ? databaseFolder.EditorProjectPath : null;
-        ScriptEditor.Open(paths.Source, FirstLine, program, project, log);
+        var solution = ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp ? databaseFolder.EditorSolutionPath : null;
+        ScriptEditor.Open(paths.Source, FirstLine, program, solution, log);
 
         return program is null
             ? $"Pick the program for {file} in the Open with window. Save the file to apply it."
@@ -154,15 +181,15 @@ internal sealed class DevScripts(
         try
         {
             var docs = databaseFolder.LoadDocs();
-            var usage = databaseFolder.LoadUsage();
+            databaseFolder.WriteGameSizes(GameSizes());
 
             if (ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp)
             {
-                databaseFolder.WriteEditorApi(CSharpApi.Write(Database(), docs, usage));
+                databaseFolder.WriteEditorApi(CSharpApi.Write(Database(), docs));
                 return;
             }
 
-            files.WriteAllText(Path.Combine(Path.GetDirectoryName(paths.Source)!, ScriptStubs.FileName), ScriptStubs.Write(database, docs, usage));
+            files.WriteAllText(Path.Combine(Path.GetDirectoryName(paths.Source)!, ScriptStubs.FileName), ScriptStubs.Write(database, docs));
         }
         catch (Exception exception) when (exception is InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
         {
@@ -172,8 +199,24 @@ internal sealed class DevScripts(
 
     private ScriptDatabase Database() =>
         _database ??= (databaseFolder.Exists ? databaseFolder.Load() : ScriptDatabase.Unnamed)
-            .WithGameSizes(gameSizes)
+            .WithGameSizes(GameSizes())
             .WithTagNames();
+
+    private IReadOnlyDictionary<int, int> GameSizes() => _gameSizes ??= _commands.ReadSizes(game.Memory);
+
+    private void FollowCommandList()
+    {
+        var current = commandTable.Current(game.Memory);
+
+        if (current == _commands)
+            return;
+
+        _commands = current;
+        _gameSizes = null;
+        _database = null;
+        _moves.Clear();
+        SafeLog.Info(log, $"The game now looks script commands up in a list of {current.Count} at 0x{current.Address:X8}, so scripts are read with that list.");
+    }
 
     private void Poll(ScriptSession session)
     {

@@ -29,17 +29,22 @@ public sealed class ScriptBinary
     public static ScriptBinary Read(byte[] bytes, ScriptDatabase database)
     {
         var states = ReadStates(bytes);
-        var instructions = new List<ScriptInstruction>();
-        var offset = DataStartFor(states.Count);
+        return new ScriptBinary(bytes, states, ReadInstructions(bytes, DataStartFor(states.Count), bytes.Length, database));
+    }
 
-        while (offset < bytes.Length)
+    public static IReadOnlyList<ScriptInstruction> ReadInstructions(byte[] bytes, int start, int end, ScriptDatabase database)
+    {
+        var instructions = new List<ScriptInstruction>();
+        var offset = start;
+
+        while (offset < end)
         {
-            var instruction = ReadInstruction(bytes, offset, database);
+            var instruction = ReadInstruction(bytes, offset, end, database);
             instructions.Add(instruction);
             offset = instruction.End;
         }
 
-        return new ScriptBinary(bytes, states, instructions);
+        return instructions;
     }
 
     public static IReadOnlyList<ScriptState> ReadStates(ReadOnlySpan<byte> bytes)
@@ -63,16 +68,16 @@ public sealed class ScriptBinary
         return states;
     }
 
-    private static ScriptInstruction ReadInstruction(byte[] bytes, int offset, ScriptDatabase database)
+    private static ScriptInstruction ReadInstruction(byte[] bytes, int offset, int end, ScriptDatabase database)
     {
-        if (offset + sizeof(int) > bytes.Length)
+        if (offset + sizeof(int) > end)
             throw new InvalidScriptException($"The file ends in the middle of a command at 0x{offset:X}.");
 
         var id = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
         var command = database.Find(id) ?? throw new InvalidScriptException($"Command {id} at 0x{offset:X} is not in the script database.");
 
-        if (offset + command.Size > bytes.Length)
-            throw new InvalidScriptException($"{command.Name} at 0x{offset:X} runs past the end of the file.");
+        if (offset + command.Size > end)
+            throw new InvalidScriptException($"{command.Name} at 0x{offset:X} runs past the end of {(end == bytes.Length ? "the file" : "its state")}.");
 
         var values = new ScriptValue[command.Arguments.Count];
         var position = offset + sizeof(int);

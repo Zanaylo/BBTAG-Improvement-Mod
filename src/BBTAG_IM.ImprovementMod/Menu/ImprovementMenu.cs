@@ -55,8 +55,13 @@ internal sealed class ImprovementMenu(MenuSettings settings, PlayerCount playerC
         if (settings.Status.Length > 0)
             MenuText.Wrapped(settings.Status);
 
-        for (var index = 0; index < sections.Count; index++)
-            DrawSection(sections[index], index == 0);
+        if (!ImGui.BeginTabBar("sections", ImGuiTabBarFlags.FittingPolicyResizeDown))
+            return;
+
+        foreach (var section in sections)
+            DrawSection(section);
+
+        ImGui.EndTabBar();
     }
 
     private void DrawPlayerCount()
@@ -79,11 +84,13 @@ internal sealed class ImprovementMenu(MenuSettings settings, PlayerCount playerC
         ImGui.TextColored(PlayerCountColor, _shownPlayersText);
     }
 
-    private static void DrawSection(IMenuSection section, bool opensFirst)
+    private static void DrawSection(IMenuSection section)
     {
-        if (!ImGui.CollapsingHeader(section.Title, opensFirst ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
+        if (!ImGui.BeginTabItem(section.Title))
             return;
 
+        ImGui.Spacing();
         section.Draw();
+        ImGui.EndTabItem();
     }
 }

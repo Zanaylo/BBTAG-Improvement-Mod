@@ -22,6 +22,11 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private const uint DescriptionLength = 63;
     private const float FullChannel = 255f;
     private const float Rounding = 0.5f;
+    private const int FirstPickedEntry = 1;
+    private const int OneColor = 0;
+    private const int Gradient = 1;
+    private const ImGuiColorEditFlags PickerFlags = ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview;
+    private const ImGuiColorEditFlags TransparencyFlags = ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.AlphaPreviewHalf;
 
     private static readonly Vector2 FirstPosition = new(0.45f, 0.08f);
     private static readonly Vector4 SelectedBorder = new(1, 1, 1, 1);
@@ -29,6 +34,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private static readonly string[] EntryLabels = EntryTexts(entry => $"Entry {entry}");
     private static readonly string[] ChangedEntryTooltips = EntryTexts(entry => $"Entry {entry}, changed");
     private static readonly string[] ChangedEntryLabels = EntryTexts(entry => $"Entry {entry} (changed)");
+    private static readonly string[] PickedCountLabels = Enumerable.Range(0, PaletteColors.ColorsPerFile + 1).Select(count => $"{count} entries picked").ToArray();
     private static readonly string[] EffectNames = Enumerable.Range(0, PaletteColors.FileCount).Select(file => $"Effect {file}").ToArray();
 
     private readonly SlotState[] _slots = PlayerSlots.InPlayerOrder.Select(_ => new SlotState()).ToArray();
@@ -37,6 +43,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private int? _shownSlot;
     private bool _highlightOnPick = true;
     private bool _editTransparency;
+    private int _fill = OneColor;
 
     public bool IsOpen => _isOpen;
 
@@ -162,6 +169,8 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
 
     private void DrawSwatches(EditedCharacter character, SlotState state, int file)
     {
+        MenuText.Muted("Ctrl+click picks more entries. Shift+click picks every entry in between.");
+
         var side = ImGui.GetFontSize() * SwatchSideInFontSizes;
         var padding = ImGui.GetStyle().WindowPadding;
         var size = new Vector2(SwatchesPerRow * (side + SwatchSpacing), SwatchRows * (side + SwatchSpacing)) + padding * 2;
@@ -180,7 +189,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
 
     private void DrawSwatch(EditedCharacter character, SlotState state, int file, int entry, float side)
     {
-        var selected = entry == state.Entry;
+        var selected = state.Selection.Contains(entry);
         var changed = character.IsChanged(file, entry);
         var outlined = selected || changed;
 
@@ -211,30 +220,106 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
 
     private void Pick(EditedCharacter character, SlotState state, int file, int entry)
     {
-        state.Entry = entry;
+        Select(state.Selection, entry);
+        state.GradientEnds = null;
 
         if (_highlightOnPick)
-            editor.Highlight(character.Slot, file, entry);
+            editor.Highlight(character.Slot, file, state.Selection.Entries);
+    }
+
+    private static void Select(EntrySelection selection, int entry)
+    {
+        var io = ImGui.GetIO();
+
+        if (io.KeyShift)
+        {
+            selection.ExtendTo(entry);
+            return;
+        }
+
+        if (io.KeyCtrl)
+        {
+            selection.Toggle(entry);
+            return;
+        }
+
+        selection.Pick(entry);
     }
 
     private void DrawPicker(EditedCharacter character, SlotState state, int file)
     {
-        var entry = state.Entry;
-        var current = character.Colors.Get(file, entry);
+        var picksSeveral = state.Selection.Count > 1;
 
-        ImGui.TextUnformatted(character.IsChanged(file, entry) ? ChangedEntryLabels[entry] : EntryLabels[entry]);
-        ImGui.SetNextItemWidth(ImGui.GetFontSize() * PickerWidthInFontSizes);
+        ImGui.TextUnformatted(PickedLabel(character, state.Selection, file));
 
-        var picked = _editTransparency ? PickWithTransparency(current) : PickWithoutTransparency(current);
+        if (picksSeveral)
+            DrawFillChoice();
 
-        if (picked is { } color && color != current)
-            ChangeColor(character, state, file, entry, color);
+        if (picksSeveral && _fill == Gradient)
+            DrawGradient(character, state, file);
+        else
+            DrawOneColor(character, state, file);
 
         if (!ImGui.IsAnyItemActive())
             state.Dragging = false;
     }
 
-    private void ChangeColor(EditedCharacter character, SlotState state, int file, int entry, PaletteColor color)
+    private static string PickedLabel(EditedCharacter character, EntrySelection selection, int file)
+    {
+        if (selection.Count > 1)
+            return PickedCountLabels[selection.Count];
+
+        var entry = selection.Focus;
+        return character.IsChanged(file, entry) ? ChangedEntryLabels[entry] : EntryLabels[entry];
+    }
+
+    private void DrawFillChoice()
+    {
+        ImGui.RadioButton("One color", ref _fill, OneColor);
+        MenuText.Tooltip("Paints every picked entry with the same color.");
+        ImGui.SameLine();
+        ImGui.RadioButton("Gradient", ref _fill, Gradient);
+        MenuText.Tooltip("Blends the picked entries from the first color to the last, in entry order.");
+    }
+
+    private void DrawOneColor(EditedCharacter character, SlotState state, int file)
+    {
+        var current = character.Colors.Get(file, state.Selection.Focus);
+        ImGui.SetNextItemWidth(ImGui.GetFontSize() * PickerWidthInFontSizes);
+
+        var picked = _editTransparency ? PickWithTransparency(current) : PickWithoutTransparency(current);
+
+        if (picked is { } color && color != current)
+            Fill(character, state, file, Enumerable.Repeat(color, state.Selection.Count));
+    }
+
+    private void DrawGradient(EditedCharacter character, SlotState state, int file)
+    {
+        var ends = state.GradientEndsFor(character, file);
+        var fromChanged = EditGradientEnd("From", ref ends.From);
+        ImGui.SameLine();
+        var toChanged = EditGradientEnd("To", ref ends.To);
+        ImGui.SameLine();
+        var applyPressed = ImGui.Button("Apply gradient");
+        MenuText.Tooltip("Fills the picked entries with this gradient.");
+
+        if (fromChanged || toChanged || applyPressed)
+            Fill(character, state, file, PaletteGradient.Between(ends.From, ends.To, state.Selection.Count));
+    }
+
+    private bool EditGradientEnd(string label, ref PaletteColor color)
+    {
+        var rgba = ToVector(color);
+        var flags = ImGuiColorEditFlags.NoInputs | (_editTransparency ? TransparencyFlags : ImGuiColorEditFlags.NoAlpha);
+
+        if (!ImGui.ColorEdit4(label, ref rgba, flags))
+            return false;
+
+        color = new PaletteColor(Channel(rgba.X), Channel(rgba.Y), Channel(rgba.Z), _editTransparency ? Channel(rgba.W) : color.A);
+        return true;
+    }
+
+    private void Fill(EditedCharacter character, SlotState state, int file, IEnumerable<PaletteColor> colors)
     {
         if (!state.Dragging)
         {
@@ -242,14 +327,18 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
             state.Dragging = true;
         }
 
-        editor.Change(character.Slot, file, entry, color);
+        foreach (var (entry, color) in state.Selection.Entries.Zip(colors))
+            editor.Change(character.Slot, file, entry, KeepingTransparency(color, character.Colors.Get(file, entry)));
     }
+
+    private PaletteColor KeepingTransparency(PaletteColor color, PaletteColor current) =>
+        _editTransparency ? color : color with { A = current.A };
 
     private static PaletteColor? PickWithoutTransparency(PaletteColor current)
     {
         var rgb = new Vector3(current.R, current.G, current.B) / FullChannel;
 
-        if (!ImGui.ColorPicker3("##picker", ref rgb, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview))
+        if (!ImGui.ColorPicker3("##picker", ref rgb, PickerFlags))
             return null;
 
         return new PaletteColor(Channel(rgb.X), Channel(rgb.Y), Channel(rgb.Z), current.A);
@@ -258,9 +347,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private static PaletteColor? PickWithTransparency(PaletteColor current)
     {
         var rgba = ToVector(current);
-        var flags = ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview | ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.AlphaPreviewHalf;
-
-        if (!ImGui.ColorPicker4("##picker", ref rgba, flags))
+        if (!ImGui.ColorPicker4("##picker", ref rgba, PickerFlags | TransparencyFlags))
             return null;
 
         return new PaletteColor(Channel(rgba.X), Channel(rgba.Y), Channel(rgba.Z), Channel(rgba.W));
@@ -347,7 +434,9 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
 
         private CharacterKey? _following;
 
-        public int Entry { get; set; } = 1;
+        public EntrySelection Selection { get; } = new(FirstPickedEntry);
+
+        public GradientEnds? GradientEnds { get; set; }
 
         public int EffectFile { get; set; } = FirstEffectFile;
 
@@ -364,7 +453,25 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
             Name = character.PaletteName ?? "";
             Description = "";
             Dragging = false;
+            GradientEnds = null;
         }
+
+        public GradientEnds GradientEndsFor(EditedCharacter character, int file)
+        {
+            if (GradientEnds is { } ends && ends.File == file)
+                return ends;
+
+            GradientEnds = new GradientEnds(file, character.Colors.Get(file, Selection.Entries.First()), character.Colors.Get(file, Selection.Entries.Last()));
+            return GradientEnds;
+        }
+    }
+
+    private sealed class GradientEnds(int file, PaletteColor from, PaletteColor to)
+    {
+        public PaletteColor From = from;
+        public PaletteColor To = to;
+
+        public int File => file;
     }
 
     private sealed record CharacterKey(string Folder, int Color);

@@ -363,6 +363,51 @@ public class CharacterRosterTests
         Assert.False(changed);
     }
 
+    [Fact]
+    public void SpriteFolderOf_RecordUsingTheTwiceSizeFolder_ReturnsIt()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Kohaku);
+        RecordAt(Table, Kohaku, "mko", "M_KOHAKU");
+        _memoryMock.Int32At(Table + Kohaku * RecordLength + SpriteFolderOffset, 2);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        SpriteFolder? folder = roster.SpriteFolderOf(Kohaku);
+
+        // Assert
+        Assert.Equal(SpriteFolder.Char2x, folder);
+    }
+
+    [Fact]
+    public void SpriteFolderOf_RecordWithAFolderTheGameDoesNotHave_ReturnsNull()
+    {
+        // Arrange
+        RosterAt(Table, lastIndex: Kohaku);
+        RecordAt(Table, Kohaku, "mko", "M_KOHAKU");
+        _memoryMock.Int32At(Table + Kohaku * RecordLength + SpriteFolderOffset, 7);
+        CharacterRoster roster = CreateCharacterRoster();
+
+        // Act
+        SpriteFolder? folder = roster.SpriteFolderOf(Kohaku);
+
+        // Assert
+        Assert.Null(folder);
+    }
+
+    [Fact]
+    public void SpriteFolderOf_RosterNotFound_ReturnsNull()
+    {
+        // Arrange
+        CharacterRoster roster = CreateCharacterRoster(getter: null);
+
+        // Act
+        SpriteFolder? folder = roster.SpriteFolderOf(Kohaku);
+
+        // Assert
+        Assert.Null(folder);
+    }
+
     private void RosterAt(uint table)
     {
         _memoryMock.Map(Getter, 8).BytesAt(Getter, [0xB8, 0, 0, 0, 0, GameCode.Return]).UInt32At(Getter + 1, table);

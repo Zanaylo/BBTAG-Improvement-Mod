@@ -127,17 +127,17 @@ public static class CSharpApi
 
         """;
 
-    public static string Write(ScriptDatabase database, ScriptDocs docs, ScriptUsage usage)
+    public static string Write(ScriptDatabase database, ScriptDocs docs)
     {
         var api = new StringBuilder(Preamble);
 
-        AppendEnum(api, CSharpNames.NormalInput, "The input of a move registration: Move_Register(..., NormalInput._5A, ...).", database.Inputs.Normal.Named, true, usage, UsageKind.NormalInput);
-        AppendEnum(api, CSharpNames.Input, "An input for Move_Input_ and CheckInput.", database.Inputs.Motions.Named, true, usage, UsageKind.MoveInput);
-        AppendEnum(api, CSharpNames.MoveCondition, "When a registered move can be used: Move_AirGround_(MoveCondition.GROUND).", Described(database.MoveConditions), true, usage, UsageKind.MoveCondition);
-        AppendEnum(api, CSharpNames.HitAnimation, "The animation the opponent is hit with.", Described(database.HitAnimations), false, usage, UsageKind.HitAnimation);
-        AppendUpons(api, database, docs, usage);
+        AppendEnum(api, CSharpNames.NormalInput, "The input of a move registration: Move_Register(..., NormalInput._5A, ...).", database.Inputs.Normal.Named, true);
+        AppendEnum(api, CSharpNames.Input, "An input for Move_Input_ and CheckInput.", database.Inputs.Motions.Named, true);
+        AppendEnum(api, CSharpNames.MoveCondition, "When a registered move can be used: Move_AirGround_(MoveCondition.GROUND).", Described(database.MoveConditions), true);
+        AppendEnum(api, CSharpNames.HitAnimation, "The animation the opponent is hit with.", Described(database.HitAnimations), false);
+        AppendUpons(api, database, docs);
         AppendSlots(api, database, docs);
-        AppendScript(api, database, docs, usage);
+        AppendScript(api, database, docs);
 
         return api.ToString();
     }
@@ -153,21 +153,21 @@ public static class CSharpApi
     private static IEnumerable<NamedValue> Described(NameTable table) =>
         table.Named.Select(value => value with { Description = table.DescriptionOf(value.Value) ?? string.Empty });
 
-    private static void AppendEnum(StringBuilder api, string type, string summary, IEnumerable<NamedValue> values, bool hex, ScriptUsage usage, UsageKind kind)
+    private static void AppendEnum(StringBuilder api, string type, string summary, IEnumerable<NamedValue> values, bool hex)
     {
         AppendDocs(api, string.Empty, summary);
         api.Append("public enum ").Append(type).Append("\n{\n");
 
         foreach (var value in Members(values, CSharpNames.Prefixes[type]))
         {
-            AppendDocs(api, Indent, HelpText.Value(value.Value, hex, value.Description, usage, new UsageKey(kind, value.Value)));
+            AppendDocs(api, Indent, HelpText.Value(value.Value, hex, value.Description));
             api.Append(Indent).Append(value.Name).Append(" = ").Append(Number(value.Value)).Append(",\n");
         }
 
         api.Append("}\n\n");
     }
 
-    private static void AppendUpons(StringBuilder api, ScriptDatabase database, ScriptDocs docs, ScriptUsage usage)
+    private static void AppendUpons(StringBuilder api, ScriptDatabase database, ScriptDocs docs)
     {
         AppendDocs(api, string.Empty, "An event a state reacts to: upon(Upon.Landing, () => { ... }).");
         api.Append("public enum ").Append(CSharpNames.Upon).Append("\n{\n");
@@ -175,7 +175,7 @@ public static class CSharpApi
 
         foreach (var value in Members(upons, ScriptDatabase.UponPrefix))
         {
-            AppendDocs(api, Indent, HelpText.Upon(value.Value, docs, usage));
+            AppendDocs(api, Indent, HelpText.Upon(value.Value, docs));
             api.Append(Indent).Append(value.Name).Append(" = ").Append(Number(value.Value)).Append(",\n");
         }
 
@@ -198,14 +198,14 @@ public static class CSharpApi
         api.Append("}\n\n");
     }
 
-    private static void AppendScript(StringBuilder api, ScriptDatabase database, ScriptDocs docs, ScriptUsage usage)
+    private static void AppendScript(StringBuilder api, ScriptDatabase database, ScriptDocs docs)
     {
         AppendDocs(api, string.Empty, "Every BBTAG script is a class that inherits Script: its commands are the methods below.");
         api.Append("public abstract class ").Append(CSharpDialect.BaseClass).Append("\n{\n");
 
         foreach (var command in database.Commands.OrderBy(command => command.Id))
         {
-            var help = HelpText.Command(command, docs.Command(command.Id), usage);
+            var help = HelpText.Command(command, docs.Command(command.Id));
             var unknown = CommandDefinition.UnknownName(command.Id);
 
             if (CommandMethodName(database, command) is { } name && name != unknown)

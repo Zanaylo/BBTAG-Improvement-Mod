@@ -45,7 +45,6 @@ public sealed class ScriptUsage
     public const string FileName = "script_usage.json";
     public const int SampleLimit = 20;
 
-    private const int DescribedSamples = 6;
     private const int NormalInputCommand = 14001;
     private const int UponBlockCommand = 15;
     private const string EntriesProperty = "entries";
@@ -84,24 +83,6 @@ public sealed class ScriptUsage
                 Count(key, character, place);
         }
     }
-
-    public string? Describe(UsageKey key)
-    {
-        if (Find(key) is not { } entry)
-            return null;
-
-        var times = entry.Count == 1 ? "1 time" : $"{entry.Count.ToString(CultureInfo.InvariantCulture)} times";
-        var characters = entry.Characters.Count == 1 ? "1 character" : $"{entry.Characters.Count.ToString(CultureInfo.InvariantCulture)} characters";
-        return $"In the game's scripts: {times}, {characters}. For example {string.Join(", ", Varied(entry.Samples).Take(DescribedSamples))}.";
-    }
-
-    private static IEnumerable<string> Varied(IReadOnlyList<string> samples)
-    {
-        var firstOfEach = samples.GroupBy(CharacterOf).Select(group => group.First()).ToList();
-        return firstOfEach.Concat(samples.Except(firstOfEach));
-    }
-
-    private static string CharacterOf(string sample) => sample.Split(' ')[0];
 
     public string Write()
     {
@@ -171,6 +152,8 @@ public sealed class ScriptUsage
         if (repeated >= 0)
             entry.Samples[repeated] = place;
     }
+
+    private static string CharacterOf(string sample) => sample.Split(' ')[0];
 
     private static IEnumerable<UsageKey> ValueKeys(ScriptInstruction instruction)
     {

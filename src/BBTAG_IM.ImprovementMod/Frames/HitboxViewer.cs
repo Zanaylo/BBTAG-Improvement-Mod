@@ -7,7 +7,7 @@ using BBTAG_IM.ImprovementMod.Menu;
 
 namespace BBTAG_IM.ImprovementMod.Frames;
 
-internal sealed class HitboxViewer(GameView game, ICharacterFates fates, SettingsWatcher<ImprovementSettings> settings, HitboxRenderer renderer, ILog log)
+internal sealed class HitboxViewer(GameView game, IGameCollision collision, SettingsWatcher<ImprovementSettings> settings, HitboxRenderer renderer, ILog log)
 {
     public void OnPresent(nint device)
     {
@@ -17,7 +17,7 @@ internal sealed class HitboxViewer(GameView game, ICharacterFates fates, Setting
         if (!HitboxScene.IsVisible(game, settings.Current) || game.Camera() is not { } camera)
             return;
 
-        var frame = HitboxScene.Collect(game, fates, settings.Current.HitboxHeight);
+        var frame = HitboxScene.Collect(game, collision);
 
         if (frame.Boxes.Count > 0)
             renderer.Draw(device, frame, camera, settings.Current);

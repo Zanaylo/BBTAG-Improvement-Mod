@@ -6,7 +6,7 @@ public class ScriptEditorProgramTests
 {
     private const string Script = @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.py";
     private const string CSharpScript = @"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.cs";
-    private const string Project = @"D:\BBTAG\mods\DEV\Scripts.csproj";
+    private const string Solution = @"D:\BBTAG\mods\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.slnx";
 
     [Fact]
     public void Arguments_VisualStudio_OpensTheFileInTheRunningInstance()
@@ -61,68 +61,101 @@ public class ScriptEditorProgramTests
     }
 
     [Fact]
-    public void Arguments_CSharpScriptInVisualStudio_OpensTheFileInTheRunningInstance()
+    public void Arguments_CSharpScriptInVisualStudio_OpensOnlyTheSolution()
     {
         // Arrange
         string program = @"C:\VS\devenv.exe";
 
         // Act
-        string arguments = ScriptEditorProgram.Arguments(program, CSharpScript, 12, Project);
+        string arguments = ScriptEditorProgram.Arguments(program, CSharpScript, 12, Solution);
 
         // Assert
-        Assert.Equal($"/edit \"{CSharpScript}\"", arguments);
+        Assert.Equal($"\"{Solution}\"", arguments);
+    }
+
+    [Theory]
+    [InlineData("!VisualStudio.DTE.18.0:45964")]
+    [InlineData("!VisualStudio.DTE.17.0:1200")]
+    public void IsAutomationName_VisualStudioInstance_ReturnsTrue(string displayName)
+    {
+        // Arrange
+        string name = displayName;
+
+        // Act
+        bool automation = ScriptEditorProgram.IsAutomationName(name);
+
+        // Assert
+        Assert.True(automation);
+    }
+
+    [Theory]
+    [InlineData("!VisualStudio.Solution.18.0:45964")]
+    [InlineData("!{00020905-0000-0000-C000-000000000046}")]
+    [InlineData("")]
+    public void IsAutomationName_OtherRunningObject_ReturnsFalse(string displayName)
+    {
+        // Arrange
+        string name = displayName;
+
+        // Act
+        bool automation = ScriptEditorProgram.IsAutomationName(name);
+
+        // Assert
+        Assert.False(automation);
     }
 
     [Fact]
-    public void ProjectArguments_VisualStudioNotRunning_OpensTheProject()
+    public void IsSolution_SamePathInAnotherCase_ReturnsTrue()
     {
         // Arrange
-        string program = @"C:\VS\devenv.exe";
+        string loaded = Solution.ToUpperInvariant();
 
         // Act
-        string? arguments = ScriptEditorProgram.ProjectArguments(program, Project, false);
+        bool same = ScriptEditorProgram.IsSolution(loaded, Solution);
 
         // Assert
-        Assert.Equal($"\"{Project}\"", arguments);
+        Assert.True(same);
     }
 
     [Fact]
-    public void ProjectArguments_VisualStudioAlreadyRunning_OpensNothingFirst()
+    public void IsSolution_PathWithDotSegments_ReturnsTrue()
     {
         // Arrange
-        string program = @"C:\VS\devenv.exe";
+        string loaded = @"D:\BBTAG\mods\DEV\..\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.slnx";
 
         // Act
-        string? arguments = ScriptEditorProgram.ProjectArguments(program, Project, true);
+        bool same = ScriptEditorProgram.IsSolution(loaded, Solution);
 
         // Assert
-        Assert.Null(arguments);
+        Assert.True(same);
     }
 
     [Fact]
-    public void ProjectArguments_NoProject_OpensNothingFirst()
+    public void IsSolution_AnotherSolution_ReturnsFalse()
     {
         // Arrange
-        string program = @"C:\VS\devenv.exe";
+        string loaded = @"D:\Work\Syscambio\Syscambio.sln";
 
         // Act
-        string? arguments = ScriptEditorProgram.ProjectArguments(program, null, false);
+        bool same = ScriptEditorProgram.IsSolution(loaded, Solution);
 
         // Assert
-        Assert.Null(arguments);
+        Assert.False(same);
     }
 
-    [Fact]
-    public void ProjectArguments_VisualStudioCode_OpensNothingFirst()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void IsSolution_NoSolutionLoaded_ReturnsFalse(string? loaded)
     {
         // Arrange
-        string program = @"C:\Code\Code.exe";
+        string? fullName = loaded;
 
         // Act
-        string? arguments = ScriptEditorProgram.ProjectArguments(program, Project, false);
+        bool same = ScriptEditorProgram.IsSolution(fullName, Solution);
 
         // Assert
-        Assert.Null(arguments);
+        Assert.False(same);
     }
 
     [Fact]
@@ -132,9 +165,9 @@ public class ScriptEditorProgramTests
         string program = @"C:\Code\Code.exe";
 
         // Act
-        string arguments = ScriptEditorProgram.Arguments(program, CSharpScript, 12, Project);
+        string arguments = ScriptEditorProgram.Arguments(program, CSharpScript, 12, Solution);
 
         // Assert
-        Assert.Equal($"\"{Path.GetDirectoryName(Project)}\" -g \"{CSharpScript}:12\"", arguments);
+        Assert.Equal($"\"{Path.GetDirectoryName(Solution)}\" -g \"{CSharpScript}:12\"", arguments);
     }
 }

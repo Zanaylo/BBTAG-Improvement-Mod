@@ -36,6 +36,29 @@ public class SessionTableTests
     }
 
     [Fact]
+    public void Embed_TableWithLuaScriptEntries_AddsTheBridgeAsTheLastEntry()
+    {
+        string table = "<CheatTable><CheatEntries/><LuaScript><LuaScriptEntry Name=\"Script 1\">print(1)\n</LuaScriptEntry></LuaScript></CheatTable>";
+
+        string session = SessionTable.Embed(table, Lua);
+
+        XElement[] entries = XDocument.Parse(session).Root!.Element("LuaScript")!.Elements("LuaScriptEntry").ToArray();
+        Assert.Equal(["print(1)\n", Lua + "\n"], entries.Select(entry => entry.Value));
+        Assert.Equal(SessionTable.BridgeEntryName, entries[^1].Attribute("Name")!.Value);
+    }
+
+    [Fact]
+    public void Embed_TableWithLuaScriptEntries_LeavesNoLuaOutsideTheEntries()
+    {
+        string table = "<CheatTable><CheatEntries/><LuaScript>\n  <LuaScriptEntry Name=\"Script 1\">print(1)\n</LuaScriptEntry>\n</LuaScript></CheatTable>";
+
+        string session = SessionTable.Embed(table, Lua);
+
+        XElement luaScript = XDocument.Parse(session).Root!.Element("LuaScript")!;
+        Assert.All(luaScript.Nodes().OfType<XText>(), text => Assert.True(string.IsNullOrWhiteSpace(text.Value)));
+    }
+
+    [Fact]
     public void Embed_TableWithoutLuaScript_AddsOne()
     {
         // Act

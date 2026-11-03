@@ -10,6 +10,7 @@ public class ScriptDatabaseFolderTests
     private const string Folder = @"C:\Game\mods\BBTAG-Improvement-Mod\bbscript";
     private const string EditorApi = @"C:\Game\mods\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.g.cs";
     private static readonly string DocsPath = Path.Combine(Folder, ScriptDocsFile.FileName);
+    private static readonly string GameSizesPath = Path.Combine(Folder, ScriptDatabaseFolder.GameSizesFile);
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
 
@@ -85,16 +86,75 @@ public class ScriptDatabaseFolderTests
     }
 
     [Fact]
-    public void EditorProjectPath_IsTheScriptsProjectInsideTheFolder()
+    public void EditorSolutionPath_IsTheBBScriptSolutionInsideTheScriptsFolder()
     {
         // Arrange
         ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
 
         // Act
-        string path = folder.EditorProjectPath;
+        string path = folder.EditorSolutionPath;
 
         // Assert
-        Assert.Equal(@"C:\Game\mods\BBTAG-Improvement-Mod\bbscript\Scripts\Scripts.csproj", path);
+        Assert.Equal(@"C:\Game\mods\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.slnx", path);
+    }
+
+    [Fact]
+    public void LoadGameSizes_NoSizesFile_ReturnsNull()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(GameSizesPath).Returns(false);
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        IReadOnlyDictionary<int, int>? sizes = folder.LoadGameSizes();
+
+        // Assert
+        Assert.Null(sizes);
+    }
+
+    [Fact]
+    public void LoadGameSizes_SizesFileExists_ReadsIt()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(GameSizesPath).Returns(true);
+        _fileSystemMock.ReadAllText(GameSizesPath).Returns("0\t36\n40019\t8\n");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        IReadOnlyDictionary<int, int>? sizes = folder.LoadGameSizes();
+
+        // Assert
+        Assert.Equal(new Dictionary<int, int> { [0] = 36, [40019] = 8 }, sizes);
+    }
+
+    [Fact]
+    public void WriteGameSizes_SizesChanged_WritesThem()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(GameSizesPath).Returns(true);
+        _fileSystemMock.ReadAllText(GameSizesPath).Returns("0\t36\n");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        folder.WriteGameSizes(new Dictionary<int, int> { [0] = 36, [40019] = 8 });
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(GameSizesPath, "0\t36\n40019\t8\n");
+    }
+
+    [Fact]
+    public void WriteGameSizes_SameSizes_LeavesTheFileAlone()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(GameSizesPath).Returns(true);
+        _fileSystemMock.ReadAllText(GameSizesPath).Returns("0\t36\n");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        folder.WriteGameSizes(new Dictionary<int, int> { [0] = 36 });
+
+        // Assert
+        _fileSystemMock.DidNotReceive().WriteAllText(GameSizesPath, Arg.Any<string>());
     }
 
     [Fact]

@@ -17,9 +17,13 @@ public sealed record DevFolder(string Path)
 
     public static string ScriptArchiveName(string code) => $"char_{code}_scr";
 
+    public static string CollisionArchiveName(string code) => $"char_{code}_col";
+
     public static string ScriptFileName(string code, bool effects) => $"scr_{code}{(effects ? EffectsSuffix : string.Empty)}";
 
     public string ScriptArchiveFolder(string code) => System.IO.Path.Combine(Path, DataFolder, CharacterFolder, ScriptArchiveName(code));
+
+    public string CollisionFile(string code, string fileName) => System.IO.Path.Combine(Path, DataFolder, CharacterFolder, CollisionArchiveName(code), fileName);
 
     public ScriptPaths Script(string code, bool effects, ScriptLanguage language = ScriptLanguage.CSharp)
     {

@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Settings;
 using Bogus;
 using NSubstitute;
@@ -178,6 +179,35 @@ public class JsonFileStoreTests
         Assert.Equal(
             (true, false, false, 0.5f, "Painter", (float?)14f),
             (loaded.FrameLimiter, loaded.HitboxOrigins, loaded.Hitboxes.Shown, loaded.Hurtboxes.Fill, loaded.PaletteCreator, loaded.MenuFontSize));
+    }
+
+    [Fact]
+    public void Save_ImprovementSettingsWithPython_WritesTheLanguageByName()
+    {
+        // Arrange
+        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
+        ImprovementSettings saved = new() { ScriptLanguage = ScriptLanguage.Python };
+        CaptureWrites(ImprovementSettingsPath);
+
+        // Act
+        store.Save(saved);
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(ImprovementSettingsPath, Arg.Is<string>(text => text.Contains("\"ScriptLanguage\": \"Python\"")));
+    }
+
+    [Fact]
+    public void Load_FileWithPython_ReadsTheLanguage()
+    {
+        // Arrange
+        JsonFileStore<ImprovementSettings> store = CreateImprovementStore();
+        FileContains(ImprovementSettingsPath, "{ \"ScriptLanguage\": \"Python\" }");
+
+        // Act
+        ImprovementSettings loaded = store.Load();
+
+        // Assert
+        Assert.Equal(ScriptLanguage.Python, loaded.ScriptLanguage);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.Hitboxes;
+using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Core.Tests.Settings;
@@ -34,6 +35,16 @@ public class ImprovementSettingsTests
 
         // Assert
         Assert.Null(settings.ScriptEditor);
+    }
+
+    [Fact]
+    public void Constructor_NewSettings_WriteScriptsInCSharp()
+    {
+        // Act
+        ImprovementSettings settings = new();
+
+        // Assert
+        Assert.Equal(ScriptLanguage.CSharp, settings.ScriptLanguage);
     }
 
     [Theory]

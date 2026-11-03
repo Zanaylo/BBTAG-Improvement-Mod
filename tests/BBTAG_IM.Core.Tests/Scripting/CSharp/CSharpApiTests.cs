@@ -16,7 +16,7 @@ public class CSharpApiTests
     public void Write_Command_HasItsDocsAndTypedParameters()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    /// <para>Sets the damage &amp; &lt;more&gt;.</para>\n", api);
@@ -28,7 +28,7 @@ public class CSharpApiTests
     public void Write_CommandWithSlotArguments_HasThePairedAndTheRawForm()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    public static void If(Value value) { }\n", api);
@@ -39,7 +39,7 @@ public class CSharpApiTests
     public void Write_BlockCommands_TakeTheBodyAsALambda()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    public static void upon(Upon upon, Action body) { }\n", api);
@@ -51,7 +51,7 @@ public class CSharpApiTests
     public void Write_StateArgument_TakesTheMethodOrItsName()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    public static void SharedGatling(Action state) { }\n", api);
@@ -62,7 +62,7 @@ public class CSharpApiTests
     public void Write_NamedValues_AreDocumentedEnumMembers()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("public enum NormalInput\n{\n", api);
@@ -77,7 +77,7 @@ public class CSharpApiTests
     public void Write_Slots_AreDocumentedProperties()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    /// <para>SLOT 51: Is in Overdrive.</para>\n    /// </summary>\n    public static Value IsInOverdrive { get; set; }\n", api);
@@ -88,7 +88,7 @@ public class CSharpApiTests
     public void Write_NamedCommand_AlsoHasItsNumberName()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("    public static void Unknown9000(int value) { }\n", api);
@@ -98,7 +98,7 @@ public class CSharpApiTests
     public void Write_Always_HasTheValueTypeAndTheAttributes()
     {
         // Act
-        string api = CSharpApi.Write(CreateDatabase(), _docs, ScriptUsage.Empty);
+        string api = CSharpApi.Write(CreateDatabase(), _docs);
 
         // Assert
         Assert.Contains("public readonly struct Value", api);

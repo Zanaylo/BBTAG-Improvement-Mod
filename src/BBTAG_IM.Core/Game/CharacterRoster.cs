@@ -61,6 +61,15 @@ public sealed class CharacterRoster(IGameMemory memory, uint? getter)
         return null;
     }
 
+    public SpriteFolder? SpriteFolderOf(int index)
+    {
+        if (Record(index) is not { } record)
+            return null;
+
+        var folder = (SpriteFolder)memory.ReadInt32(record + SpriteFolderOffset);
+        return Enum.IsDefined(folder) ? folder : null;
+    }
+
     public bool EnsureSpriteFolder(int index, SpriteFolder folder)
     {
         if (Record(index) is not { } record)

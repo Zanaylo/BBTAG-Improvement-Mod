@@ -2,12 +2,16 @@ BBTAG Mod Loader
 ================
 
 Starts BlazBlue Cross Tag Battle with mods loaded from their own folders.
-The game folder is never changed: to uninstall, delete the Mod Loader files.
+The game folder is never changed: to uninstall, delete BBTAG_Mod_Loader.exe,
+this README and the "cache" and "mods" folders.
 
 Installing
 ----------
 Copy every file and the "mods" folder next to BBTAG.exe
 (Steam: right click the game > Manage > Browse local files).
+The Mod Loader makes a "cache" folder there for its own files when it starts.
+Older versions had BBTAG_IM.dll, libSkiaSharp.dll, libHarfBuzzSharp.dll and
+av_libglesv2.dll next to it. They are not used anymore and can be deleted.
 
 Using it
 --------

@@ -16,10 +16,12 @@ public static class HitboxScene
 {
     private const int EntityListLength = GameView.EntityCount * sizeof(uint);
 
+    private static readonly BoxKind[] BoxKinds = [BoxKind.Hurtbox, BoxKind.Hitbox];
+
     public static bool IsVisible(GameView game, ImprovementSettings settings) =>
         settings.HitboxViewer && game.InTrainingMatch;
 
-    public static HitboxFrame Collect(GameView game, ICharacterFates fates, float lift)
+    public static HitboxFrame Collect(GameView game, IGameCollision collision)
     {
         if (game.EntityList is not { } list || !game.Memory.CanRead(list, EntityListLength))
             return HitboxFrame.Empty;
@@ -27,7 +29,7 @@ public static class HitboxScene
         Span<byte> bytes = stackalloc byte[EntityListLength];
         game.Memory.Read(list, bytes);
         ReadOnlySpan<uint> entities = MemoryMarshal.Cast<byte, uint>(bytes);
-        Dictionary<uint, BoxPlacement> placements = [];
+        HashSet<uint> characters = [];
         List<HitboxShape> boxes = [];
         List<Vector2> origins = [];
 
@@ -37,17 +39,20 @@ public static class HitboxScene
                 continue;
 
             if (slot < GameView.CharacterSlots)
-                placements[entities[slot]] = new BoxPlacement(FateScale.Of(fates.Of(entity.CharacterIndex)), lift);
+                characters.Add(entities[slot]);
             else if (!entity.IsActive)
                 continue;
 
-            if (entity.Owner == 0 || !placements.TryGetValue(entity.Owner, out var placement) || entity.Boxes.Count == 0)
+            if (entity.Owner == 0 || !characters.Contains(entity.Owner) || entity.Boxes.Count == 0)
                 continue;
 
-            foreach (var box in entity.Boxes)
-                boxes.Add(new HitboxShape(box.Kind, HitboxGeometry.Corners(entity, box, placement)));
+            foreach (var kind in BoxKinds)
+            {
+                foreach (var rectangle in collision.Boxes(entities[slot], kind))
+                    boxes.Add(new HitboxShape(kind, HitboxGeometry.World(rectangle)));
+            }
 
-            origins.Add(HitboxGeometry.Origin(entity, placement));
+            origins.Add(HitboxGeometry.World(collision.Position(entities[slot])));
         }
 
         return new HitboxFrame(boxes, origins);

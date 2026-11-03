@@ -8,6 +8,9 @@ public class GameCommandTableTests
 {
     private const uint CodeStart = 0x00772DC8;
     private const uint Table = 0x00B70BF0;
+    private const uint ExtendedTable = 0x05A10000;
+    private const uint LastIndexOperand = CodeStart + 3;
+    private const uint TableOperand = CodeStart + 19;
 
     private static readonly byte[] SizeLookup =
     [
@@ -15,8 +18,12 @@ public class GameCommandTableTests
         0x8B, 0x14, 0xC5, 0xF0, 0x0B, 0xB7, 0x00, 0x3B, 0xD7,
     ];
 
+    private readonly FakeGameMemory _memoryMock = new FakeGameMemory().Map(CodeStart, SizeLookup.Length).BytesAt(CodeStart, SizeLookup);
+
+    public GameCommandTable CreateGameCommandTable() => new(CodeStart);
+
     [Fact]
-    public void Locate_GameCode_ReturnsTheTableAndItsLength()
+    public void Locate_GameCode_ReturnsTheSizeLookup()
     {
         // Arrange
         CodeImage image = new([new CodeBlock(CodeStart, SizeLookup)]);
@@ -25,7 +32,7 @@ public class GameCommandTableTests
         GameCommandTable table = GameCommandTable.Locate(image);
 
         // Assert
-        Assert.Equal(new GameCommandTable(Table, 3), table);
+        Assert.Equal(CreateGameCommandTable(), table);
     }
 
     [Fact]
@@ -42,20 +49,29 @@ public class GameCommandTableTests
     }
 
     [Fact]
-    public void Read_TableWithEndMarker_ReturnsEachRealCommandSize()
+    public void Current_StockCode_ReturnsTheListTheCodeSearches()
     {
         // Arrange
-        FakeGameMemory memory = new FakeGameMemory()
-            .Map(Table, 24)
-            .UInt32At(Table, 0).UInt32At(Table + 4, 36)
-            .UInt32At(Table + 8, 9000).UInt32At(Table + 12, 8)
-            .UInt32At(Table + 16, uint.MaxValue).UInt32At(Table + 20, 4);
-        GameCommandTable table = new(Table, 3);
+        GameCommandTable table = CreateGameCommandTable();
 
         // Act
-        IReadOnlyDictionary<int, int> sizes = table.Read(memory);
+        CommandList list = table.Current(_memoryMock);
 
         // Assert
-        Assert.Equal(new Dictionary<int, int> { [0] = 36, [9000] = 8 }, sizes);
+        Assert.Equal(new CommandList(Table, 3), list);
+    }
+
+    [Fact]
+    public void Current_CodePointedAtALongerListAfterStartup_ReturnsTheNewList()
+    {
+        // Arrange
+        GameCommandTable table = CreateGameCommandTable();
+        _memoryMock.Int32At(LastIndexOperand, 1666).UInt32At(TableOperand, ExtendedTable);
+
+        // Act
+        CommandList list = table.Current(_memoryMock);
+
+        // Assert
+        Assert.Equal(new CommandList(ExtendedTable, 1667), list);
     }
 }

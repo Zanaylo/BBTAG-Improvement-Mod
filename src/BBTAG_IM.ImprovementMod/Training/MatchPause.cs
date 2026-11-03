@@ -23,6 +23,15 @@ internal sealed class MatchPause(GameView game, PauseGate gate, ILog log)
 
     public void Step() => _stepper.Step();
 
+    public void PauseNow()
+    {
+        if (IsPaused || !CanPause)
+            return;
+
+        Toggle();
+        gate.Holds = true;
+    }
+
     public void HoldingNextFrameButton() => _buttonHeld = true;
 
     public void OnPresent(nint device)

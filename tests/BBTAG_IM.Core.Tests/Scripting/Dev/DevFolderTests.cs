@@ -46,4 +46,17 @@ public class DevFolderTests
         // Assert
         Assert.Equal(@"D:\BBTAG\mods\DEV\data\char\char_brg_scr\scr_brg.cs", paths.Source);
     }
+
+    [Fact]
+    public void CollisionFile_SpriteOfACharacter_PointsIntoTheLooseCollisionArchive()
+    {
+        // Arrange
+        DevFolder dev = DevFolder.ForMod(ModFolder);
+
+        // Act
+        string path = dev.CollisionFile("brg", "rg000_04.jonbin");
+
+        // Assert
+        Assert.Equal(@"D:\BBTAG\mods\DEV\data\char\char_brg_col\rg000_04.jonbin", path);
+    }
 }

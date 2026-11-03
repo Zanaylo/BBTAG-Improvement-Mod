@@ -214,6 +214,56 @@ public class ScriptSessionTests
         Assert.Equal(15, _scriptMemory.Memory.Int32From(ScriptMemory.File + 4 + 36 + 36 + 4));
     }
 
+    [Fact]
+    public void Open_OtherLanguageSavedLater_WritesTheScriptTheGameRunsAgain()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Source).Returns(true);
+        _fileSystemMock.FileExists(CSharpSource).Returns(true);
+        _fileSystemMock.LastWriteTimeUtc(Source).Returns(FirstSave);
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(SecondSave);
+        ScriptSession session = CreateScriptSession();
+
+        // Act
+        session.Open();
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(Source, Arg.Is<string>(text => text.Contains("Damage(12)")));
+    }
+
+    [Fact]
+    public void Open_OtherLanguageSavedEarlier_KeepsTheSource()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Source).Returns(true);
+        _fileSystemMock.FileExists(CSharpSource).Returns(true);
+        _fileSystemMock.LastWriteTimeUtc(Source).Returns(SecondSave);
+        _fileSystemMock.LastWriteTimeUtc(CSharpSource).Returns(FirstSave);
+        ScriptSession session = CreateScriptSession();
+
+        // Act
+        session.Open();
+
+        // Assert
+        _fileSystemMock.DidNotReceive().WriteAllText(Source, Arg.Any<string>());
+    }
+
+    [Fact]
+    public void Open_NoOtherLanguageFile_KeepsTheSource()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Source).Returns(true);
+        _fileSystemMock.FileExists(CSharpSource).Returns(false);
+        _fileSystemMock.LastWriteTimeUtc(Source).Returns(FirstSave);
+        ScriptSession session = CreateScriptSession();
+
+        // Act
+        session.Open();
+
+        // Assert
+        _fileSystemMock.DidNotReceive().WriteAllText(Source, Arg.Any<string>());
+    }
+
     public ScriptSession CreateScriptSession(string source = Source)
     {
         _scriptMemory.Load(_loaded);

@@ -10,6 +10,7 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 {
     public const string CommandsFile = "command_db.json";
     public const string EditorProjectFolder = "Scripts";
+    public const string GameSizesFile = "game_command_sizes.tsv";
 
     private const string NamedValuesFolder = "named_values";
     private const string SlotsFolder = "slot_db";
@@ -23,16 +24,23 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     public string UsagePath => Path.Combine(folder, ScriptUsage.FileName);
 
-    public string EditorProjectPath => Path.Combine(folder, EditorProjectFolder, CSharpProject.ProjectFileName);
+    public string EditorSolutionPath => Path.Combine(folder, EditorProjectFolder, CSharpProject.SolutionFileName);
 
-    public void WriteEditorApi(string api)
+    public void WriteEditorApi(string api) => WriteWhenChanged(Path.Combine(folder, EditorProjectFolder, CSharpApi.FileName), api);
+
+    public void WriteGameSizes(IReadOnlyDictionary<int, int> sizes) => WriteWhenChanged(GameSizesPath, CommandSizesText.Write(sizes));
+
+    public IReadOnlyDictionary<int, int>? LoadGameSizes() =>
+        fileSystem.FileExists(GameSizesPath) ? CommandSizesText.Read(fileSystem.ReadAllText(GameSizesPath)) : null;
+
+    private string GameSizesPath => Path.Combine(folder, GameSizesFile);
+
+    private void WriteWhenChanged(string path, string text)
     {
-        var path = Path.Combine(folder, EditorProjectFolder, CSharpApi.FileName);
-
-        if (fileSystem.FileExists(path) && fileSystem.ReadAllText(path) == api)
+        if (fileSystem.FileExists(path) && fileSystem.ReadAllText(path) == text)
             return;
 
-        fileSystem.WriteAllText(path, api);
+        fileSystem.WriteAllText(path, text);
     }
 
     public ScriptUsage LoadUsage() =>

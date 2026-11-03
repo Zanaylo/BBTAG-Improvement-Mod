@@ -17,6 +17,24 @@ public static class SpritePainter
         return (Math.Max(1, (int)Math.Round(sprite.Width * scale)), Math.Max(1, (int)Math.Round(sprite.Height * scale)));
     }
 
+    public static PaletteColor[] CharacterColors(PaletteColors colors) =>
+        [.. Enumerable.Range(0, PaletteColors.ColorsPerFile).Select(entry => colors.Get(CharacterFile, entry))];
+
+    public static uint[] Colored(IndexedSprite sprite, IReadOnlyList<PaletteColor> palette)
+    {
+        var pixels = new uint[sprite.Indices.Length];
+
+        for (var pixel = 0; pixel < pixels.Length; pixel++)
+        {
+            var index = sprite.Indices[pixel];
+
+            if (index != Clear && index < palette.Count)
+                pixels[pixel] = Opaque(palette[index]);
+        }
+
+        return pixels;
+    }
+
     public static void Paint(IndexedSprite sprite, ImplPalette palette, int width, int height, Span<uint> pixels)
     {
         if (width <= 0 || height <= 0 || pixels.Length < width * height)
@@ -63,4 +81,6 @@ public static class SpritePainter
         var alpha = FullAlpha * opaque / ((right - left) * (bottom - top));
         return (uint)(alpha << AlphaShift | red / opaque << RedShift | green / opaque << GreenShift | blue / opaque);
     }
+
+    private static uint Opaque(PaletteColor color) => (uint)(FullAlpha << AlphaShift | color.R << RedShift | color.G << GreenShift | color.B);
 }

@@ -9,6 +9,9 @@ internal static class SpriteFiles
     public const int FpacNameLength = 20;
     public const int FpacEntryLength = 48;
     public const int HipDataStart = 0x440;
+    public const int HipPaletteStart = 0x40;
+    public const int HeaderlessHipPaletteStart = 0x20;
+    public const int HeaderlessHipDataStart = 0x420;
     public const int HplHeaderLength = 0x20;
     public const int HplColorsLength = 0x400;
 
@@ -50,7 +53,9 @@ internal static class SpriteFiles
         return bytes;
     }
 
-    public static byte[] Hip(int width, int height, params (byte Index, byte Run)[] runs)
+    public static byte[] Hip(int width, int height, params (byte Index, byte Run)[] runs) => HipAt(0, 0, width, height, runs);
+
+    public static byte[] HipAt(int x, int y, int width, int height, params (byte Index, byte Run)[] runs)
     {
         byte[] bytes = new byte[HipDataStart + runs.Length * 2];
         Encoding.ASCII.GetBytes("HIP").CopyTo(bytes, 0);
@@ -66,11 +71,34 @@ internal static class SpriteFiles
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), 0x20);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(32), width);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(36), height);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40), x);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(44), y);
 
         for (int run = 0; run < runs.Length; run++)
         {
             bytes[HipDataStart + run * 2] = runs[run].Index;
             bytes[HipDataStart + run * 2 + 1] = runs[run].Run;
+        }
+
+        return bytes;
+    }
+
+    public static byte[] HeaderlessHip(int width, int height, params (byte Index, byte Run)[] runs)
+    {
+        byte[] bytes = new byte[HeaderlessHipDataStart + runs.Length * 2];
+        Encoding.ASCII.GetBytes("HIP").CopyTo(bytes, 0);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 0x125);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), bytes.Length);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), 256);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), width);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), height);
+        bytes[24] = 1;
+        bytes[25] = 1;
+
+        for (int run = 0; run < runs.Length; run++)
+        {
+            bytes[HeaderlessHipDataStart + run * 2] = runs[run].Index;
+            bytes[HeaderlessHipDataStart + run * 2 + 1] = runs[run].Run;
         }
 
         return bytes;

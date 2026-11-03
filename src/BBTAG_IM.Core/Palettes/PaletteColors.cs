@@ -62,11 +62,14 @@ public sealed class PaletteColors
 
     public bool SameAs(PaletteColors other) => _bytes.AsSpan().SequenceEqual(other._bytes);
 
-    public PaletteColors Flashing(int file, int entry, bool lit)
+    public PaletteColors Flashing(int file, IReadOnlyCollection<int> entries, bool lit)
     {
         var flashing = Dimmed();
         var flash = lit ? LitFlash : UnlitFlash;
-        flashing.Set(file, entry, flash with { A = Get(file, entry).A });
+
+        foreach (var entry in entries)
+            flashing.Set(file, entry, flash with { A = Get(file, entry).A });
+
         return flashing;
     }
 

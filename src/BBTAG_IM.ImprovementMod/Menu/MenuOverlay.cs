@@ -111,6 +111,7 @@ internal sealed unsafe class MenuOverlay
         io.MouseDrawCursor = true;
 
         ImGui.StyleColorsDark();
+        MenuStyle.Apply(ImGui.GetStyle());
         _unscaledStyle = *ImGui.GetStyle().NativePtr;
     }
 

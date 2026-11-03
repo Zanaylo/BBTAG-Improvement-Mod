@@ -9,15 +9,13 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause, BossFightControl? bossFight) : IMenuSection
+internal sealed class TrainingSection(MenuSettings settings, PauseControls pause, BossFightControl? bossFight) : IMenuSection
 {
     public const string Name = "Training";
 
     private const int TypeColumns = 4;
     private const float Transparent = 0;
     private const float Opaque = 1;
-    private const int LowestHeight = -100;
-    private const int HighestHeight = 100;
     private const string NoBossLabel = "Off";
 
     public string Title => Name;
@@ -37,59 +35,11 @@ internal sealed class TrainingSection(MenuSettings settings, MatchPause? pause, 
         ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Hitboxes)})");
         MenuText.Tooltip("Shows during training matches only.");
 
-        DrawHeight();
         ImGui.Spacing();
-        DrawPause();
+        pause.Draw();
         DrawBoxTypes();
         ImGui.Spacing();
         DrawBossFight();
-    }
-
-    private void DrawHeight()
-    {
-        var height = settings.Current.HitboxHeight;
-
-        if (ImGui.SliderInt("Box height", ref height, LowestHeight, HighestHeight))
-            settings.Current.HitboxHeight = height;
-
-        if (ImGui.IsItemDeactivatedAfterEdit())
-            settings.Save(_ => { });
-
-        MenuText.Tooltip("Moves every box and origin up or down. Raise it until the boxes sit on the characters. Ctrl+click to type a number.");
-    }
-
-    private void DrawPause()
-    {
-        if (pause is null)
-        {
-            MenuText.Muted("Pause is not available in this game version.");
-            return;
-        }
-
-        var paused = pause.IsPaused;
-        ImGui.BeginDisabled(!pause.CanPause);
-
-        if (ImGui.Checkbox("Pause", ref paused))
-            pause.Toggle();
-
-        ImGui.SameLine();
-        ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Pause)})");
-        ImGui.BeginDisabled(!paused);
-
-        if (ImGui.Button("Next frame"))
-            pause.Step();
-
-        if (ImGui.IsItemActive())
-            pause.HoldingNextFrameButton();
-
-        MenuText.Tooltip("Plays one frame. Hold it to keep playing frames slowly.");
-        ImGui.SameLine();
-        ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.NextFrame)})");
-        ImGui.EndDisabled();
-        ImGui.EndDisabled();
-
-        if (!pause.CanPause)
-            MenuText.Muted("Pause works during training matches.");
     }
 
     private void DrawBossFight()

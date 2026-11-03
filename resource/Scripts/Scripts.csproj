@@ -8,11 +8,22 @@
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <NoWarn>$(NoWarn);CS0660;CS0661;CS1591;CS8321</NoWarn>
     <DevFolder>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\DEV\'))</DevFolder>
+    <ScriptTool>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\bbscript.exe'))</ScriptTool>
+    <ScriptCheckStamp>$(BaseIntermediateOutputPath)bbscript.checked</ScriptCheckStamp>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="$(DevFolder)data\**\*.cs" Link="DEV\%(RecursiveDir)%(Filename)%(Extension)" />
+    <GameScript Include="$(DevFolder)data\**\*.cs" />
+    <Compile Include="@(GameScript)" Link="DEV\%(RecursiveDir)%(Filename)%(Extension)" />
     <GlobalAnalyzerConfigFiles Include="BBScript.globalconfig" />
   </ItemGroup>
+
+  <Target Name="CheckGameScripts" BeforeTargets="CoreCompile" Condition="Exists('$(ScriptTool)') And '@(GameScript)' != ''" Inputs="@(GameScript)" Outputs="$(ScriptCheckStamp)">
+    <Exec Command="&quot;$(ScriptTool)&quot; check @(GameScript->'&quot;%(FullPath)&quot;', ' ')" IgnoreExitCode="true" ContinueOnError="ErrorAndContinue">
+      <Output TaskParameter="ExitCode" PropertyName="ScriptCheckExitCode" />
+    </Exec>
+    <Touch Files="$(ScriptCheckStamp)" AlwaysCreate="true" Condition="'$(ScriptCheckExitCode)' == '0'" />
+    <Delete Files="$(ScriptCheckStamp)" Condition="'$(ScriptCheckExitCode)' != '0'" />
+  </Target>
 
 </Project>

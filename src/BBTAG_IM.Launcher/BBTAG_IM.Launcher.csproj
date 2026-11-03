@@ -25,4 +25,20 @@
     <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(BundledPayload)' != ''">
+    <EmbeddedResource Include="$(BundledPayload)" LogicalName="payload/BBTAG_IM.dll" WithCulture="false" />
+  </ItemGroup>
+
+  <Target Name="BundleWindowLibraries" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <EmbeddedResource Include="@(NativeCopyLocalItems)" Condition="'%(Filename)' == 'libSkiaSharp' Or '%(Filename)' == 'libHarfBuzzSharp'" LogicalName="window/%(Filename)%(Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="LeaveBundledLibrariesOutOfPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'libSkiaSharp' Or '%(Filename)' == 'libHarfBuzzSharp' Or '%(Filename)' == 'av_libglesv2'" />
+    </ItemGroup>
+  </Target>
+
 </Project>

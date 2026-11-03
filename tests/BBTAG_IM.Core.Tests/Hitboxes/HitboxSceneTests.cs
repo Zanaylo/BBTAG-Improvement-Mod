@@ -17,11 +17,12 @@ public class HitboxSceneTests
     private const uint EntityStride = 0x1000;
     private const uint FirstBoxList = 0x0A000000;
     private const int ProjectileSlot = 10;
-    private const float NoLift = 0;
-    private const int Yosuke = 17;
 
     private readonly FakeGameMemory _memoryMock = new();
-    private readonly ICharacterFates _fatesMock = Substitute.For<ICharacterFates>();
+    private static readonly GameRect Hurtbox = new(-10000, 10000, 0, 300000);
+    private static readonly GameRect Hitbox = new(20000, 90000, 100000, 150000);
+
+    private readonly IGameCollision _collisionMock = Substitute.For<IGameCollision>();
 
     public HitboxSceneTests()
     {
@@ -39,7 +40,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -50,10 +51,11 @@ public class HitboxSceneTests
     {
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)), (0, 0, 0, 10, 10), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(0), [Hurtbox], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Equal([BoxKind.Hurtbox, BoxKind.Hitbox], shapes.Select(shape => shape.Kind));
@@ -65,10 +67,11 @@ public class HitboxSceneTests
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)));
         EntityInSlot(ProjectileSlot, new EntityFields(Owner: Entity(0)), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(ProjectileSlot), [], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Equal([BoxKind.Hitbox], shapes.Select(shape => shape.Kind));
@@ -80,10 +83,11 @@ public class HitboxSceneTests
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)));
         EntityInSlot(ProjectileSlot, new EntityFields(Status: 0, Owner: Entity(0)), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(ProjectileSlot), [], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -95,10 +99,11 @@ public class HitboxSceneTests
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)));
         EntityInSlot(ProjectileSlot, new EntityFields(Owner: 0x12345678), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(ProjectileSlot), [], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -110,10 +115,11 @@ public class HitboxSceneTests
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)));
         EntityInSlot(ProjectileSlot, new EntityFields(Owner: 0), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(ProjectileSlot), [], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Empty(shapes);
@@ -125,10 +131,12 @@ public class HitboxSceneTests
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)), (0, 0, 0, 10, 10), (1, 0, 0, 5, 5));
         EntityInSlot(ProjectileSlot, new EntityFields(Owner: Entity(0)), (1, 0, 0, 5, 5));
+        GameBoxes(Entity(0), [Hurtbox], [Hitbox]);
+        GameBoxes(Entity(ProjectileSlot), [], [Hitbox]);
         GameView game = CreateGameView();
 
         // Act
-        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, NoLift);
+        HitboxFrame frame = HitboxScene.Collect(game, _collisionMock);
 
         // Assert
         Assert.Equal(2, frame.Origins.Count);
@@ -142,7 +150,7 @@ public class HitboxSceneTests
         GameView game = CreateGameView();
 
         // Act
-        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, NoLift);
+        HitboxFrame frame = HitboxScene.Collect(game, _collisionMock);
 
         // Assert
         Assert.Empty(frame.Origins);
@@ -153,43 +161,59 @@ public class HitboxSceneTests
     {
         // Arrange
         EntityInSlot(1, new EntityFields(Status: 0, Owner: Entity(1)), (0, 0, 0, 10, 10));
+        GameBoxes(Entity(1), [Hurtbox], []);
         GameView game = CreateGameView();
 
         // Act
-        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes;
+        IReadOnlyList<HitboxShape> shapes = HitboxScene.Collect(game, _collisionMock).Boxes;
 
         // Assert
         Assert.Single(shapes);
     }
 
     [Fact]
-    public void Collect_ProjectileOfAPersonaCharacter_ScalesItsBoxesByThatFate()
+    public void Collect_EntityWithoutBoxes_NeverAsksTheGameForThem()
     {
         // Arrange
-        _fatesMock.Of(Yosuke).Returns(Fate.Persona);
-        EntityInSlot(0, new EntityFields(Owner: Entity(0), CharacterIndex: Yosuke));
-        EntityInSlot(ProjectileSlot, new EntityFields(Owner: Entity(0)), (1, 0, 0, 100, 100));
+        EntityInSlot(0, new EntityFields(Owner: Entity(0)));
         GameView game = CreateGameView();
 
         // Act
-        Quad box = HitboxScene.Collect(game, _fatesMock, NoLift).Boxes.Single().World;
+        HitboxScene.Collect(game, _collisionMock);
 
         // Assert
-        Assert.Equal(34, box.B.X - box.A.X);
+        _collisionMock.DidNotReceiveWithAnyArgs().Boxes(default, default);
     }
 
     [Fact]
-    public void Collect_Lift_RaisesEveryOrigin()
+    public void Collect_BoxFromTheGame_PlacesItInWorldUnits()
     {
         // Arrange
         EntityInSlot(0, new EntityFields(Owner: Entity(0)), (0, 0, 0, 10, 10));
+        GameBoxes(Entity(0), [new GameRect(0, 100000, 0, 250000)], []);
         GameView game = CreateGameView();
 
         // Act
-        HitboxFrame frame = HitboxScene.Collect(game, _fatesMock, 12);
+        Quad box = HitboxScene.Collect(game, _collisionMock).Boxes.Single().World;
 
         // Assert
-        Assert.Equal(12, frame.Origins.Single().Y);
+        Assert.Equal(HitboxGeometry.World(new GameRect(0, 100000, 0, 250000)), box);
+    }
+
+    [Fact]
+    public void Collect_PositionFromTheGame_PlacesTheOriginThere()
+    {
+        // Arrange
+        EntityInSlot(0, new EntityFields(Owner: Entity(0)), (0, 0, 0, 10, 10));
+        GameBoxes(Entity(0), [Hurtbox], []);
+        _collisionMock.Position(Entity(0)).Returns(new GamePoint(100000, 0));
+        GameView game = CreateGameView();
+
+        // Act
+        HitboxFrame frame = HitboxScene.Collect(game, _collisionMock);
+
+        // Assert
+        Assert.Equal(HitboxGeometry.World(new GamePoint(100000, 0)), frame.Origins.Single());
     }
 
     [Theory]
@@ -217,6 +241,12 @@ public class HitboxSceneTests
         _memoryMock.UInt32At(EntityList + (uint)slot * 4, Entity(slot));
         EntityMemory.Write(_memoryMock, Entity(slot), fields, boxList, hurtboxes: boxes.Length);
         EntityMemory.WriteBoxes(_memoryMock, boxList, boxes);
+    }
+
+    private void GameBoxes(uint entity, IReadOnlyList<GameRect> hurtboxes, IReadOnlyList<GameRect> hitboxes)
+    {
+        _collisionMock.Boxes(entity, BoxKind.Hurtbox).Returns(hurtboxes);
+        _collisionMock.Boxes(entity, BoxKind.Hitbox).Returns(hitboxes);
     }
 
     private static uint Entity(int slot) => FirstEntity + (uint)slot * EntityStride;

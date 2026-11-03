@@ -95,7 +95,7 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry, new PaletteColor(10, 20, 30, 255));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: true);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(new PaletteColor(255, 0, 255, 255), flashing.Get(EffectFile, Entry));
@@ -109,10 +109,24 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry, new PaletteColor(10, 20, 30, 255));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: false);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: false);
 
         // Assert
         Assert.Equal(new PaletteColor(0, 255, 255, 255), flashing.Get(EffectFile, Entry));
+    }
+
+    [Fact]
+    public void Flashing_SeveralEntries_PaintsEachOfThem()
+    {
+        // Arrange
+        PaletteColors colors = CreatePaletteColors();
+        colors.Set(EffectFile, Entry + 2, new PaletteColor(10, 20, 30, 255));
+
+        // Act
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry, Entry + 2], lit: true);
+
+        // Assert
+        Assert.Equal(new PaletteColor(255, 0, 255, 255), flashing.Get(EffectFile, Entry + 2));
     }
 
     [Fact]
@@ -123,7 +137,7 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry, new PaletteColor(10, 20, 30, 0x40));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: true);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(0x40, flashing.Get(EffectFile, Entry).A);
@@ -137,7 +151,7 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry + 1, new PaletteColor(200, 100, 50, 255));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: true);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(new PaletteColor(62, 62, 62, 255), flashing.Get(EffectFile, Entry + 1));
@@ -151,7 +165,7 @@ public class PaletteColorsTests
         colors.Set(0, Entry, new PaletteColor(255, 255, 255, 255));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: true);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(new PaletteColor(127, 127, 127, 255), flashing.Get(0, Entry));
@@ -165,7 +179,7 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry + 1, new PaletteColor(200, 100, 50, 0x40));
 
         // Act
-        PaletteColors flashing = colors.Flashing(EffectFile, Entry, lit: true);
+        PaletteColors flashing = colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(0x40, flashing.Get(EffectFile, Entry + 1).A);
@@ -179,7 +193,7 @@ public class PaletteColorsTests
         colors.Set(EffectFile, Entry, new PaletteColor(10, 20, 30, 255));
 
         // Act
-        colors.Flashing(EffectFile, Entry, lit: true);
+        colors.Flashing(EffectFile, [Entry], lit: true);
 
         // Assert
         Assert.Equal(new PaletteColor(10, 20, 30, 255), colors.Get(EffectFile, Entry));

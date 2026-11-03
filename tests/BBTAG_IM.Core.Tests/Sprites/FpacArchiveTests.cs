@@ -47,6 +47,34 @@ public class FpacArchiveTests
     }
 
     [Fact]
+    public void Entries_ArchiveWithoutFiles_ReturnsNoEntries()
+    {
+        // Arrange
+        byte[] archive = SpriteFiles.Fpac();
+        int dataOffset = FpacArchive.DataOffset(archive);
+
+        // Act
+        IReadOnlyList<FpacEntry> entries = FpacArchive.Entries(archive.AsSpan(0, dataOffset));
+
+        // Assert
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public void OffsetFieldOf_SecondFile_ReturnsWhereItsOffsetIsWritten()
+    {
+        // Arrange
+        byte[] archive = SpriteFiles.Fpac(("rg000_00.hip", [1, 2]), ("rg000_01.hip", [3]));
+        int dataOffset = FpacArchive.DataOffset(archive);
+
+        // Act
+        int field = FpacArchive.OffsetFieldOf(archive.AsSpan(0, dataOffset), 1);
+
+        // Assert
+        Assert.Equal(SpriteFiles.FpacPrefixLength + SpriteFiles.FpacEntryLength + SpriteFiles.FpacNameLength + sizeof(int), field);
+    }
+
+    [Fact]
     public void Entries_HeaderCutShort_ThrowsInvalidSpriteDataException()
     {
         // Arrange

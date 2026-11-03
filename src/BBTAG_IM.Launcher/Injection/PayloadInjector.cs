@@ -36,7 +36,7 @@ internal sealed class PayloadInjector(string payloadPath)
     private static uint FindStartExport(string payloadPath)
     {
         if (!File.Exists(payloadPath))
-            throw new LaunchFailedException($"{PayloadContract.DllFileName} is missing. Keep it next to the launcher.");
+            throw new LaunchFailedException($"{PayloadContract.DllFileName} is missing. Use every file of the same release.");
 
         var image = FileImage.Load(payloadPath);
         return ExportTable.FindFunctionRva(image, image.Headers, PayloadContract.StartExport)

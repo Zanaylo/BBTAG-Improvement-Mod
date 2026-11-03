@@ -6,7 +6,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, string databaseFolder) : IMenuSection
+internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, ScriptLanguageChoice language, HitboxEditorWindow? hitboxes, string databaseFolder) : IMenuSection
 {
     public const string Name = "Dev";
 
@@ -21,6 +21,9 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
 
     public void Draw()
     {
+        DrawHitboxes();
+        ImGui.Spacing();
+        ImGui.SeparatorText("Scripts");
         MenuText.Wrapped("Edit a character's script while the match runs. Save the file and the change applies right away.");
         MenuText.Muted($"Files go to {scripts.Folder.Path}");
 
@@ -28,6 +31,7 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
             MenuText.Muted($"Commands show as numbers. Put the BBTAG command lists (command_db.json and its folders) in {databaseFolder} to see their names.");
 
         ImGui.Spacing();
+        language.Draw();
         editor.Draw();
         ImGui.Spacing();
         DrawCharacters();
@@ -36,6 +40,22 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
 
         if (_notice.Length > 0)
             MenuText.Wrapped(_notice);
+    }
+
+    private void DrawHitboxes()
+    {
+        ImGui.SeparatorText("Hitboxes");
+
+        if (hitboxes is null)
+        {
+            MenuText.Muted("Box editing is not available in this game version.");
+            return;
+        }
+
+        MenuText.Wrapped("Change the hurtboxes and hitboxes of any move or effect in their own window. It follows the animation or pauses the match on the frame you pick.");
+
+        if (ImGui.Button("Open the hitbox editor"))
+            hitboxes.Show();
     }
 
     private void DrawCharacters()

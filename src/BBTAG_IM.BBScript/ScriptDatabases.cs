@@ -19,7 +19,7 @@ internal sealed class ScriptDatabases(ScriptDatabaseFolder folder, ScriptDatabas
         if (!folder.Exists)
             Console.Error.WriteLine($"{ScriptDatabaseFolder.CommandsFile} was not found in {folderPath}, so commands only have numbers (Unknown9000). Use --db to point at the bbscript folder.");
 
-        var sizes = StockCommandSizes.Load();
+        var sizes = folder.LoadGameSizes() ?? StockCommandSizes.Load();
         var loaded = (folder.Exists ? folder.Load() : ScriptDatabase.Unnamed).WithGameSizes(sizes);
         var shared = style == ScriptStyle.Readable ? loaded.WithTagNames() : loaded;
 

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using BBTAG_IM.Core.Hitboxes;
+using BBTAG_IM.Core.Scripting;
 
 namespace BBTAG_IM.Core.Settings;
 
@@ -17,8 +18,6 @@ public sealed class ImprovementSettings
 
     public bool HitboxOrigins { get; set; } = true;
 
-    public int HitboxHeight { get; set; }
-
     public string PaletteCreator { get; set; } = "";
 
     public float? MenuFontSize { get; set; }
@@ -26,6 +25,9 @@ public sealed class ImprovementSettings
     public float? PaletteDetailWidth { get; set; }
 
     public string? ScriptEditor { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<ScriptLanguage>))]
+    public ScriptLanguage ScriptLanguage { get; set; } = ScriptLanguage.CSharp;
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, Dictionary<int, string>> Palettes { get; } = new(StringComparer.OrdinalIgnoreCase);

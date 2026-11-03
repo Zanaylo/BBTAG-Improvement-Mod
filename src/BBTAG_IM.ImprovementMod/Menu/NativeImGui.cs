@@ -43,6 +43,9 @@ internal static unsafe partial class NativeImGui
     public static void AddImage(ImDrawListPtr draw, nint texture, Vector2 min, Vector2 max) =>
         AddImage(draw.NativePtr, (ulong)texture, new NativePoint(min.X, min.Y), new NativePoint(max.X, max.Y), FirstCorner, LastCorner, OpaqueWhite);
 
+    public static void AddImage(ImDrawListPtr draw, nint texture, Vector2 min, Vector2 max, Vector2 uvMin, Vector2 uvMax) =>
+        AddImage(draw.NativePtr, (ulong)texture, new NativePoint(min.X, min.Y), new NativePoint(max.X, max.Y), new NativePoint(uvMin.X, uvMin.Y), new NativePoint(uvMax.X, uvMax.Y), OpaqueWhite);
+
     [LibraryImport(Library, EntryPoint = "ImFontAtlas_SetTexID")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     public static partial void SetFontTexture(ImFontAtlas* atlas, ulong texture);

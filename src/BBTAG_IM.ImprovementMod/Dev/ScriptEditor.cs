@@ -12,12 +12,15 @@ internal static unsafe class ScriptEditor
     private const string Notepad = "notepad.exe";
     private const string ThreadName = "Script editor";
 
-    private static readonly TimeSpan ProjectLoadTimeout = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan WindowCheckInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan SolutionLoadTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan SolutionCheckInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly Lock LaunchLock = new();
 
-    public static void Open(string script, int line, string? program, string? project, ILog log)
+    private static Process? _launched;
+
+    public static void Open(string script, int line, string? program, string? solution, ILog log)
     {
-        var thread = new Thread(() => OpenNow(script, line, program, project, log)) { IsBackground = true, Name = ThreadName };
+        var thread = new Thread(() => OpenNow(script, line, program, solution, log)) { IsBackground = true, Name = ThreadName };
 
         if (OperatingSystem.IsWindows())
             thread.SetApartmentState(ApartmentState.STA);
@@ -25,7 +28,7 @@ internal static unsafe class ScriptEditor
         thread.Start();
     }
 
-    private static void OpenNow(string script, int line, string? program, string? project, ILog log)
+    private static void OpenNow(string script, int line, string? program, string? solution, ILog log)
     {
         try
         {
@@ -42,8 +45,13 @@ internal static unsafe class ScriptEditor
                 return;
             }
 
-            OpenProjectFirst(program, project);
-            Start(program, ScriptEditorProgram.Arguments(program, script, line, project));
+            if (solution is not null && ScriptEditorProgram.IsVisualStudio(program))
+            {
+                OpenInSolution(program, script, line, solution, log);
+                return;
+            }
+
+            Start(program, ScriptEditorProgram.Arguments(program, script, line, solution));
         }
         catch (Win32Exception exception)
         {
@@ -51,25 +59,37 @@ internal static unsafe class ScriptEditor
         }
     }
 
-    private static void OpenProjectFirst(string program, string? project)
+    private static void OpenInSolution(string program, string script, int line, string solution, ILog log)
     {
-        var running = Process.GetProcessesByName(ScriptEditorProgram.VisualStudioProcess).Length > 0;
-
-        if (ScriptEditorProgram.ProjectArguments(program, project, running) is not { } arguments)
-            return;
-
-        using var process = Process.Start(new ProcessStartInfo(program, arguments) { UseShellExecute = false });
-
-        if (process is null)
-            return;
-
-        var deadline = DateTime.UtcNow + ProjectLoadTimeout;
-
-        while (DateTime.UtcNow < deadline && !process.HasExited && process.MainWindowHandle == 0)
+        lock (LaunchLock)
         {
-            Thread.Sleep(WindowCheckInterval);
-            process.Refresh();
+            if (VisualStudioAutomation.OpenFile(solution, script))
+                return;
+
+            if (_launched is not { HasExited: false })
+            {
+                _launched?.Dispose();
+                _launched = Process.Start(new ProcessStartInfo(program, ScriptEditorProgram.Arguments(program, script, line, solution)) { UseShellExecute = true });
+            }
+
+            if (_launched is null || !OpenWhenLoaded(_launched, solution, script))
+                SafeLog.Error(log, $"Visual Studio did not open {Path.GetFileName(solution)} in time. Open {Path.GetFileName(script)} from its Solution Explorer.");
         }
+    }
+
+    private static bool OpenWhenLoaded(Process launched, string solution, string script)
+    {
+        var deadline = DateTime.UtcNow + SolutionLoadTimeout;
+
+        while (DateTime.UtcNow < deadline && !launched.HasExited)
+        {
+            if (VisualStudioAutomation.OpenFile(solution, script))
+                return true;
+
+            Thread.Sleep(SolutionCheckInterval);
+        }
+
+        return false;
     }
 
     private static void AskForProgram(string script, int line, ILog log)

@@ -1,0 +1,25 @@
+<Project>
+
+  <PropertyGroup>
+    <VisualStudioInstallerFolder>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer</VisualStudioInstallerFolder>
+  </PropertyGroup>
+
+  <UsingTask TaskName="AddFolderToPath" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Folder ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+
+        if (!path.Split(';').Contains(Folder, StringComparer.OrdinalIgnoreCase))
+            Environment.SetEnvironmentVariable("PATH", Folder + ";" + path);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PutVisualStudioInstallerOnPath" BeforeTargets="SetupOSSpecificProps" Condition="'$(PublishAot)' == 'true' And Exists('$(VisualStudioInstallerFolder)\vswhere.exe')">
+    <AddFolderToPath Folder="$(VisualStudioInstallerFolder)" />
+  </Target>
+
+</Project>

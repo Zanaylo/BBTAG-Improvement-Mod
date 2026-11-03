@@ -1,4 +1,5 @@
 using Avalonia;
+using BBTAG_IM.Launcher.Native;
 using BBTAG_IM.Launcher.Ui;
 
 namespace BBTAG_IM.Launcher;
@@ -6,8 +7,12 @@ namespace BBTAG_IM.Launcher;
 internal static class Program
 {
     [STAThread]
-    private static int Main(string[] arguments) =>
-        HeadlessLaunch.IsWanted(arguments) ? HeadlessLaunch.Run(arguments) : BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments);
+    private static int Main(string[] arguments)
+    {
+        BundledNatives.Unpack(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+
+        return HeadlessLaunch.IsWanted(arguments) ? HeadlessLaunch.Run(arguments) : BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments);
+    }
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<LauncherApp>()

@@ -262,7 +262,7 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
     private void WriteProject(string folder)
     {
         Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, CSharpApi.FileName), CSharpApi.Write(databases.Shared, databases.Docs(), databases.Usage()));
+        File.WriteAllText(Path.Combine(folder, CSharpApi.FileName), CSharpApi.Write(databases.Shared, databases.Docs()));
         Console.WriteLine($"{folder}: {CSharpApi.FileName} written");
     }
 
@@ -275,7 +275,7 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
         var mistakes = compiler.FindMistakes(source);
 
         foreach (var mistake in mistakes)
-            Console.Error.WriteLine($"{path}({mistake.Line}): {mistake.Message}");
+            Console.Error.WriteLine(CompilerMessages.Error(path, mistake));
 
         return mistakes.Count == 0 ? compiler.Compile(source) : null;
     }
@@ -285,7 +285,7 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
         var path = Path.Combine(folder, ScriptStubs.FileName);
 
         Directory.CreateDirectory(folder);
-        File.WriteAllText(path, ScriptStubs.Write(database, databases.Docs(), databases.Usage()));
+        File.WriteAllText(path, ScriptStubs.Write(database, databases.Docs()));
         Console.WriteLine($"{path}: written");
     }
 

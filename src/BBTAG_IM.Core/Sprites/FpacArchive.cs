@@ -33,6 +33,29 @@ public static class FpacArchive
 
     public static IReadOnlyList<FpacEntry> Entries(ReadOnlySpan<byte> header)
     {
+        if (IsEmpty(header))
+            return [];
+
+        var layout = Layout(header);
+        var entries = new FpacEntry[layout.Count];
+
+        for (var index = 0; index < layout.Count; index++)
+            entries[index] = Entry(header.Slice(PrefixLength + index * layout.Stride, layout.Stride), layout.NameLength, layout.DataOffset);
+
+        return entries;
+    }
+
+    public static int OffsetFieldOf(ReadOnlySpan<byte> header, int index)
+    {
+        var layout = Layout(header);
+        return PrefixLength + index * layout.Stride + layout.NameLength + OffsetAfterName;
+    }
+
+    private static bool IsEmpty(ReadOnlySpan<byte> header) =>
+        DataOffset(header) == PrefixLength && BinaryPrimitives.ReadInt32LittleEndian(header[CountField..]) == 0;
+
+    private static EntryLayout Layout(ReadOnlySpan<byte> header)
+    {
         var dataOffset = DataOffset(header);
         var count = BinaryPrimitives.ReadInt32LittleEndian(header[CountField..]);
         var nameLength = BinaryPrimitives.ReadInt32LittleEndian(header[NameLengthField..]);
@@ -45,12 +68,7 @@ public static class FpacArchive
         if (stride < nameLength + FieldsAfterName)
             throw new InvalidSpriteDataException("Its list of files is damaged.");
 
-        var entries = new FpacEntry[count];
-
-        for (var index = 0; index < count; index++)
-            entries[index] = Entry(header.Slice(PrefixLength + index * stride, stride), nameLength, dataOffset);
-
-        return entries;
+        return new EntryLayout(dataOffset, count, nameLength, stride);
     }
 
     private static FpacEntry Entry(ReadOnlySpan<byte> entry, int nameLength, int dataOffset)
@@ -64,4 +82,6 @@ public static class FpacArchive
             dataOffset + (long)BinaryPrimitives.ReadUInt32LittleEndian(fields[OffsetAfterName..]),
             BinaryPrimitives.ReadInt32LittleEndian(fields[SizeAfterName..]));
     }
+
+    private readonly record struct EntryLayout(int DataOffset, int Count, int NameLength, int Stride);
 }

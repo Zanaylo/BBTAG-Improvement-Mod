@@ -448,11 +448,27 @@ public class PaletteEditorTests
         editor.Update();
 
         // Act
-        editor.Highlight(PlayerOneFirst, CharacterFile, Entry);
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry]);
         editor.Update();
 
         // Assert
         Assert.Equal(Magenta, ShownColor(PlayerOneFirst, PaletteIndex(PlayerOneFirst)));
+    }
+
+    [Fact]
+    public void Highlight_SeveralEntries_FlashesEachOfThem()
+    {
+        // Arrange
+        PaletteEditor editor = StartedEditor(color: 2);
+        editor.Change(PlayerOneFirst, CharacterFile, Entry + 1, Blue);
+        editor.Update();
+
+        // Act
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry, Entry + 1]);
+        editor.Update();
+
+        // Assert
+        Assert.Equal(Magenta, ShownColor(PlayerOneFirst, PaletteIndex(PlayerOneFirst), Entry + 1));
     }
 
     [Fact]
@@ -464,7 +480,7 @@ public class PaletteEditorTests
         editor.Update();
 
         // Act
-        editor.Highlight(PlayerOneFirst, CharacterFile, Entry);
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry]);
         editor.Update();
 
         // Assert
@@ -478,7 +494,7 @@ public class PaletteEditorTests
         PaletteEditor editor = StartedEditor(color: 2);
         editor.Change(PlayerOneFirst, CharacterFile, Entry, Blue);
         editor.Update();
-        editor.Highlight(PlayerOneFirst, CharacterFile, Entry);
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry]);
 
         // Act
         for (int frame = 0; frame < PaletteEditor.BlinkFrames; frame++)
@@ -493,7 +509,7 @@ public class PaletteEditorTests
     {
         // Arrange
         PaletteEditor editor = StartedEditor(color: 2);
-        editor.Highlight(PlayerOneFirst, CharacterFile, Entry);
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry]);
         editor.Update();
 
         // Act
@@ -510,7 +526,7 @@ public class PaletteEditorTests
         // Arrange
         PaletteEditor editor = StartedEditor(color: 2);
         editor.Change(PlayerOneFirst, CharacterFile, Entry + 1, Red);
-        editor.Highlight(PlayerOneFirst, CharacterFile, Entry);
+        editor.Highlight(PlayerOneFirst, CharacterFile, [Entry]);
 
         // Act
         for (int frame = 0; frame <= PaletteEditor.HighlightFrames; frame++)

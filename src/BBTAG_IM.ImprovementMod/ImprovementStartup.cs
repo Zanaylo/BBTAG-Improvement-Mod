@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.Display;
 using BBTAG_IM.Core.Game;
+using BBTAG_IM.Core.Hitboxes.Editing;
 using BBTAG_IM.Core.Improvement;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Logging;
@@ -87,7 +88,7 @@ internal static class ImprovementStartup
             new CharacterNameFiles(fileSystem, dataFolders, [.. newCharacters.SelectMany(addition => CharacterNameEntries.For(addition.Manifest))], cacheFolder),
             log);
         AddWindowResolutions(code, log);
-        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, thumbnails, screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), harness, log);
+        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, new MenuImages(thumbnails, textures), screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), harness, log);
         IMenuSection[] sections = [features.Training, features.Palettes, new PerformanceSection(menuSettings, settings.Current.FrameLimiter), features.Dev, new ConfigSection(menuSettings)];
         AddMenu(frames, new ImprovementMenu(menuSettings, playerCount, sections, features.Windows), menuSettings, textures, screenPass, modFolder, log);
         frames.AddReset(screenPass.Release);
@@ -104,7 +105,7 @@ internal static class ImprovementStartup
         SettingsWatcher<ImprovementSettings> settings,
         PaletteCatalog catalog,
         MenuSettings menuSettings,
-        SpriteThumbnails thumbnails,
+        MenuImages images,
         BackBufferPass screenPass,
         IReadOnlyList<Boss> bosses,
         DataPlaces places,
@@ -134,24 +135,24 @@ internal static class ImprovementStartup
         var roster = new CharacterRoster(memory, LocateRoster(code, log));
         var stages = new StageTable(memory, LocateStages(code, log));
         var editor = new PaletteEditor(game, roster, () => settings.Current, catalog, log, Random.Shared.Next);
-        var fates = new CharacterFates(memory, roster, LocateFateFunction(code, log));
-        var hitboxViewer = new HitboxViewer(game, fates, settings, new HitboxRenderer(screenPass), log);
         var choices = new PaletteChoices(editor, catalog, menuSettings);
         var editorWindow = new PaletteEditorWindow(editor, choices, menuSettings);
         var gameColors = new GameColorCount(memory, LocateColorLimit(code, log));
-        var assignmentsWindow = CreateAssignmentsWindow(editor, editorWindow, choices, catalog.Library, menuSettings, thumbnails, gameColors);
+        var assignmentsWindow = CreateAssignmentsWindow(editor, editorWindow, choices, catalog.Library, menuSettings, images.Thumbnails, gameColors);
 
         frames.Add("Palettes", _ => editor.Update());
-        frames.Add("Hitbox viewer", hitboxViewer.OnPresent);
-        var pause = AddPause(frames, code, game, log);
+        var collision = AddHitboxViewer(frames, code, game, settings, screenPass, log);
+        var matchPause = AddPause(frames, code, game, log);
+        var pause = new PauseControls(matchPause);
         frames.Add("Online probe", new OnlineProbe(game, memory, addresses, gameModule, log).OnPresent);
         frames.Add("Match loading", new MatchLoadLog(game, roster, stages, log).OnPresent);
         var bossFight = AddBossFight(frames, code, roster, stages, bosses, log);
         AddOwnerlessTakemiGuard(frames, code, log);
         AddSittingOutSpawnGate(frames, code, addresses.Game, log);
-        var dev = AddDev(frames, gameModule, code, game, roster, places, menuSettings, log);
+        var preview = new SpritePreview(new CharacterImages(places.Files, places.DataFolders), images.Textures, slot => editor.Character(slot)?.Colors);
+        var dev = AddDev(frames, gameModule, code, game, roster, places, menuSettings, new DevTools(matchPause, collision, preview), log);
 
-        return new GameFeatures(new TrainingSection(menuSettings, pause, bossFight), new PaletteSection(editor, choices, editorWindow, assignmentsWindow), dev, [assignmentsWindow, editorWindow]);
+        return new GameFeatures(new TrainingSection(menuSettings, pause, bossFight), new PaletteSection(editor, choices, editorWindow, assignmentsWindow), dev.Section, [assignmentsWindow, editorWindow, .. dev.Windows]);
     }
 
     private static void AddErrorGuard(FrameDispatcher frames, LoadedModule gameModule, CodeImage code, GameView game, MatchExit matchExit, ILog log)
@@ -178,7 +179,7 @@ internal static class ImprovementStartup
         }
     }
 
-    private static IMenuSection AddDev(
+    private static DevFeatures AddDev(
         FrameDispatcher frames,
         LoadedModule gameModule,
         CodeImage code,
@@ -186,6 +187,7 @@ internal static class ImprovementStartup
         CharacterRoster roster,
         DataPlaces places,
         MenuSettings menuSettings,
+        DevTools tools,
         ILog log)
     {
         var databaseFolder = Path.Combine(places.ModFolder, ScriptDatabaseFolderName);
@@ -193,19 +195,21 @@ internal static class ImprovementStartup
         try
         {
             var table = GameCommandTable.Locate(code);
-            var sizes = table.Read(game.Memory);
+            var commands = table.Current(game.Memory);
             var dev = DevFolder.ForMod(places.ModFolder);
             var database = new ScriptDatabaseFolder(places.Files, databaseFolder);
-            var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, sizes, () => menuSettings.Current.ScriptEditor, log);
+            var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, table, () => menuSettings.Current, log);
             frames.Add("Script editing", scripts.OnPresent);
             GameErrorGuard.RollBackScriptsWith(scripts.Recover);
-            log.Info($"Script editing ready: {sizes.Count} script commands read at 0x{table.Address:X8}. Command names {(database.Exists ? "come from " + databaseFolder : "are missing, so commands show as numbers")}.");
-            return new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), databaseFolder);
+            log.Info($"Script editing ready: the game looks script commands up in a list of {commands.Count} at 0x{commands.Address:X8}, read again whenever it changes. Command names {(database.Exists ? "come from " + databaseFolder : "are missing, so commands show as numbers")}.");
+            var hitboxes = AddHitboxEditor(frames, game, scripts, places, dev, tools);
+            var section = new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), new ScriptLanguageChoice(menuSettings), hitboxes, databaseFolder);
+            return new DevFeatures(section, hitboxes is null ? [] : [hitboxes]);
         }
         catch (Exception exception) when (exception is GameLayoutException or HookException)
         {
             log.Error($"{exception.Message} Script editing stays off.");
-            return new UnavailableSection(DevSection.Name, $"This game version is not supported, so this stays off. {exception.Message}");
+            return new DevFeatures(new UnavailableSection(DevSection.Name, $"This game version is not supported, so this stays off. {exception.Message}"), []);
         }
     }
 
@@ -393,17 +397,30 @@ internal static class ImprovementStartup
         }
     }
 
-    private static uint? LocateFateFunction(CodeImage code, ILog log)
+    private static HitboxEditorWindow? AddHitboxEditor(FrameDispatcher frames, GameView game, DevScripts scripts, DataPlaces places, DevFolder dev, DevTools tools)
+    {
+        if (tools.Collision is not { } collision)
+            return null;
+
+        var edits = new HitboxEdits(game, dev, new ScriptBuffers(), new GameBoxReaders(game.Memory, collision.Functions.LoadBoxes), places.Files);
+        var window = new HitboxEditorWindow(game, collision.Boxes, edits, scripts, tools.Match, tools.Preview, dev);
+        frames.Add("Hitbox editing", window.OnPresent);
+        return window;
+    }
+
+    private static LocatedCollision? AddHitboxViewer(FrameDispatcher frames, CodeImage code, GameView game, SettingsWatcher<ImprovementSettings> settings, BackBufferPass screenPass, ILog log)
     {
         try
         {
-            var function = FateFunction.Locate(code);
-            log.Info($"Character series read through 0x{function:X8}.");
-            return function;
+            var functions = CollisionFunctions.Locate(code);
+            var collision = new GameCollision(functions);
+            log.Info($"Hitboxes are read through the game's own collision code at 0x{functions.WorldBox:X8}.");
+            frames.Add("Hitbox viewer", new HitboxViewer(game, collision, settings, new HitboxRenderer(screenPass), log).OnPresent);
+            return new LocatedCollision(functions, collision);
         }
         catch (GameLayoutException exception)
         {
-            log.Error($"{exception.Message} Hitboxes use the series of the characters the game ships.");
+            log.Error($"{exception.Message} The hitbox viewer and the box editor stay off.");
             return null;
         }
     }
@@ -454,4 +471,12 @@ internal static class ImprovementStartup
     private sealed record GameFeatures(IMenuSection Training, IMenuSection Palettes, IMenuSection Dev, IReadOnlyList<IMenuWindow> Windows);
 
     private sealed record DataPlaces(IFileSystem Files, string ModFolder, IReadOnlyList<string> DataFolders);
+
+    private sealed record LocatedCollision(CollisionFunctions Functions, GameCollision Boxes);
+
+    private sealed record DevTools(MatchPause? Match, LocatedCollision? Collision, SpritePreview Preview);
+
+    private sealed record MenuImages(SpriteThumbnails Thumbnails, MenuTextures Textures);
+
+    private sealed record DevFeatures(IMenuSection Section, IReadOnlyList<IMenuWindow> Windows);
 }

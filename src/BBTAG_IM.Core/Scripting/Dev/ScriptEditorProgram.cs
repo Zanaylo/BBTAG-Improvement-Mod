@@ -2,29 +2,25 @@ namespace BBTAG_IM.Core.Scripting.Dev;
 
 public static class ScriptEditorProgram
 {
-    public const string VisualStudioProcess = "devenv";
-
     private const string VisualStudio = "devenv.exe";
     private const string VisualStudioCode = "Code.exe";
+    private const string AutomationPrefix = "!VisualStudio.DTE.";
 
     public static bool IsVisualStudio(string program) => Path.GetFileName(program).Equals(VisualStudio, StringComparison.OrdinalIgnoreCase);
 
-    public static string Arguments(string program, string script, int line, string? project = null)
+    public static string Arguments(string program, string script, int line, string? solution = null)
     {
         if (IsVisualStudio(program))
-            return $"/edit \"{script}\"";
+            return solution is null ? $"/edit \"{script}\"" : $"\"{solution}\"";
 
         if (Path.GetFileName(program).Equals(VisualStudioCode, StringComparison.OrdinalIgnoreCase))
-            return project is null ? $"-g \"{script}:{line}\"" : $"\"{Path.GetDirectoryName(project)}\" -g \"{script}:{line}\"";
+            return solution is null ? $"-g \"{script}:{line}\"" : $"\"{Path.GetDirectoryName(solution)}\" -g \"{script}:{line}\"";
 
         return $"\"{script}\"";
     }
 
-    public static string? ProjectArguments(string program, string? project, bool programRunning)
-    {
-        if (project is null || programRunning || !IsVisualStudio(program))
-            return null;
+    public static bool IsAutomationName(string displayName) => displayName.StartsWith(AutomationPrefix, StringComparison.Ordinal);
 
-        return $"\"{project}\"";
-    }
+    public static bool IsSolution(string? loaded, string solution) =>
+        !string.IsNullOrEmpty(loaded) && Path.GetFullPath(loaded).Equals(Path.GetFullPath(solution), StringComparison.OrdinalIgnoreCase);
 }

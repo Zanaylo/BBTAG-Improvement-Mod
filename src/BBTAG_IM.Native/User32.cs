@@ -46,6 +46,10 @@ public static partial class User32
     [LibraryImport(Library)]
     public static partial nint GetForegroundWindow();
 
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetForegroundWindow(nint window);
+
     public static bool IsKeyDown(int key) => (GetAsyncKeyState(key) & KeyDownBit) != 0;
 
     [LibraryImport(Library)]
