@@ -18,8 +18,8 @@ public static class SpriteDirectories
 
     public static IReadOnlyList<string> SearchOrder(SpriteFolder folder)
     {
-        var own = Own(folder);
-        return [.. own, .. All.Except(own)];
+        var matching = Matching(folder);
+        return [.. matching, .. All.Except(matching)];
     }
 
     public static float DefaultPixelsPerUnit(string directory) => directory switch
@@ -29,7 +29,7 @@ public static class SpriteDirectories
         _ => CharPixelsPerUnit,
     };
 
-    private static string[] Own(SpriteFolder folder) => folder switch
+    private static string[] Matching(SpriteFolder folder) => folder switch
     {
         SpriteFolder.Char2x => [Char2x, Char2xExtra],
         SpriteFolder.CharFhd => [CharFhd, CharFhdExtra],

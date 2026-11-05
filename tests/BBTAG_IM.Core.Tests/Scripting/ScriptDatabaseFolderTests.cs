@@ -201,5 +201,31 @@ public class ScriptDatabaseFolderTests
         _fileSystemMock.DidNotReceive().WriteAllText(Arg.Any<string>(), Arg.Any<string>());
     }
 
+    [Fact]
+    public void CommandsPath_Folder_IsTheCommandFileInIt()
+    {
+        // Arrange
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        string path = folder.CommandsPath;
+
+        // Assert
+        Assert.Equal(Path.Combine(Folder, "command_db.json"), path);
+    }
+
+    [Fact]
+    public void GlobalSlotsPath_Folder_IsTheGlobalFileOfTheSlotFolder()
+    {
+        // Arrange
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        string path = folder.GlobalSlotsPath;
+
+        // Assert
+        Assert.Equal(Path.Combine(Folder, "slot_db", "global.json"), path);
+    }
+
     public ScriptDatabaseFolder CreateScriptDatabaseFolder() => new(_fileSystemMock, Folder);
 }

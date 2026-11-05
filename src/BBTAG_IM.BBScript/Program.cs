@@ -28,6 +28,7 @@ try
         "convert" => tool.Convert() ? Success : Failure,
         "project" => tool.Project() ? Success : Failure,
         "import-docs" => tool.ImportDocs() ? Success : Failure,
+        "import-bbcf" => tool.ImportBbcf() ? Success : Failure,
         "index" => tool.Index() ? Success : Failure,
         "where" => tool.Where() ? Success : Failure,
         _ => WrongVerb(commandLine.Verb),

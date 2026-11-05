@@ -17,6 +17,16 @@ public class ImprovementSettingsTests
     }
 
     [Fact]
+    public void Constructor_NewSettings_TurnTheAdvancedMapperButtonsOn()
+    {
+        // Act
+        ImprovementSettings settings = new();
+
+        // Assert
+        Assert.True(settings.AdvancedMapperButtons);
+    }
+
+    [Fact]
     public void Constructor_NewSettings_ShowEveryBoxTypeAndTheOrigins()
     {
         // Act

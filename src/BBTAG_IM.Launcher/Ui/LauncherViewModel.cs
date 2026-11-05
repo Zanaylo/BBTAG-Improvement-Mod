@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Settings;
 
 namespace BBTAG_IM.Launcher.Ui;
@@ -6,6 +7,8 @@ namespace BBTAG_IM.Launcher.Ui;
 internal sealed class LauncherViewModel : ObservableObject, ILauncherView
 {
     private const int MaximumMessages = 200;
+
+    private RepeatedMessages _repeatedMessages = new();
 
     private readonly IReadOnlyList<ScriptNode> _scripts = [];
     private readonly IReadOnlyList<ModEntry> _mods = [];
@@ -104,7 +107,12 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
 
     public void AddMessage(string message)
     {
-        Messages.Add($"{DateTime.Now:HH:mm:ss}  {message}");
+        var shown = _repeatedMessages.Show($"{DateTime.Now:HH:mm:ss}", message);
+
+        if (shown.Replaces is { } earlierLine)
+            Messages.Remove(earlierLine);
+
+        Messages.Add(shown.Line);
 
         while (Messages.Count > MaximumMessages)
             Messages.RemoveAt(0);
@@ -115,6 +123,7 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
         foreach (var message in previous.Messages)
             Messages.Add(message);
 
+        _repeatedMessages = previous._repeatedMessages;
         Status = previous.Status;
     }
 

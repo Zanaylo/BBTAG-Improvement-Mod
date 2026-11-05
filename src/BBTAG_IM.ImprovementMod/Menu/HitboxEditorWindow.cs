@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Numerics;
 using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.Hitboxes;
@@ -24,7 +26,6 @@ internal sealed class HitboxEditorWindow(
     private const string SpriteOnScreen = "Sprite on screen";
     private const int NothingSelected = -1;
     private const int NoMove = -1;
-    private const float FitContent = 0;
     private const float CanvasWidthInFontSizes = 20;
     private const float CanvasHeightInFontSizes = 26;
     private const float MoveWidthInFontSizes = 16;
@@ -63,6 +64,7 @@ internal sealed class HitboxEditorWindow(
     private int _selected = NothingSelected;
     private BoxGrab? _grab;
     private string _notice = string.Empty;
+    private string? _savedFolder;
     private bool _wasInMatch;
 
     public void Show() => _isOpen = true;
@@ -91,10 +93,7 @@ internal sealed class HitboxEditorWindow(
         if (!_isOpen)
             return;
 
-        ImGui.SetNextWindowPos(displaySize * FirstPosition, ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(FitContent), ImGuiCond.FirstUseEver);
-
-        if (ImGui.Begin(Title, ref _isOpen, ImGuiWindowFlags.AlwaysAutoResize))
+        if (FittedWindow.Begin(Title, ref _isOpen, displaySize * FirstPosition))
             DrawContents();
 
         ImGui.End();
@@ -598,9 +597,23 @@ internal sealed class HitboxEditorWindow(
 
         ImGui.EndDisabled();
         MenuText.Tooltip($"Writes the changed sprites into {dev.Path}. The game reads them from there in the next matches.");
+        DrawOpenSavedFolder();
 
         if (unsaved.Count > 0)
             MenuText.Muted($"Not saved yet: {string.Join(", ", unsaved)}. Changes that are not saved are lost when the match ends.");
+    }
+
+    private void DrawOpenSavedFolder()
+    {
+        if (_savedFolder is not { } folder)
+            return;
+
+        ImGui.SameLine();
+
+        if (ImGui.Button("Open the saved folder"))
+            OpenFolder(folder);
+
+        MenuText.Tooltip($"Opens {folder} in Windows.");
     }
 
     private void Save()
@@ -608,11 +621,24 @@ internal sealed class HitboxEditorWindow(
         try
         {
             var saved = edits.SaveAll();
-            _notice = $"Saved {saved.Count} {(saved.Count == 1 ? "sprite" : "sprites")} in {dev.Path}.";
+            _savedFolder = SavedFiles.CommonFolder(saved) ?? _savedFolder;
+            _notice = $"Saved {saved.Count} {(saved.Count == 1 ? "sprite" : "sprites")} in {_savedFolder ?? dev.Path}.";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             _notice = $"The boxes could not be saved: {exception.Message}";
+        }
+    }
+
+    private void OpenFolder(string folder)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        {
+            _notice = $"The folder could not be opened: {exception.Message}";
         }
     }
 

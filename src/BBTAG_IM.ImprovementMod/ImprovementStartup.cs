@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.Buttons;
 using BBTAG_IM.Core.Display;
 using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.Hitboxes.Editing;
@@ -15,6 +16,7 @@ using BBTAG_IM.Core.Scripting.Dev;
 using BBTAG_IM.Core.Scripting.Live;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Sprites;
+using BBTAG_IM.ImprovementMod.Buttons;
 using BBTAG_IM.ImprovementMod.Dev;
 using BBTAG_IM.ImprovementMod.Errors;
 using BBTAG_IM.ImprovementMod.Files;
@@ -85,9 +87,14 @@ internal static class ImprovementStartup
         AddFileSubstitutions(
             gameModule,
             new CharSelectPalettes(fileSystem, dataFolders, catalog, () => settings.Current, cacheFolder),
-            new CharacterNameFiles(fileSystem, dataFolders, [.. newCharacters.SelectMany(addition => CharacterNameEntries.For(addition.Manifest))], cacheFolder),
+            new CharacterNameFiles(fileSystem, dataFolders, [.. newCharacters.SelectMany(addition => CharacterNameEntries.For(addition.Manifest)), .. ExtraButtonTexts(settings.Current)], cacheFolder),
+            settings.Current.AdvancedMapperButtons ? new ButtonIconArchive(fileSystem, dataFolders, cacheFolder) : null,
             log);
-        AddWindowResolutions(code, log);
+        AddWindowResolutions(gameModule, code, log);
+
+        if (settings.Current.AdvancedMapperButtons)
+            AddExtraButtons(code, log);
+
         var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, new MenuImages(thumbnails, textures), screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), harness, log);
         IMenuSection[] sections = [features.Training, features.Palettes, new PerformanceSection(menuSettings, settings.Current.FrameLimiter), features.Dev, new ConfigSection(menuSettings)];
         AddMenu(frames, new ImprovementMenu(menuSettings, playerCount, sections, features.Windows), menuSettings, textures, screenPass, modFolder, log);
@@ -242,7 +249,7 @@ internal static class ImprovementStartup
     {
         if (manifests.Manifests.Count > 0 && OverhaulExecutable.Is(gameModule.Headers.Sections))
         {
-            log.Info("The overhaul's BBTAG.exe is running and its table builds its own roster, so the characters of the characters folders are not added.");
+            log.Info("The overhaul's BBTAG.exe is running and its table builds the roster, so the characters of the characters folders are not added.");
             return [];
         }
 
@@ -257,9 +264,9 @@ internal static class ImprovementStartup
         }
     }
 
-    private static void AddFileSubstitutions(LoadedModule gameModule, CharSelectPalettes charSelect, CharacterNameFiles names, ILog log)
+    private static void AddFileSubstitutions(LoadedModule gameModule, CharSelectPalettes charSelect, CharacterNameFiles names, ButtonIconArchive? icons, ILog log)
     {
-        FileSubstitution[] substitutions =
+        List<FileSubstitution> substitutions =
         [
             new(
                 "char_select_",
@@ -273,6 +280,13 @@ internal static class ImprovementStartup
                 (file, error) => $"{file} keeps only the game names: {error}"),
         ];
 
+        if (icons is not null)
+            substitutions.Add(new(
+                ButtonIconArchive.FileName,
+                icons.Substitute,
+                file => $"{file} is read with the E button icon.",
+                (file, error) => $"{file} keeps the game icons, so E shows no icon: {error}"));
+
         try
         {
             FileSubstitutionHook.Install(gameModule, substitutions, log);
@@ -284,22 +298,37 @@ internal static class ImprovementStartup
         }
     }
 
-    private static void AddWindowResolutions(CodeImage code, ILog log)
+    private static IReadOnlyList<KeyValuePair<string, string>> ExtraButtonTexts(ImprovementSettings settings) =>
+        settings.AdvancedMapperButtons ? ExtraButtons.TextEntries : [];
+
+    private static void AddExtraButtons(CodeImage code, ILog log)
     {
         try
         {
-            var resolutions = WindowResolutions.Install(code);
+            ExtraButtonRows.Install(code, log);
+        }
+        catch (Exception exception) when (exception is GameLayoutException or PatchFailedException)
+        {
+            log.Error($"{exception.Message} The button settings stay as the game ships them.");
+        }
+    }
+
+    private static void AddWindowResolutions(LoadedModule gameModule, CodeImage code, ILog log)
+    {
+        try
+        {
+            var resolutions = WindowResolutions.Install(gameModule, code);
             var choices = WindowResolutionCode.Resolutions;
 
             if (resolutions.AlreadyExtended)
             {
-                log.Info($"The overhaul's BBTAG.exe is running. It already offers {WindowResolutionCode.ExtendedCount} window resolutions, so they stay in its order.");
+                log.Info($"The overhaul's BBTAG.exe is running. It keeps its {WindowResolutionCode.ExtendedCount} window resolutions in its order, and the saved resolution is matched by size, so it stays the same with the overhaul on or off.");
                 return;
             }
 
-            log.Info($"The game's own BBTAG.exe is running. Window resolutions extended to {choices.Count} choices at 0x{resolutions.Sites.Count:X8}, 0x{resolutions.Sites.Borderless:X8} and 0x{resolutions.Sites.Window:X8}. {string.Join(", ", choices.Take(WindowResolutionCode.StockCount))} keep their places, so a resolution saved without mods means the same size here.");
+            log.Info($"The native BBTAG.exe is running. Window resolutions extended to {choices.Count} choices at 0x{resolutions.Sites.Count:X8}, 0x{resolutions.Sites.Borderless:X8} and 0x{resolutions.Sites.Window:X8}. {string.Join(", ", choices.Take(WindowResolutionCode.StockCount))} keep their places, so a resolution saved without mods means the same size here.");
         }
-        catch (Exception exception) when (exception is GameLayoutException or PatchFailedException)
+        catch (Exception exception) when (exception is GameLayoutException or PatchFailedException or HookException)
         {
             log.Error($"{exception.Message} The window resolutions stay as the game ships them.");
         }
@@ -414,7 +443,7 @@ internal static class ImprovementStartup
         {
             var functions = CollisionFunctions.Locate(code);
             var collision = new GameCollision(functions);
-            log.Info($"Hitboxes are read through the game's own collision code at 0x{functions.WorldBox:X8}.");
+            log.Info($"Hitboxes are read through the native collision code at 0x{functions.WorldBox:X8}.");
             frames.Add("Hitbox viewer", new HitboxViewer(game, collision, settings, new HitboxRenderer(screenPass), log).OnPresent);
             return new LocatedCollision(functions, collision);
         }

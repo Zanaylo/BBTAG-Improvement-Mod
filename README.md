@@ -3,7 +3,7 @@
 Mod Loader and Improvement Mod for **BlazBlue Cross Tag Battle** (Steam, `BBTAG.exe`, 32-bit),
 written in C# / .NET 10.
 
-- **Mod Loader** (`BBTAG_Mod_Loader.exe`): starts the game with mods layered from their own folders
+- **Mod Loader** (`BBTAG_Mod_Loader.exe`): starts the game with mods layered from separate folders
   in `mods`, without changing any file in the game folder. Runs a mod's Cheat Engine table when it
   has one.
 - **Improvement Mod** (`mods\BBTAG-Improvement-Mod`): the F1 menu in the game. Hitbox viewer, pause

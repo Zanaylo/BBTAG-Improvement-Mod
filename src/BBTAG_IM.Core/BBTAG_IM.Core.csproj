@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Scripting\Data\command_sizes.tsv" LogicalName="BBTAG_IM.Core.Scripting.Data.command_sizes.tsv" />
+    <EmbeddedResource Include="Buttons\Data\e_icon.bgra" LogicalName="BBTAG_IM.Core.Buttons.Data.e_icon.bgra" />
   </ItemGroup>
 
 </Project>

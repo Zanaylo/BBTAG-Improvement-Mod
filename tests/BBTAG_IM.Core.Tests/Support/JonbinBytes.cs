@@ -11,11 +11,12 @@ internal sealed class JonbinBytes
     private const int ShortLength = 52;
     private const int LongLength = 308;
     private const int MiddleLength = 80;
+    private const int ImageField = 60;
     private const int LayerField = 64;
 
     private readonly List<string> _images = [];
     private readonly List<(int Type, float X, float Y, float Width, float Height)> _boxes = [];
-    private readonly List<float[]> _chunks = [];
+    private readonly List<(float[] Fields, int Layer, int Image)> _chunks = [];
     private int _shortEntries;
     private int _longEntries;
     private int _middleEntries;
@@ -35,9 +36,9 @@ internal sealed class JonbinBytes
         return this;
     }
 
-    public JonbinBytes Chunk(float sourceX, float sourceY, float sourceWidth, float sourceHeight, float x, float y, float width, float height, int layer)
+    public JonbinBytes Chunk(float sourceX, float sourceY, float sourceWidth, float sourceHeight, float x, float y, float width, float height, int layer, int image = 0)
     {
-        _chunks.Add([sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height, BitConverter.Int32BitsToSingle(layer)]);
+        _chunks.Add(([sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height], layer, image));
         return this;
     }
 
@@ -83,10 +84,11 @@ internal sealed class JonbinBytes
         {
             var entry = new byte[MiddleLength];
 
-            for (var field = 0; field < 8; field++)
-                BitConverter.TryWriteBytes(entry.AsSpan(field * sizeof(float)), chunk[field]);
+            for (var field = 0; field < chunk.Fields.Length; field++)
+                BitConverter.TryWriteBytes(entry.AsSpan(field * sizeof(float)), chunk.Fields[field]);
 
-            BitConverter.TryWriteBytes(entry.AsSpan(LayerField), BitConverter.SingleToInt32Bits(chunk[8]));
+            BitConverter.TryWriteBytes(entry.AsSpan(ImageField), chunk.Image);
+            BitConverter.TryWriteBytes(entry.AsSpan(LayerField), chunk.Layer);
             writer.Write(entry);
         }
 

@@ -4,7 +4,7 @@ using BBTAG_IM.Core.Scripting.EditorHelp;
 
 namespace BBTAG_IM.BBScript;
 
-internal sealed class ScriptDatabases(ScriptDatabaseFolder folder, ScriptDatabase shared)
+internal sealed class ScriptDatabases(ScriptDatabaseFolder folder, ScriptDatabase shared, IReadOnlyDictionary<int, int> gameSizes)
 {
     private const string DefaultFolderName = "bbscript";
 
@@ -23,10 +23,16 @@ internal sealed class ScriptDatabases(ScriptDatabaseFolder folder, ScriptDatabas
         var loaded = (folder.Exists ? folder.Load() : ScriptDatabase.Unnamed).WithGameSizes(sizes);
         var shared = style == ScriptStyle.Readable ? loaded.WithTagNames() : loaded;
 
-        return new ScriptDatabases(folder, shared);
+        return new ScriptDatabases(folder, shared, sizes);
     }
 
     public ScriptDatabase Shared => shared;
+
+    public IReadOnlyDictionary<int, int> GameSizes => gameSizes;
+
+    public string CommandsPath => folder.CommandsPath;
+
+    public string GlobalSlotsPath => folder.GlobalSlotsPath;
 
     public string DocsPath => folder.DocsPath;
 

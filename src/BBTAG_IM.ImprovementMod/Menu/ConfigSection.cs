@@ -33,6 +33,20 @@ internal sealed class ConfigSection(MenuSettings settings) : IMenuSection
 
         ImGui.EndDisabled();
         MenuText.Tooltip("Goes back to a size that follows the screen height.");
+        DrawAdvancedMapperButtons();
+    }
+
+    private void DrawAdvancedMapperButtons()
+    {
+        var advanced = settings.Current.AdvancedMapperButtons;
+
+        if (ImGui.Checkbox("Advanced mapper buttons", ref advanced))
+            settings.Save(
+                options => options.AdvancedMapperButtons = advanced,
+                advanced ? "E shows in the button settings the next time the game starts." : "The button settings go back to the game's rows the next time the game starts.");
+
+        MenuText.Tooltip("Adds the E button to the native button settings, for the controller and the keyboard, so it can be set like A, B, C and D.");
+        MenuText.Muted("Changes the next time the game starts.");
     }
 
     private void SaveFontSize(float? size)

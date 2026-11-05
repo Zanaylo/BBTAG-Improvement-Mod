@@ -13,7 +13,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(32, 210, 412, 342);
-        SpriteChunk chunk = new(32, 210, 412, 342, -403, -345, 412, 342, 0);
+        SpriteChunk chunk = new(32, 210, 412, 342, -403, -345, 412, 342, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -30,7 +30,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(5, 0, 508, 488);
-        SpriteChunk chunk = new(0, 23, 511, 489, -256, -449, 511, 489, 0);
+        SpriteChunk chunk = new(0, 23, 511, 489, -256, -449, 511, 489, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -56,7 +56,7 @@ public class ChunkPlacementTests
             0, 0, 0, 0,
         ];
         PlacedSprite sprite = new(new IndexedSprite(4, 4, indices), 0, 0, []);
-        SpriteChunk chunk = new(0, 1, 4, 3, -2, -3, 4, 3, 0);
+        SpriteChunk chunk = new(0, 1, 4, 3, -2, -3, 4, 3, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -73,7 +73,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = new(new IndexedSprite(2, 2, [0, 0, 0, 0]), 0, 0, []);
-        SpriteChunk chunk = new(0, 0, 2, 2, 0, 0, 2, 2, 0);
+        SpriteChunk chunk = new(0, 0, 2, 2, 0, 0, 2, 2, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -87,7 +87,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(5, 0, 100, 100);
-        SpriteChunk chunk = new(480, 0, 32, 12, -40, -360, 32, 12, 1);
+        SpriteChunk chunk = new(480, 0, 32, 12, -40, -360, 32, 12, 1, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -101,7 +101,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(0, 0, 4, 2);
-        SpriteChunk chunk = new(0, 0, 4, 2, 2, -2, -4, 2, 0);
+        SpriteChunk chunk = new(0, 0, 4, 2, 2, -2, -4, 2, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -118,7 +118,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(0, 0, 4, 2);
-        SpriteChunk chunk = new(0, 0, 4, 2, -2, 0, 4, -2, 0);
+        SpriteChunk chunk = new(0, 0, 4, 2, -2, 0, 4, -2, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite);
@@ -135,7 +135,7 @@ public class ChunkPlacementTests
     {
         // Arrange
         PlacedSprite sprite = Sprite(2, 0, 8, 4);
-        SpriteChunk chunk = new(0, 0, 6, 2, -3, -2, 6, 2, 0);
+        SpriteChunk chunk = new(0, 0, 6, 2, -3, -2, 6, 2, 0, 0);
 
         // Act
         PlacedChunk? placed = ChunkPlacement.Place(chunk, sprite, pixelsPerUnit: 2);

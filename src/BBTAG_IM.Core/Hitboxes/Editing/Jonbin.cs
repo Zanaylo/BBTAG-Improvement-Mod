@@ -14,7 +14,9 @@ public sealed record JonbinBox(int Type, float X, float Y, float Width, float He
     public float HighY => MathF.Max(Y, Y + Height);
 }
 
-public sealed record SpriteChunk(float SourceX, float SourceY, float SourceWidth, float SourceHeight, float X, float Y, float Width, float Height, int Layer);
+public sealed record SpriteChunk(float SourceX, float SourceY, float SourceWidth, float SourceHeight, float X, float Y, float Width, float Height, int Layer, int Image);
+
+public sealed record SpritePiece(string Image, SpriteChunk Chunk);
 
 public sealed class Jonbin
 {
@@ -37,7 +39,9 @@ public sealed class Jonbin
     private const int BoxWidthField = 12;
     private const int BoxHeightField = 16;
     private const int ChunkFields = 8;
+    private const int ChunkImageField = 60;
     private const int ChunkLayerField = 64;
+    private const string PlaceholderImage = "999_99";
 
     private static readonly byte[] Signature = "JONB"u8.ToArray();
 
@@ -59,6 +63,8 @@ public sealed class Jonbin
     public IReadOnlyList<string> Images => _pictures.Images;
 
     public IReadOnlyList<SpriteChunk> Chunks => _pictures.Chunks;
+
+    public IReadOnlyList<SpritePiece> Pieces => _pictures.Pieces;
 
     public int TypeCount { get; }
 
@@ -165,7 +171,17 @@ public sealed class Jonbin
         for (var field = 0; field < ChunkFields; field++)
             fields[field] = BinaryPrimitives.ReadSingleLittleEndian(entry[(field * sizeof(float))..]);
 
-        return new SpriteChunk(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6], fields[7], BinaryPrimitives.ReadInt32LittleEndian(entry[ChunkLayerField..]));
+        return new SpriteChunk(
+            fields[0],
+            fields[1],
+            fields[2],
+            fields[3],
+            fields[4],
+            fields[5],
+            fields[6],
+            fields[7],
+            BinaryPrimitives.ReadInt32LittleEndian(entry[ChunkLayerField..]),
+            BinaryPrimitives.ReadInt32LittleEndian(entry[ChunkImageField..]));
     }
 
     private static List<JonbinBox> ReadBoxes(ReadOnlySpan<byte> bytes, int countsStart, int typeCount, int boxesStart)
@@ -208,5 +224,15 @@ public sealed class Jonbin
             throw new InvalidCollisionDataException("The collision file ends too early.");
     }
 
-    private sealed record Pictures(IReadOnlyList<string> Images, IReadOnlyList<SpriteChunk> Chunks);
+    private static bool IsPlaceholder(string image) =>
+        Path.GetFileNameWithoutExtension(image).EndsWith(PlaceholderImage, StringComparison.Ordinal);
+
+    private sealed record Pictures(IReadOnlyList<string> Images, IReadOnlyList<SpriteChunk> Chunks)
+    {
+        public IReadOnlyList<SpritePiece> Pieces { get; } = Chunks
+            .Where(chunk => chunk.Image >= 0 && chunk.Image < Images.Count && !IsPlaceholder(Images[chunk.Image]))
+            .OrderBy(chunk => chunk.Layer)
+            .Select(chunk => new SpritePiece(Images[chunk.Image], chunk))
+            .ToArray();
+    }
 }

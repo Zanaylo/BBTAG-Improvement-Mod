@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using BBTAG_IM.Core.Memory;
 
 namespace BBTAG_IM.Core.Display;
@@ -24,18 +25,29 @@ public static class WindowResolutionCode
     private const string CountName = "Window resolution count";
     private const string BorderlessName = "Borderless resolution list";
     private const string WindowName = "Window resolution list";
+    private const string OverhaulName = "The overhaul's window resolution list";
+    private const string SavedLimitName = "Saved window resolution limit";
     private const int CountOffset = 1;
     private const int StockListLength = 70;
     private const int PairLength = 2 * sizeof(float);
     private const byte JumpNear = 0xE9;
     private const byte Nop = 0x90;
     private const byte LastValueOffset = unchecked((byte)(1 - ExtendedCount));
+    private const int OverhaulJumpOffset = 0x44;
+    private const int OverhaulBaseOffset = 3;
+    private const uint OverhaulBaseToFirstSize = 0x1C;
+    private const uint SavedLimitOffset = 12;
+    private const byte CompareEaxByte = 0x83;
+    private const byte CompareToEax = 0xF8;
+    private const byte LoadEcx = 0xB9;
 
     private static readonly BytePattern CountSite = BytePattern.Parse("BB ?? 00 00 00 8B F3 8D 7B ?? EB 20 8D 81");
     private static readonly BytePattern BorderlessSite =
         BytePattern.Parse("8B 8F 60 01 00 00 8B 35 ?? ?? ?? ?? C7 45 DC 00 00 00 00 C7 45 E0 00 00 00 00 C7 45 E4 00 00 A0 44");
     private static readonly BytePattern WindowSite =
         BytePattern.Parse("8B 8E 60 01 00 00 C7 45 DC 00 00 00 00 C7 45 E0 00 00 00 00 C7 45 E4 00 00 A0 44");
+    private static readonly BytePattern OverhaulListCode = BytePattern.Parse("55 8D 2D ?? ?? ?? ?? 8B 44 CD DC 89 45 D4 8B 44 CD E0 89 45 D8 5D");
+    private static readonly BytePattern SavedLimitCode = BytePattern.Parse("FF 71 10 FF 71 08 FF 15 ?? ?? ?? ?? 83 F8 03 B9 02 00 00 00 0F 43 C1 C3");
     private static readonly byte[] LoadWidth = [0x8B, 0x04, 0xCD];
     private static readonly byte[] StoreWidth = [0x89, 0x45, 0xD4];
     private static readonly byte[] LoadHeight = [0x8B, 0x04, 0xCD];
@@ -43,12 +55,40 @@ public static class WindowResolutionCode
     private static readonly byte[] EmptyPair = new byte[PairLength];
 
     public static WindowResolutionSites Locate(CodeImage image) =>
-        new(image.FindSingle(CountSite, CountName), image.FindSingle(BorderlessSite, BorderlessName), image.FindSingle(WindowSite, WindowName));
+        new(
+            image.FindSingle(CountSite, CountName),
+            image.FindSingle(BorderlessSite, BorderlessName),
+            image.FindSingle(WindowSite, WindowName),
+            image.FindSingle(SavedLimitCode, SavedLimitName) + SavedLimitOffset);
 
     public static int Count(CodeImage image, WindowResolutionSites sites) => image.Slice(sites.Count + CountOffset, sizeof(byte))[0];
 
-    public static byte[] List() =>
-        [.. EmptyPair, .. Resolutions.SelectMany(resolution => Pair(resolution.Width, resolution.Height))];
+    public static byte[] List() => [.. EmptyPair, .. Resolutions.SelectMany(resolution => Pair(resolution.Width, resolution.Height))];
+
+    public static byte[] SavedLimitPatch() => [CompareEaxByte, CompareToEax, ExtendedCount, LoadEcx, ExtendedCount - 1, 0x00, 0x00, 0x00];
+
+    public static IReadOnlyList<Resolution> OverhaulSizes(CodeImage image, WindowResolutionSites sites)
+    {
+        var list = image.Slice(OverhaulList(image, sites), ExtendedCount * PairLength).ToArray();
+
+        return [.. list.Chunk(PairLength).Select(pair => new Resolution((int)BitConverter.ToSingle(pair, 0), (int)BitConverter.ToSingle(pair, sizeof(float))))];
+    }
+
+    public static uint OverhaulList(CodeImage image, WindowResolutionSites sites)
+    {
+        var jump = sites.Borderless + OverhaulJumpOffset;
+        var jumpBytes = image.Slice(jump, JumpLength);
+
+        if (jumpBytes[0] != JumpNear)
+            throw new GameLayoutException($"{OverhaulName} was not found in the game code. {GameLayoutException.UnsupportedVersion}");
+
+        var code = jump + JumpLength + BinaryPrimitives.ReadUInt32LittleEndian(jumpBytes[1..]);
+
+        if (!OverhaulListCode.FindAll(image.Slice(code, OverhaulListCode.Length)).Contains(0))
+            throw new GameLayoutException($"{OverhaulName} was not found in the game code. {GameLayoutException.UnsupportedVersion}");
+
+        return BinaryPrimitives.ReadUInt32LittleEndian(image.Slice(code + OverhaulBaseOffset, sizeof(uint))) - OverhaulBaseToFirstSize;
+    }
 
     public static byte[] CountPatch() => [0xBB, ExtendedCount, 0x00, 0x00, 0x00, 0x8B, 0xF3, 0x8D, 0x7B, LastValueOffset];
 

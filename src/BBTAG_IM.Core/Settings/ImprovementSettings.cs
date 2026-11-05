@@ -10,6 +10,8 @@ public sealed class ImprovementSettings
 
     public bool FrameLimiter { get; set; }
 
+    public bool AdvancedMapperButtons { get; set; } = true;
+
     public bool HitboxViewer { get; set; } = true;
 
     public BoxStyle Hurtboxes { get; set; } = new();

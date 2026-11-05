@@ -53,6 +53,23 @@ public class TagScriptNamesTests
     [InlineData(0x3081, "MOVE_OD")]
     [InlineData(0x304A, "MOVE_ASTRAL")]
     [InlineData(0x3083, "MOVE_0x3083")]
+    [InlineData(0x2006, "MOVE_JUMP_COUNT_OK")]
+    [InlineData(0x2007, "MOVE_AIR_DASH_COUNT_OK")]
+    [InlineData(0x303A, "MOVE_WALL_TOUCH")]
+    [InlineData(0x303B, "MOVE_SCREEN_TOUCH")]
+    [InlineData(0x304B, "MOVE_COUNT_OVERDRIVE")]
+    [InlineData(0x304C, "MOVE_NOT_DASH_DOING")]
+    [InlineData(0x3052, "MOVE_AIR_DASH_HEIGHT_LIMIT")]
+    [InlineData(0x306B, "MOVE_BOSS")]
+    [InlineData(0x306C, "MOVE_NOT_BOSS")]
+    [InlineData(0x306D, "MOVE_BATTLE_DOING")]
+    [InlineData(0x306E, "MOVE_NOT_BARRIER")]
+    [InlineData(0x3070, "MOVE_ENEMY_AIR")]
+    [InlineData(0x3071, "MOVE_STORY_SPECIAL_TYPE")]
+    [InlineData(0x3072, "MOVE_NOT_STORY_SPECIAL_TYPE")]
+    [InlineData(0x3073, "MOVE_ENEMY_CROUCH")]
+    [InlineData(0x307F, "MOVE_ENEMY_DOWN")]
+    [InlineData(0x3080, "MOVE_ENEMY_HIGHER")]
     public void MoveConditions_GameValue_HasAReadableName(int value, string expected)
     {
         // Act
@@ -60,6 +77,38 @@ public class TagScriptNamesTests
 
         // Assert
         Assert.Equal(expected, name);
+    }
+
+    [Theory]
+    [InlineData(70, "CheckCharactersInBattle")]
+    [InlineData(1113, "SetSpeedTowardsObjectFromCenter")]
+    [InlineData(1114, "SetSpeedTowardsObjectPosition")]
+    [InlineData(1115, "DirectionToObjectPosition")]
+    [InlineData(1116, "DirectionToObjectFromCenter")]
+    [InlineData(3053, "ReserveCustomPalette")]
+    [InlineData(3054, "CustomPaletteColorAlpha")]
+    [InlineData(3055, "BasePaletteColorAlpha")]
+    [InlineData(3056, "BasePaletteColorARGB")]
+    [InlineData(21015, "SendSignalToNamedObjects")]
+    [InlineData(30029, "AddRecoverableHealth")]
+    [InlineData(30058, "HideOtherCharacters")]
+    public void CommandNames_GameCommand_HasAReadableName(int id, string expected)
+    {
+        // Act
+        string name = TagCommandNames.Names[id];
+
+        // Assert
+        Assert.Equal(expected, name);
+    }
+
+    [Fact]
+    public void CommandNames_EveryName_IsUnique()
+    {
+        // Act
+        IEnumerable<IGrouping<string, int>> repeated = TagCommandNames.Names.GroupBy(pair => pair.Value, pair => pair.Key, StringComparer.OrdinalIgnoreCase).Where(group => group.Count() > 1);
+
+        // Assert
+        Assert.Empty(repeated);
     }
 
     [Fact]

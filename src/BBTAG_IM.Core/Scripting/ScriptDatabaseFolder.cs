@@ -18,7 +18,11 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
     private const string GlobalFile = "global.json";
     private const string JsonExtension = ".json";
 
-    public bool Exists => fileSystem.FileExists(Path.Combine(folder, CommandsFile));
+    public bool Exists => fileSystem.FileExists(CommandsPath);
+
+    public string CommandsPath => Path.Combine(folder, CommandsFile);
+
+    public string GlobalSlotsPath => Path.Combine(folder, SlotsFolder, GlobalFile);
 
     public string DocsPath => Path.Combine(folder, ScriptDocsFile.FileName);
 
@@ -56,7 +60,7 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
         return new ScriptDatabase(
             Commands(),
-            Names(SlotsFolder, GlobalFile),
+            Names(GlobalSlotsPath),
             Names(UponsFolder, GlobalFile),
             Names(NamedValuesFolder, "hit_animation.json"),
             Names(NamedValuesFolder, "move_condition.json"),
@@ -70,7 +74,7 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     private IEnumerable<CommandDefinition> Commands()
     {
-        using var document = Parse(Path.Combine(folder, CommandsFile)) ?? throw new InvalidScriptDatabaseException($"{CommandsFile} cannot be read.");
+        using var document = Parse(CommandsPath) ?? throw new InvalidScriptDatabaseException($"{CommandsFile} cannot be read.");
         var commands = new List<CommandDefinition>();
 
         foreach (var entry in document.RootElement.EnumerateObject())
@@ -135,9 +139,11 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
         }
     }
 
-    private NameTable Names(string subfolder, string file)
+    private NameTable Names(string subfolder, string file) => Names(Path.Combine(folder, subfolder, file));
+
+    private NameTable Names(string path)
     {
-        using var document = Parse(Path.Combine(folder, subfolder, file));
+        using var document = Parse(path);
         return document is null ? NameTable.Empty : Table(document.RootElement);
     }
 

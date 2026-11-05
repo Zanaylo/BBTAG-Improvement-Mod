@@ -3,6 +3,7 @@ using BBTAG_IM.Core.Scripting.Compiling;
 using BBTAG_IM.Core.Scripting.CSharp;
 using BBTAG_IM.Core.Scripting.Dev;
 using BBTAG_IM.Core.Scripting.EditorHelp;
+using BBTAG_IM.Core.Scripting.Importing;
 
 namespace BBTAG_IM.BBScript;
 
@@ -16,6 +17,7 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
         bbscript project <folder>... [--db <bbscript folder>]
         bbscript stubs <scr_xxx.py | folder>... [--db <bbscript folder>]
         bbscript import-docs <Command Database.xlsx> [--db <bbscript folder>]
+        bbscript import-bbcf <bbcf.json> [--db <bbscript folder>]
         bbscript index <char_xxx_scr.pac | scr_xxx.bin>... [--db <bbscript folder>]
         bbscript where <command | INPUT_... | MOVE_... | upon_...>... [--db <bbscript folder>]
 
@@ -27,6 +29,8 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
         project      writes BBScript.g.cs (the API Scripts.csproj reads) into a folder
         stubs        writes __builtins__.pyi for .py scripts
         import-docs  reads the community Command Database sheet into command_docs.json for the descriptions
+        import-bbcf  gives BBCF names (a BBCF command table) to the commands and SLOTs that have none yet;
+                     names already there are kept and the old files are kept as .bak
         index        reads the game's scripts into script_usage.json: where every command, input and condition is used
         where        shows where the game's scripts use a command, an input, a move condition or an upon (needs index)
 
@@ -37,6 +41,8 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
 
     private const string ArchiveExtension = ".pac";
     private const string BinaryExtension = ".bin";
+    private const string BackupExtension = ".bak";
+    private const string EmptyDatabase = "{}";
 
     public bool Decompile()
     {
@@ -155,6 +161,39 @@ internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandL
         }
 
         return true;
+    }
+
+    public bool ImportBbcf()
+    {
+        foreach (var input in commandLine.Inputs)
+        {
+            var table = BbcfTable.Read(File.ReadAllText(input));
+            var commands = CommandNameImport.Merge(ReadDatabase(databases.CommandsPath), table, databases.GameSizes);
+            var slots = SlotNameImport.Merge(ReadDatabase(databases.GlobalSlotsPath), table);
+
+            WriteKeepingABackup(databases.CommandsPath, commands.Json);
+            WriteKeepingABackup(databases.GlobalSlotsPath, slots.Json);
+            Console.WriteLine($"{databases.CommandsPath}: {commands.Named} commands named, {commands.Added} of them new");
+            Console.WriteLine($"{databases.GlobalSlotsPath}: {slots.Named} SLOTs named");
+
+            foreach (var skipped in commands.Skipped.Concat(slots.Skipped))
+                Console.WriteLine("  left out: " + skipped);
+        }
+
+        return true;
+    }
+
+    private static string ReadDatabase(string path) => File.Exists(path) ? File.ReadAllText(path) : EmptyDatabase;
+
+    private static void WriteKeepingABackup(string path, string text)
+    {
+        var backup = path + BackupExtension;
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        if (File.Exists(path) && !File.Exists(backup))
+            File.Copy(path, backup);
+
+        File.WriteAllText(path, text);
     }
 
     public bool Index()

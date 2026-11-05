@@ -26,17 +26,77 @@ public class JonbinTests
     public void Read_SpritePieces_ReadsWhereEachPieceOfThePictureIsDrawn()
     {
         // Arrange
-        byte[] bytes = new JonbinBytes().Image("rg000_00.bmp").Sections(1, 0, 0)
-            .Chunk(0, 23, 511, 489, -256, -449, 511, 489, 0).Chunk(480, 0, 32, 12, -40, -360, 32, 12, 1).Box(0, -46, -386, 61, 390).Build();
+        byte[] bytes = new JonbinBytes().Image("rg000_00.bmp").Image("vr_rg_ef000.bmp").Sections(1, 0, 0)
+            .Chunk(0, 23, 511, 489, -256, -449, 511, 489, 0).Chunk(480, 0, 32, 12, -40, -360, 32, 12, 1, image: 1).Box(0, -46, -386, 61, 390).Build();
 
         // Act
         Jonbin jonbin = Jonbin.Read(bytes);
 
         // Assert
         Assert.Equal(
-            [new SpriteChunk(0, 23, 511, 489, -256, -449, 511, 489, 0), new SpriteChunk(480, 0, 32, 12, -40, -360, 32, 12, 1)],
+            [new SpriteChunk(0, 23, 511, 489, -256, -449, 511, 489, 0, 0), new SpriteChunk(480, 0, 32, 12, -40, -360, 32, 12, 1, 1)],
             jonbin.Chunks);
-        Assert.Equal("rg000_00.bmp", Assert.Single(jonbin.Images));
+        Assert.Equal(["rg000_00.bmp", "vr_rg_ef000.bmp"], jonbin.Images);
+    }
+
+    [Fact]
+    public void Pieces_ChunksOnSeveralPictures_PairsEachChunkWithItsOwnPicture()
+    {
+        // Arrange
+        Jonbin jonbin = Jonbin.Read(new JonbinBytes().Image("vr_car_ef000.bmp").Image("Car500_00.bmp")
+            .Chunk(0, 0, 864, 640, 432, -589, -864, 640, 0, image: 1).Chunk(0, 0, 64, 64, 10, -100, 64, 64, 0, image: 0).Build());
+
+        // Act
+        IReadOnlyList<SpritePiece> pieces = jonbin.Pieces;
+
+        // Assert
+        Assert.Equal(
+            [
+                new SpritePiece("Car500_00.bmp", new SpriteChunk(0, 0, 864, 640, 432, -589, -864, 640, 0, 1)),
+                new SpritePiece("vr_car_ef000.bmp", new SpriteChunk(0, 0, 64, 64, 10, -100, 64, 64, 0, 0)),
+            ],
+            pieces);
+    }
+
+    [Fact]
+    public void Pieces_ChunksOnSeveralLayers_ComeFromTheBackLayerToTheFront()
+    {
+        // Arrange
+        Jonbin jonbin = Jonbin.Read(new JonbinBytes().Image("rg000_00.bmp")
+            .Chunk(0, 0, 10, 10, 0, 0, 10, 10, 2).Chunk(10, 0, 10, 10, 0, 0, 10, 10, 0).Build());
+
+        // Act
+        IReadOnlyList<SpritePiece> pieces = jonbin.Pieces;
+
+        // Assert
+        Assert.Equal([0, 2], pieces.Select(piece => piece.Chunk.Layer));
+    }
+
+    [Fact]
+    public void Pieces_ChunkOnThePlaceholderPicture_LeavesItOut()
+    {
+        // Arrange
+        Jonbin jonbin = Jonbin.Read(new JonbinBytes().Image("Car000_00.bmp").Image("Car999_99.bmp")
+            .Chunk(0, 0, 864, 640, 430, -592, -864, 640, 0, image: 0).Chunk(623, 52, 17, 23, 14, -329, -17, 23, 0, image: 1).Build());
+
+        // Act
+        IReadOnlyList<SpritePiece> pieces = jonbin.Pieces;
+
+        // Assert
+        Assert.Equal("Car000_00.bmp", Assert.Single(pieces).Image);
+    }
+
+    [Fact]
+    public void Pieces_ChunkOnAPictureTheFileDoesNotName_LeavesItOut()
+    {
+        // Arrange
+        Jonbin jonbin = Jonbin.Read(new JonbinBytes().Image("rg000_00.bmp").Chunk(0, 0, 10, 10, 0, 0, 10, 10, 0, image: 1).Build());
+
+        // Act
+        IReadOnlyList<SpritePiece> pieces = jonbin.Pieces;
+
+        // Assert
+        Assert.Empty(pieces);
     }
 
     [Fact]

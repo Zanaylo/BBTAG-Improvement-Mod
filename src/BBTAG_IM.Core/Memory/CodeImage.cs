@@ -12,17 +12,20 @@ public sealed class CodeImage(IReadOnlyList<CodeBlock> blocks)
     private const byte CallOpcode = 0xE8;
     private const int CallLength = 5;
 
-    public uint FindSingle(BytePattern pattern, string name)
-    {
-        var matches = blocks
+    public IReadOnlyList<uint> FindAll(BytePattern pattern) =>
+        blocks
             .SelectMany(block => pattern.FindAll(block.Bytes).Select(offset => block.Address + (uint)offset))
             .ToArray();
 
-        return matches.Length switch
+    public uint FindSingle(BytePattern pattern, string name)
+    {
+        var matches = FindAll(pattern);
+
+        return matches.Count switch
         {
             1 => matches[0],
             0 => throw new GameLayoutException($"{name} was not found in the game code. {GameLayoutException.UnsupportedVersion}"),
-            _ => throw new GameLayoutException($"{name} was found {matches.Length} times in the game code. {GameLayoutException.UnsupportedVersion}"),
+            _ => throw new GameLayoutException($"{name} was found {matches.Count} times in the game code. {GameLayoutException.UnsupportedVersion}"),
         };
     }
 

@@ -56,7 +56,7 @@ internal static unsafe class PluginLoader
 
         if (status != ModPlugin.Started)
         {
-            log.Error($"{name} failed to start (status {status}). Its own log is in {logDirectory}.");
+            log.Error($"{name} failed to start (status {status}). Its log is in {logDirectory}.");
             return;
         }
 

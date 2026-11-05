@@ -17,7 +17,6 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
     private const float SwatchBorder = 2;
     private const float PickerWidthInFontSizes = 14;
     private const float FieldWidthInFontSizes = 16;
-    private const float FitContent = 0;
     private const uint NameLength = 31;
     private const uint DescriptionLength = 63;
     private const float FullChannel = 255f;
@@ -60,10 +59,7 @@ internal sealed class PaletteEditorWindow(PaletteEditor editor, PaletteChoices c
         if (!_isOpen)
             return;
 
-        ImGui.SetNextWindowPos(displaySize * FirstPosition, ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(FitContent), ImGuiCond.FirstUseEver);
-
-        if (ImGui.Begin(Title, ref _isOpen, ImGuiWindowFlags.AlwaysAutoResize))
+        if (FittedWindow.Begin(Title, ref _isOpen, displaySize * FirstPosition))
             DrawContents();
 
         ImGui.End();

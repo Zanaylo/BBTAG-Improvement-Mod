@@ -1,7 +1,7 @@
 BBTAG Mod Loader
 ================
 
-Starts BlazBlue Cross Tag Battle with mods loaded from their own folders.
+Starts BlazBlue Cross Tag Battle with mods loaded from separate folders.
 The game folder is never changed: to uninstall, delete BBTAG_Mod_Loader.exe,
 this README and the "cache" and "mods" folders.
 
@@ -9,7 +9,7 @@ Installing
 ----------
 Copy every file and the "mods" folder next to BBTAG.exe
 (Steam: right click the game > Manage > Browse local files).
-The Mod Loader makes a "cache" folder there for its own files when it starts.
+The Mod Loader makes a "cache" folder there for its files when it starts.
 Older versions had BBTAG_IM.dll, libSkiaSharp.dll, libHarfBuzzSharp.dll and
 av_libglesv2.dll next to it. They are not used anymore and can be deleted.
 
@@ -24,7 +24,7 @@ above BBTAG-OverHaul.
 When a ticked mod has a Cheat Engine table with a character roster, the
 message list names every character that lacks files a match needs.
 
-A mod can add up to 8 characters to the game's own BBTAG.exe. Put one file per
+A mod can add up to 8 characters to the native BBTAG.exe. Put one file per
 character in a "characters" folder of the mod, like characters\rar.json with
 { "Code": "rar", "Template": "brg", "Series": "Others" }. The character plays
 like its template. Series is the row on character select: BlazBlue, Persona,

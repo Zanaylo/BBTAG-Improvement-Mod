@@ -50,7 +50,7 @@ public sealed record KeyScript(IReadOnlyList<KeyStep> Steps)
     private static KeyStep Step(string token, int holdFrames, int gapFrames)
     {
         var parts = token.Split(HoldSeparator);
-        var hold = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var own) ? own : holdFrames;
+        var hold = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var stepHold) ? stepHold : holdFrames;
         var keys = parts[0].Split(ChordSeparator).Select(name => HarnessKeys.Key(name) ?? throw new InvalidKeyScriptException($"unknown key {name}")).ToArray();
         return new KeyStep(keys, hold, gapFrames);
     }

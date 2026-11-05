@@ -71,10 +71,12 @@ internal static unsafe class ExitHooks
         var record = *(nint*)exceptionPointers;
         var code = *(uint*)(record + ExceptionCodeField);
         var address = *(uint*)(record + ExceptionAddressField);
-        LogExit($"Unhandled exception 0x{code:X8} at 0x{address:X8}.");
+        LogExit(GameCrashText.Describe(code, address, ThrownMessage(record)));
 
         return s_gameFilter == 0 ? ContinueSearch : ((delegate* unmanaged[Stdcall]<nint, int>)s_gameFilter)(exceptionPointers);
     }
+
+    private static string? ThrownMessage(nint record) => CppExceptionReader.Message(new ProcessMemory(), (uint)record);
 
     private static void LogExit(string message)
     {

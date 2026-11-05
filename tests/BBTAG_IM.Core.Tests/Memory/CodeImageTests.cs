@@ -15,6 +15,19 @@ public class CodeImageTests
         ]);
 
     [Fact]
+    public void FindAll_PatternInBothBlocks_ReturnsEveryAddress()
+    {
+        // Arrange
+        CodeImage image = CreateCodeImage();
+
+        // Act
+        IReadOnlyList<uint> matches = image.FindAll(BytePattern.Parse("55 8B EC"));
+
+        // Assert
+        Assert.Equal([FirstBlock, SecondBlock + 1], matches);
+    }
+
+    [Fact]
     public void FindSingle_PatternInOneBlock_ReturnsItsAddress()
     {
         // Arrange

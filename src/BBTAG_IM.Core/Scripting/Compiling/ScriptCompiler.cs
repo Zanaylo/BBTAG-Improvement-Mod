@@ -299,7 +299,7 @@ public sealed class ScriptCompiler
     private NameExpression EvaluateSecond(Expression expression, Expression first)
     {
         if (first is NameExpression name && database.SlotNumber(name.Name) == SlotZero)
-            throw new ScriptCompileException("Both sides of this need SLOT_0. Work out one side on its own line first.", expression.Line);
+            throw new ScriptCompileException("Both sides of this need SLOT_0. Work out one side on a separate line first.", expression.Line);
 
         return Evaluate(expression);
     }
@@ -321,7 +321,7 @@ public sealed class ScriptCompiler
         var complex = call.Arguments.Where(argument => !IsSimpleArgument(argument)).ToList();
 
         if (complex.Count > 1)
-            throw new ScriptCompileException($"{call.Name} has more than one value that needs working out. Work them out on their own lines first.", call.Line);
+            throw new ScriptCompileException($"{call.Name} has more than one value that needs working out. Work them out on separate lines first.", call.Line);
 
         var arguments = call.Arguments.Select(argument => complex.Contains(argument) ? Evaluate(argument) : argument).ToList();
         encoder.Write(buffer, command, arguments, call.Line);

@@ -16,12 +16,16 @@ internal sealed unsafe class WindowResolutions
 
     public bool AlreadyExtended { get; }
 
-    public static WindowResolutions Install(CodeImage code)
+    public static WindowResolutions Install(LoadedModule game, CodeImage code)
     {
         var sites = WindowResolutionCode.Locate(code);
 
         if (WindowResolutionCode.Count(code, sites) >= WindowResolutionCode.ExtendedCount)
+        {
+            SavedResolutionHook.Install(game, new SavedResolutionMap(WindowResolutionCode.Resolutions, WindowResolutionCode.OverhaulSizes(code, sites)));
+            Patch(sites.SavedLimit, WindowResolutionCode.SavedLimitPatch());
             return new WindowResolutions(sites, alreadyExtended: true);
+        }
 
         var block = Kernel32.VirtualAlloc(0, WindowResolutionCode.BlockLength, Kernel32.MemoryCommit | Kernel32.MemoryReserve, Kernel32.PageExecuteReadWrite);
 
@@ -34,6 +38,7 @@ internal sealed unsafe class WindowResolutions
         Patch(sites.Count, WindowResolutionCode.CountPatch());
         Patch(sites.Borderless, WindowResolutionCode.BorderlessJump(sites, (uint)block));
         Patch(sites.Window, WindowResolutionCode.WindowJump(sites, (uint)block));
+        Patch(sites.SavedLimit, WindowResolutionCode.SavedLimitPatch());
         return new WindowResolutions(sites, alreadyExtended: false);
     }
 

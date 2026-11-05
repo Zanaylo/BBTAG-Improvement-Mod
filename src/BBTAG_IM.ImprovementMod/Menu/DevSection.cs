@@ -52,7 +52,7 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
             return;
         }
 
-        MenuText.Wrapped("Change the hurtboxes and hitboxes of any move or effect in their own window. It follows the animation or pauses the match on the frame you pick.");
+        MenuText.Wrapped("Change the hurtboxes and hitboxes of any move or effect in a separate window. It follows the animation or pauses the match on the frame you pick.");
 
         if (ImGui.Button("Open the hitbox editor"))
             hitboxes.Show();

@@ -21,6 +21,7 @@ internal static unsafe class FrameRecovery
     private const int RecoveriesPerMatch = 120;
 
     private static readonly RecoveryBudget Budget = new(RecoveriesPerMatch);
+    private static readonly RecoveryReports Reports = new();
 
     private static CodeCave[] s_innermostFirst = [];
     private static MatchExit s_matchExit = null!;
@@ -115,11 +116,13 @@ internal static unsafe class FrameRecovery
 
         if (ResumeIfAllowed() is not { } resume)
         {
-            SafeLog.Error(s_log, $"The game hit an {FatalErrorPolicy.Describe(code, address, s_moduleStart)} again and the match did not end, so the game closes.");
+            SafeLog.Error(s_log, $"The game hit an {FatalErrorPolicy.Describe(code, address, s_moduleStart)} again. The match did not end after {RecoveriesPerMatch} skipped steps, so the game closes.");
             return ContinueSearch;
         }
 
-        SafeLog.Error(s_log, $"The game hit an {FatalErrorPolicy.Describe(code, address, s_moduleStart)} during a match. The game was not closed: that step was skipped and the match goes back to character select.");
+        if (Reports.IsFirst(s_matchNumber, address))
+            SafeLog.Error(s_log, $"The game hit an {FatalErrorPolicy.Describe(code, address, s_moduleStart)} during a match. The game was not closed: that step was skipped and the match goes back to character select.");
+
         *(uint*)(context + InstructionPointerField) = resume;
         return ContinueExecution;
     }
