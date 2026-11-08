@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Mods.Archives;
 
 namespace BBTAG_IM.Core.Mods;
 
@@ -10,21 +11,13 @@ public static class ModDiscovery
             return [];
 
         return fileSystem.EnumerateDirectories(modsDirectory)
+            .Where(directory => !IsBeingUnpacked(directory))
             .Order(StringComparer.OrdinalIgnoreCase)
-            .Select(directory => TryInspect(directory, fileSystem))
+            .Select(directory => ModFolder.TryInspect(directory, fileSystem))
             .OfType<ModFolder>()
             .ToArray();
     }
 
-    private static ModFolder? TryInspect(string directory, IFileSystem fileSystem)
-    {
-        try
-        {
-            return ModFolder.Inspect(directory, fileSystem);
-        }
-        catch (InvalidModFolderException)
-        {
-            return null;
-        }
-    }
+    private static bool IsBeingUnpacked(string directory) =>
+        Path.GetFileName(directory).StartsWith(ModArchiveInstaller.UnpackingPrefix, StringComparison.Ordinal);
 }

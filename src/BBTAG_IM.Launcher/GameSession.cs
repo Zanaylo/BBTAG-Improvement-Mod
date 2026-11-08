@@ -29,12 +29,19 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
     private ILog? _log;
     private Task _errorFollowing = Task.CompletedTask;
 
+    private string ImprovementLogPath =>
+        Path.Combine(Path.GetDirectoryName(context.LogPath) ?? context.LauncherDirectory, ImprovementModContract.LogFileName);
+
+    private string DetailsHint => settings.WriteLogs
+        ? $"Details are in {context.LogPath}."
+        : "Tick Write log files in the Config tab and press Play again to get the details.";
+
     public async Task RunAsync(Func<IReadOnlyCollection<int>> selection)
     {
-        if (File.Exists(context.LogPath))
-            File.Delete(context.LogPath);
+        foreach (var path in new[] { context.LogPath, ImprovementLogPath }.Where(File.Exists))
+            File.Delete(path);
 
-        _log = new FileLog(context.LogPath, TimeProvider.System);
+        _log = settings.WriteLogs ? new FileLog(context.LogPath, TimeProvider.System) : new NullLog();
 
         try
         {
@@ -83,7 +90,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
 
         if (result.Status != PayloadStatus.Ready)
         {
-            Report($"{PayloadStatusText.Describe(result.Status)} The game was closed. Details are in {context.LogPath}.");
+            Report($"{PayloadStatusText.Describe(result.Status)} The game was closed. {DetailsHint}");
             return false;
         }
 
@@ -129,8 +136,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
     private async Task FollowGameErrorsAsync(Task gameExit)
     {
         var fileSystem = new PhysicalFileSystem();
-        var logFolder = Path.GetDirectoryName(context.LogPath) ?? context.LauncherDirectory;
-        var improvementErrors = new ErrorLogFollower(fileSystem, Path.Combine(logFolder, ImprovementModContract.LogFileName));
+        var improvementErrors = new ErrorLogFollower(fileSystem, ImprovementLogPath);
         var loaderErrors = new ErrorLogFollower(fileSystem, context.LogPath);
 
         while (await Task.WhenAny(gameExit, Task.Delay(PollInterval)) != gameExit)
@@ -161,7 +167,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         foreach (var mod in context.Mods)
             log.Info($"Mod: {mod.Name}");
 
-        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.RootPath).ToArray(), settings.WaitForDebugger);
+        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.RootPath).ToArray(), settings.WaitForDebugger, settings.WriteLogs);
         var injector = new PayloadInjector(new BundledFiles(new PhysicalFileSystem(), context.LauncherDirectory).PathOf(PayloadContract.DllFileName));
         return new GameLauncher(injector, new VisualStudioAttacher(), log).Launch(session, context.Target);
     }

@@ -103,6 +103,21 @@ public class BundledFilesTests
     }
 
     [Fact]
+    public void Place_Stream_WritesItsBytesIntoTheCacheFolder()
+    {
+        // Arrange
+        BundledFiles files = CreateBundledFiles();
+        using MemoryStream resource = new(Bundled);
+
+        // Act
+        string path = files.Place(FileName, resource);
+
+        // Assert
+        Assert.Equal(CachedPath, path);
+        _fileSystemMock.Received(1).WriteAllBytes(CachedPath, Arg.Is<byte[]>(bytes => bytes.SequenceEqual(Bundled)));
+    }
+
+    [Fact]
     public void PathOf_NothingCached_ReturnsTheLooseFile()
     {
         // Arrange

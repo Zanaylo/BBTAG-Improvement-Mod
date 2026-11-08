@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Compiling;
 using BBTAG_IM.Core.Scripting.Live;
@@ -11,6 +12,8 @@ public class LiveScriptTests
     private const uint MovedFile = 0x06000000;
 
     private readonly IScriptBuffers _scriptBuffersMock = Substitute.For<IScriptBuffers>();
+    private readonly IGameHeap _gameHeapMock = Substitute.For<IGameHeap>();
+    private readonly IMoveRefresh _moveRefreshMock = Substitute.For<IMoveRefresh>();
     private readonly ScriptMemory _scriptMemory = new();
 
     [Fact]
@@ -47,6 +50,101 @@ public class LiveScriptTests
         Assert.Equal(ScriptApplyKind.Moved, result.Kind);
         Assert.Equal(MovedFile, record.File);
         Assert.Equal(48, record.Nodes(record.StateMap).Single().Offset);
+    }
+
+    [Fact]
+    public void Apply_StateAdded_PutsItsNameInTheStateMapRightAway()
+    {
+        // Arrange
+        byte[] loaded = new ScriptBytes().State("A").Command(1).Build();
+        byte[] edited = new ScriptBytes().State("A").Command(1).State("B").Command(1).Build();
+        _scriptMemory.AddNode(ScriptMemory.StateMap, "A", 0);
+        _scriptBuffersMock.Allocate(Arg.Any<byte[]>()).Returns(MovedFile);
+        _gameHeapMock.Allocate(ScriptMap.NodeLength).Returns(ScriptMemory.FreeNodes);
+        LiveScript liveScript = CreateLiveScript(loaded);
+
+        // Act
+        ScriptApplyResult result = liveScript.Apply(Compiled(edited));
+
+        // Assert
+        ScriptRecord record = new(_scriptMemory.Memory, ScriptMemory.Record);
+        Assert.Contains(new ScriptMapNode(ScriptMemory.FreeNodes, "B", 40), record.Nodes(record.StateMap));
+        Assert.Equal(["B"], result.AddedFunctions);
+        Assert.Empty(result.WaitingFunctions);
+    }
+
+    [Fact]
+    public void Apply_SubroutineAdded_PutsItsNameInTheSubroutineMap()
+    {
+        // Arrange
+        byte[] loaded = new ScriptBytes().State("A").Command(1).Build();
+        byte[] edited = new ScriptBytes().State("A").Command(1).Subroutine("S").Command(9).Build();
+        _scriptMemory.AddNode(ScriptMemory.StateMap, "A", 0);
+        _scriptBuffersMock.Allocate(Arg.Any<byte[]>()).Returns(MovedFile);
+        _gameHeapMock.Allocate(ScriptMap.NodeLength).Returns(ScriptMemory.FreeNodes);
+        LiveScript liveScript = CreateLiveScript(loaded);
+
+        // Act
+        liveScript.Apply(Compiled(edited));
+
+        // Assert
+        ScriptRecord record = new(_scriptMemory.Memory, ScriptMemory.Record);
+        Assert.Equal("S", Assert.Single(record.Nodes(record.SubroutineMap)).Name);
+        Assert.DoesNotContain(record.Nodes(record.StateMap), node => node.Name == "S");
+    }
+
+    [Fact]
+    public void Apply_StateRemoved_TakesItsNameOutOfTheStateMap()
+    {
+        // Arrange
+        byte[] loaded = new ScriptBytes().State("A").Command(1).State("B").Command(1).Build();
+        byte[] edited = new ScriptBytes().State("A").Command(1).Build();
+        _scriptMemory.AddNode(ScriptMemory.StateMap, "A", 0);
+        _scriptMemory.AddNode(ScriptMemory.StateMap, "B", 40);
+        _scriptBuffersMock.Allocate(Arg.Any<byte[]>()).Returns(MovedFile);
+        LiveScript liveScript = CreateLiveScript(loaded);
+
+        // Act
+        liveScript.Apply(Compiled(edited));
+
+        // Assert
+        ScriptRecord record = new(_scriptMemory.Memory, ScriptMemory.Record);
+        Assert.Equal("A", Assert.Single(record.Nodes(record.StateMap)).Name);
+    }
+
+    [Fact]
+    public void Apply_StateAddedWithNoNameToCopyFrom_ReportsItWaitsForTheNextMatch()
+    {
+        // Arrange
+        byte[] loaded = new ScriptBytes().State("A").Command(1).Build();
+        byte[] edited = new ScriptBytes().State("A").Command(1).State("B").Command(1).Build();
+        _scriptBuffersMock.Allocate(Arg.Any<byte[]>()).Returns(MovedFile);
+        LiveScript liveScript = CreateLiveScript(loaded);
+
+        // Act
+        ScriptApplyResult result = liveScript.Apply(Compiled(edited));
+
+        // Assert
+        Assert.Empty(result.AddedFunctions);
+        Assert.Equal(["B"], result.WaitingFunctions);
+        _gameHeapMock.DidNotReceive().Allocate(Arg.Any<int>());
+    }
+
+    [Fact]
+    public void Apply_Script_ReportsWhatTheMoveRefreshDid()
+    {
+        // Arrange
+        byte[] loaded = new ScriptBytes().State("A").Command(ScriptTestDatabase.Damage, 12).Command(1).Build();
+        byte[] edited = new ScriptBytes().State("A").Command(ScriptTestDatabase.Damage, 15).Command(1).Build();
+        _moveRefreshMock.Refresh(ScriptMemory.Record, Arg.Is<ScriptBinary>(script => script.Bytes.SequenceEqual(loaded)), Arg.Is<ScriptBinary>(script => script.Bytes.SequenceEqual(edited)))
+            .Returns(MoveRefreshResult.Refreshed);
+        LiveScript liveScript = CreateLiveScript(loaded);
+
+        // Act
+        ScriptApplyResult result = liveScript.Apply(Compiled(edited));
+
+        // Assert
+        Assert.Equal(MoveRefreshResult.Refreshed, result.Moves);
     }
 
     [Fact]
@@ -103,7 +201,7 @@ public class LiveScriptTests
     public LiveScript CreateLiveScript(byte[] loaded)
     {
         _scriptMemory.Load(loaded);
-        return new LiveScript(_scriptMemory.Memory, _scriptBuffersMock, ScriptMemory.Record, ScriptBinary.Read(loaded, ScriptTestDatabase.Create()), ScriptTestDatabase.Create());
+        return new LiveScript(_scriptMemory.Memory, _scriptBuffersMock, _gameHeapMock, ScriptMemory.Record, ScriptBinary.Read(loaded, ScriptTestDatabase.Create()), ScriptTestDatabase.Create(), _moveRefreshMock);
     }
 
     private static CompiledScript Compiled(byte[] bytes) => new(bytes, new ScriptLineMap([]));

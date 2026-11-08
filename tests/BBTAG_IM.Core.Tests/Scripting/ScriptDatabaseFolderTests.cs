@@ -9,10 +9,38 @@ public class ScriptDatabaseFolderTests
 {
     private const string Folder = @"C:\Game\mods\BBTAG-Improvement-Mod\bbscript";
     private const string EditorApi = @"C:\Game\mods\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.g.cs";
+    private const string EditorSolution = @"C:\Game\mods\BBTAG-Improvement-Mod\bbscript\Scripts\BBScript.slnx";
     private static readonly string DocsPath = Path.Combine(Folder, ScriptDocsFile.FileName);
     private static readonly string GameSizesPath = Path.Combine(Folder, ScriptDatabaseFolder.GameSizesFile);
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
+
+    [Fact]
+    public void ExistingEditorSolution_SolutionIsThere_ReturnsItsPath()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(EditorSolution).Returns(true);
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        string? solution = folder.ExistingEditorSolution;
+
+        // Assert
+        Assert.Equal(EditorSolution, solution);
+    }
+
+    [Fact]
+    public void ExistingEditorSolution_SolutionWasNotInstalled_ReturnsNull()
+    {
+        // Arrange
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        string? solution = folder.ExistingEditorSolution;
+
+        // Assert
+        Assert.Null(solution);
+    }
 
     [Fact]
     public void LoadDocs_DocsFileExists_ReadsIt()

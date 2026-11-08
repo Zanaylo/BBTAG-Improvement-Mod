@@ -37,6 +37,23 @@ internal sealed partial class LauncherWindow : Window
         await _controller.PlayAsync();
     }
 
+    private async void OnRefreshModsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_controller is not null)
+            await _controller.RefreshModsAsync();
+    }
+
+    private async void OnWindowOpened(object? sender, EventArgs e)
+    {
+        if (_controller is null)
+            return;
+
+        if (_controller.HasArchivesToUnpack)
+            await _controller.RefreshModsAsync();
+
+        await _controller.PlayOnStartAsync();
+    }
+
     private void OnMoveUpClick(object? sender, RoutedEventArgs e) => MoveMod(sender, ModMove.Up);
 
     private void OnMoveDownClick(object? sender, RoutedEventArgs e) => MoveMod(sender, ModMove.Down);
@@ -49,7 +66,10 @@ internal sealed partial class LauncherWindow : Window
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.Action == NotifyCollectionChangedAction.Add)
-            MessageList.ScrollIntoView(e.NewStartingIndex);
+        if (e.Action != NotifyCollectionChangedAction.Add)
+            return;
+
+        MessageList.UpdateLayout();
+        MessageList.ScrollIntoView(e.NewStartingIndex);
     }
 }

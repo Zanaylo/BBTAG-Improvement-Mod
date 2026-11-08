@@ -7,6 +7,10 @@ public static class HarnessCommands
     public const string PipeName = "bbtag-im-harness";
 
     private const char WordSeparator = ' ';
+    private const string DownWord = "down";
+    private const string UpWord = "up";
+    private const int MenuKeyWords = 2;
+    private const int MenuClickWords = 2;
 
     public static string Execute(string line, IHarnessTarget target)
     {
@@ -21,10 +25,29 @@ public static class HarnessCommands
             "keys" => Keys(words[1..], target),
             "grab" => Grab(line, target),
             "state" => target.State(),
+            "menu" => target.ToggleMenu(),
+            "menukey" => MenuKey(words[1..], target),
+            "menuclick" => MenuClick(words[1..], target),
             "back" => target.BackToCharacterSelect(),
             "quit" => target.Quit(),
             _ => $"error unknown command {words[0]}",
         };
+    }
+
+    private static string MenuKey(string[] words, IHarnessTarget target)
+    {
+        if (words.Length != MenuKeyWords || !int.TryParse(words[0], out var key) || words[1] is not (DownWord or UpWord))
+            return "error menukey needs a key number and down or up";
+
+        return target.MenuKey(key, words[1] == DownWord);
+    }
+
+    private static string MenuClick(string[] words, IHarnessTarget target)
+    {
+        if (words.Length != MenuClickWords || !int.TryParse(words[0], out var x) || !int.TryParse(words[1], out var y))
+            return "error menuclick needs two numbers";
+
+        return target.MenuClick(x, y);
     }
 
     private static string Keys(string[] words, IHarnessTarget target)

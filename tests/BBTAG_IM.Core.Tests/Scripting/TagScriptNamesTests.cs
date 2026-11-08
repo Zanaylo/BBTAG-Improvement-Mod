@@ -101,6 +101,21 @@ public class TagScriptNamesTests
         Assert.Equal(expected, name);
     }
 
+    [Theory]
+    [InlineData(37, "INPUT_HOLD_E")]
+    [InlineData(38, "INPUT_PRESS_NOW_E")]
+    [InlineData(39, "INPUT_RELEASE_E")]
+    [InlineData(40, "INPUT_PRESS_E")]
+    [InlineData(41, "INPUT_NOT_HOLD_E")]
+    public void NameOf_MoveInputOfTheFifthButton_IsItsName(int value, string expected)
+    {
+        // Act
+        string? name = TagMoveInputs.Table.NameOf(value);
+
+        // Assert
+        Assert.Equal(expected, name);
+    }
+
     [Fact]
     public void CommandNames_EveryName_IsUnique()
     {

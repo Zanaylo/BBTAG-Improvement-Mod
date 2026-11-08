@@ -13,6 +13,12 @@ public class TagNormalInputsTests
     [InlineData(0x2B, "INPUT_5C")]
     [InlineData(0x34, "INPUT_J5C")]
     [InlineData(0x4A, "INPUT_J9D")]
+    [InlineData(0x4B, "INPUT_1E")]
+    [InlineData(0x4F, "INPUT_5E")]
+    [InlineData(0x53, "INPUT_9E")]
+    [InlineData(0x54, "INPUT_J1E")]
+    [InlineData(0x58, "INPUT_J5E")]
+    [InlineData(0x5C, "INPUT_J9E")]
     public void NameOf_ButtonAndDirection_IsTheNumpadName(int value, string expected)
     {
         // Act
@@ -72,7 +78,7 @@ public class TagNormalInputsTests
         IReadOnlyList<NamedValue> named = TagNormalInputs.Instance.Named.ToList();
 
         // Assert
-        Assert.Equal(4 * 18 + 9, named.Count);
+        Assert.Equal(5 * 18 + 9, named.Count);
         Assert.All(named, value => Assert.False(string.IsNullOrWhiteSpace(value.Description)));
     }
 }

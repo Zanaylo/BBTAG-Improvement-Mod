@@ -11,4 +11,8 @@
     <Product>BBTAG Improvement Mod</Product>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TesterBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);TESTER_BUILD</DefineConstants>
+  </PropertyGroup>
+
 </Project>

@@ -6,7 +6,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, ScriptLanguageChoice language, HitboxEditorWindow? hitboxes, string databaseFolder) : IMenuSection
+internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, ScriptLanguageChoice language, HitboxEditorWindow? hitboxes, IReadOnlyList<IDevPanel> panels, string databaseFolder) : IMenuSection
 {
     public const string Name = "Dev";
 
@@ -30,6 +30,9 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
         if (!scripts.HasCommandNames)
             MenuText.Muted($"Commands show as numbers. Put the BBTAG command lists (command_db.json and its folders) in {databaseFolder} to see their names.");
 
+        if (!scripts.DevFolderLoads)
+            MenuText.Colored(ErrorColor, "The DEV folder is turned off in the Mod Loader, so every match starts with the original scripts. Your saved edits are applied again a moment later, but code that only runs when the match starts (like Move_Register in MatchInit) misses them. Turn DEV on in the Mod Loader and start the game again.");
+
         ImGui.Spacing();
         language.Draw();
         editor.Draw();
@@ -40,6 +43,12 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
 
         if (_notice.Length > 0)
             MenuText.Wrapped(_notice);
+
+        foreach (var panel in panels)
+        {
+            ImGui.Spacing();
+            panel.Draw();
+        }
     }
 
     private void DrawHitboxes()
@@ -98,8 +107,11 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
         {
             ImGui.Text(Path.GetFileName(session.Paths.Source));
             ImGui.SameLine();
-            ImGui.TextColored(ColorOf(session.Status.State), session.Status.Message);
+            MenuText.Colored(ColorOf(session.Status.State), session.Status.Message);
         }
+
+        if (scripts.IsFrozen)
+            MenuText.Colored(ErrorColor, "The match is frozen until the script is fixed. Save the fix and it goes on by itself (F5 lets it go on now).");
     }
 
     private void DrawReload()

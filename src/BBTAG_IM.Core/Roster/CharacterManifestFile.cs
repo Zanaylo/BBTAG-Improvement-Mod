@@ -6,6 +6,7 @@ internal sealed record CharacterManifestFile(
     string? ShortName,
     string? SpriteFolder,
     string? Series,
-    CharacterNamesFile? Names);
+    CharacterNamesFile? Names,
+    string? FilesFrom = null);
 
 internal sealed record CharacterNamesFile(string? Full, string? Short, string? Select);

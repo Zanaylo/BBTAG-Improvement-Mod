@@ -30,6 +30,8 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     public string EditorSolutionPath => Path.Combine(folder, EditorProjectFolder, CSharpProject.SolutionFileName);
 
+    public string? ExistingEditorSolution => fileSystem.FileExists(EditorSolutionPath) ? EditorSolutionPath : null;
+
     public void WriteEditorApi(string api) => WriteWhenChanged(Path.Combine(folder, EditorProjectFolder, CSharpApi.FileName), api);
 
     public void WriteGameSizes(IReadOnlyDictionary<int, int> sizes) => WriteWhenChanged(GameSizesPath, CommandSizesText.Write(sizes));

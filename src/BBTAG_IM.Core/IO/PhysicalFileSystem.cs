@@ -44,6 +44,14 @@ public sealed class PhysicalFileSystem : IFileSystem
 
     public void DeleteFile(string path) => File.Delete(path);
 
+    public void DeleteDirectory(string path) => Directory.Delete(path, recursive: true);
+
+    public void MoveFile(string source, string destination)
+    {
+        CreateDirectoryOf(destination);
+        File.Move(source, destination, overwrite: true);
+    }
+
     public Version? FileVersion(string path)
     {
         var info = FileVersionInfo.GetVersionInfo(path);

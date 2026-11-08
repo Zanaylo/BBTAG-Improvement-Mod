@@ -312,4 +312,24 @@ public class LauncherSettingsTests
         // Assert
         Assert.False(settings.WaitForDebugger);
     }
+
+    [Fact]
+    public void PlayOnStart_NewSettings_IsOff()
+    {
+        // Act
+        LauncherSettings settings = new();
+
+        // Assert
+        Assert.False(settings.PlayOnStart);
+    }
+
+    [Fact]
+    public void WriteLogs_NewSettings_IsOff()
+    {
+        // Act
+        LauncherSettings settings = new();
+
+        // Assert
+        Assert.False(settings.WriteLogs);
+    }
 }

@@ -98,6 +98,39 @@ public class ModFileRedirectorTests
         Assert.Null(redirected);
     }
 
+    [Theory]
+    [InlineData(@"data\common\fhd_ads.pac", GameDirectory + @"\data\common\fhd_ads.pac")]
+    [InlineData("data/common/fhd_ads.pac", GameDirectory + @"\data\common\fhd_ads.pac")]
+    [InlineData("BBTAG.ini", GameDirectory + @"\BBTAG.ini")]
+    public void AnchorToGame_RelativePath_PointsIntoTheGameFolderWhateverTheWorkingDirectoryIs(string path, string expected)
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? anchored = redirector.AnchorToGame(path);
+
+        // Assert
+        Assert.Equal(expected, anchored);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(GameFile)]
+    [InlineData(@"\.\pipe\bbtag-im-harness")]
+    public void AnchorToGame_EmptyOrRootedPath_ReturnsNull(string? path)
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? anchored = redirector.AnchorToGame(path);
+
+        // Assert
+        Assert.Null(anchored);
+    }
+
     [Fact]
     public void RedirectLookup_AttributesOfAFileAModProvides_ReturnsTheModFile()
     {

@@ -19,7 +19,7 @@ public static class TagMoveInputs
     private const string HeldDirectionSource = " BBTAG.exe reads these to find the held direction (0x7BFB40).";
     private const string ButtonSource = " BBTAG.exe sets it while the button is not held (0x7BAE90).";
 
-    private static readonly string[] Buttons = ["A", "B", "C", "D"];
+    private static readonly string[] Buttons = ["A", "B", "C", "D", "E"];
 
     private static readonly Dictionary<int, string> DirectionGroups = new()
     {
@@ -35,6 +35,9 @@ public static class TagMoveInputs
 
     private static readonly NamedValue[] Others =
     [
+        new(37, "INPUT_HOLD_E", "E is held. The fifth battle button: BBTAG.exe never sets it, the Improvement Mod does when Advanced mapper buttons is on."),
+        new(39, "INPUT_RELEASE_E", "E was released."),
+        new(40, "INPUT_PRESS_E", "E was pressed. BBTAG.exe tests this for INPUT_1E to INPUT_J9E (0x786A80)."),
         new(0xDE, "INPUT_PRESS_BC", "B and C pressed together: every Distortion Skill registers 236 or 214 with it. Name from the mod author's notes."),
         new(0xE2, "INPUT_DASH_22", "The 22 of the game's second dashes (__2ndDash22, AirDash_22, Swoop). INPUT_22 is another value."),
         new(0xE4, "INPUT_DASH_44", "The 44 of the game's second dashes (__2ndDash44). INPUT_44 is another value."),

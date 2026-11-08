@@ -181,7 +181,7 @@ internal static unsafe class FileApiHooks
     {
         try
         {
-            return Logged(path, s_redirector.RedirectOpen(path, access, disposition));
+            return Logged(path, s_redirector.RedirectOpen(path, access, disposition)) ?? s_redirector.AnchorToGame(path);
         }
         catch (Exception exception)
         {
@@ -194,7 +194,7 @@ internal static unsafe class FileApiHooks
     {
         try
         {
-            return Logged(path, s_redirector.RedirectLookup(path));
+            return Logged(path, s_redirector.RedirectLookup(path)) ?? s_redirector.AnchorToGame(path);
         }
         catch (Exception exception)
         {
@@ -210,7 +210,7 @@ internal static unsafe class FileApiHooks
         if (path is not null && path.IndexOfAny([Wildcard, SingleWildcard]) >= 0)
         {
             LogEnumeration(path);
-            return 0;
+            return s_redirector.AnchorToGame(path) is { } anchored ? ToAnsiOrZero(anchored) : 0;
         }
 
         var redirected = RedirectLookup(path);

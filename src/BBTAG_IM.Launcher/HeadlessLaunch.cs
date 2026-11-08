@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
+using BBTAG_IM.Core.Mods.Archives;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Launcher.Ui;
 
@@ -22,8 +23,11 @@ internal static class HeadlessLaunch
         {
             var fileSystem = new PhysicalFileSystem();
             var settings = SettingsStores.Launcher(fileSystem, launcherDirectory).Load();
-            var options = LaunchOptions.Parse(arguments.Where(argument => !argument.Equals(Flag, StringComparison.OrdinalIgnoreCase)).ToArray());
-            var mods = settings.InLoadOrder(ModSelection.Resolve(options, settings.ModsDirectory(launcherDirectory), fileSystem));
+            var modsDirectory = settings.ModsDirectory(launcherDirectory);
+            var archives = new ModArchiveInstaller(fileSystem, new ArchiveUnpacker(), modsDirectory);
+            var options = archives.WithArchivesInstalled(LaunchOptions.Parse(arguments.Where(argument => !argument.Equals(Flag, StringComparison.OrdinalIgnoreCase)).ToArray()));
+            archives.InstallPending(_ => { });
+            var mods = settings.InLoadOrder(ModSelection.Resolve(options, modsDirectory, fileSystem));
             var context = LaunchContext.Resolve(options, launcherDirectory, settings.EnabledOf(mods)) with { TablePath = null, Table = null };
 
             using var session = new GameSession(context, settings, new SilentView());

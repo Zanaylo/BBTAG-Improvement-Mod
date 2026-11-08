@@ -18,6 +18,8 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     private bool _canPlay;
     private bool _canChangeMods = true;
     private bool _showCheatEngineWindow = true;
+    private bool _writeLogs;
+    private bool _playOnStart;
 
     public event Action<ScriptNode>? ScriptToggled;
 
@@ -26,6 +28,10 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     public event Action<ModEntry, ModMove>? ModMoveRequested;
 
     public event Action<bool>? ShowCheatEngineWindowChanged;
+
+    public event Action<bool>? WriteLogsChanged;
+
+    public event Action<bool>? PlayOnStartChanged;
 
     public string GameText { get; init; } = "";
 
@@ -96,6 +102,26 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
         {
             if (SetProperty(ref _showCheatEngineWindow, value))
                 ShowCheatEngineWindowChanged?.Invoke(value);
+        }
+    }
+
+    public bool WriteLogs
+    {
+        get => _writeLogs;
+        set
+        {
+            if (SetProperty(ref _writeLogs, value))
+                WriteLogsChanged?.Invoke(value);
+        }
+    }
+
+    public bool PlayOnStart
+    {
+        get => _playOnStart;
+        set
+        {
+            if (SetProperty(ref _playOnStart, value))
+                PlayOnStartChanged?.Invoke(value);
         }
     }
 

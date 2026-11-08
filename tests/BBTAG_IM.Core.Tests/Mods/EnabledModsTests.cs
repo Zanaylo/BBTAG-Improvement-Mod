@@ -53,4 +53,45 @@ public class EnabledModsTests
         // Assert
         Assert.Equal(["BBTAG-Improvement-Mod", "BBTAG-OverHaul"], mods.Select(mod => mod.Name));
     }
+
+    [Fact]
+    public void IsOn_ModTurnedOffInTheLauncher_ReturnsFalse()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(true);
+        _fileSystemMock.ReadAllText(LauncherSettingsPath).Returns("""{ "DisabledMods": ["DEV"] }""");
+
+        // Act
+        bool on = EnabledMods.IsOn("DEV", ImprovementMod, _fileSystemMock);
+
+        // Assert
+        Assert.False(on);
+    }
+
+    [Fact]
+    public void IsOn_ModNotTurnedOff_ReturnsTrue()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(true);
+        _fileSystemMock.ReadAllText(LauncherSettingsPath).Returns("""{ "DisabledMods": ["Costumes"] }""");
+
+        // Act
+        bool on = EnabledMods.IsOn("DEV", ImprovementMod, _fileSystemMock);
+
+        // Assert
+        Assert.True(on);
+    }
+
+    [Fact]
+    public void IsOn_NoLauncherSettings_ReturnsTrue()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(false);
+
+        // Act
+        bool on = EnabledMods.IsOn("DEV", ImprovementMod, _fileSystemMock);
+
+        // Assert
+        Assert.True(on);
+    }
 }

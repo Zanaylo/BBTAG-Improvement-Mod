@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Dev;
 using BBTAG_IM.Core.Scripting.Live;
@@ -18,6 +19,8 @@ public class ScriptSessionTests
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
     private readonly IScriptBuffers _scriptBuffersMock = Substitute.For<IScriptBuffers>();
+    private readonly IGameHeap _gameHeapMock = Substitute.For<IGameHeap>();
+    private readonly IMoveRefresh _moveRefreshMock = Substitute.For<IMoveRefresh>();
     private readonly ScriptMemory _scriptMemory = new();
     private byte[] _loaded = new ScriptBytes().State("A").Command(ScriptTestDatabase.Damage, 12).Command(1).Build();
 
@@ -49,6 +52,36 @@ public class ScriptSessionTests
         Assert.Equal(ScriptSessionState.Applied, session.Status.State);
         Assert.Equal(15, _scriptMemory.Memory.Int32From(ScriptMemory.File + 4 + 36 + 36 + 4));
         _fileSystemMock.Received(1).WriteAllBytes(Binary, Arg.Any<byte[]>());
+    }
+
+    [Fact]
+    public void Poll_MovesRegisteredAgain_SaysSo()
+    {
+        // Arrange
+        _moveRefreshMock.Refresh(default, default!, default!).ReturnsForAnyArgs(MoveRefreshResult.Refreshed);
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Contains("Moves registered again", session.Status.Message);
+    }
+
+    [Fact]
+    public void Poll_MovesNotRegisteredAgain_SaysTheyWaitForTheNextMatch()
+    {
+        // Arrange
+        _moveRefreshMock.Refresh(default, default!, default!).ReturnsForAnyArgs(MoveRefreshResult.NotRefreshed);
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Contains("Move_Register changes work after the next match loads", session.Status.Message);
     }
 
     [Fact]
@@ -104,6 +137,136 @@ public class ScriptSessionTests
     }
 
     [Fact]
+    public void Rollback_AfterAnEdit_WaitsForAFix()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+        session.Poll();
+
+        // Act
+        session.Rollback(null, "Broke.");
+
+        // Assert
+        Assert.True(session.WaitsForFix);
+    }
+
+    [Fact]
+    public void Poll_FixSavedAfterARollback_StopsWaiting()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+        session.Poll();
+        session.Rollback(null, "Broke.");
+        Saved(SecondSave.AddSeconds(5), "@State\ndef A():\n    Damage(20)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.False(session.WaitsForFix);
+        Assert.Equal(ScriptSessionState.Applied, session.Status.State);
+    }
+
+    [Fact]
+    public void Poll_SavedBackToTheWorkingVersionAfterARollback_StopsWaiting()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+        session.Poll();
+        session.Rollback(null, "Broke.");
+        Saved(SecondSave.AddSeconds(5), "@State\ndef A():\n    Damage(12)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.False(session.WaitsForFix);
+        Assert.Equal(ScriptSessionState.Watching, session.Status.State);
+    }
+
+    [Fact]
+    public void Poll_MistakeSavedAfterARollback_KeepsWaiting()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+        session.Poll();
+        session.Rollback(null, "Broke.");
+        Saved(SecondSave.AddSeconds(5), "@State\ndef A():\n    Damag(20)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.True(session.WaitsForFix);
+    }
+
+    [Fact]
+    public void Poll_FirstPollOfAKeptSourceThatDiffersFromTheGame_AppliesIt()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        _fileSystemMock.ReadAllText(Source).Returns("@State\ndef A():\n    Damage(15)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Equal(ScriptSessionState.Applied, session.Status.State);
+        Assert.Equal(15, _scriptMemory.Memory.Int32From(ScriptMemory.File + 4 + 36 + 36 + 4));
+    }
+
+    [Fact]
+    public void Poll_FirstPollOfAKeptSourceThatMatchesTheGame_LeavesTheGameScript()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        _fileSystemMock.ReadAllText(Source).Returns("@State\ndef A():\n    Damage(12)\n");
+
+        // Act
+        session.Poll();
+
+        // Assert
+        Assert.Equal(ScriptSessionState.Watching, session.Status.State);
+        _fileSystemMock.DidNotReceive().WriteAllBytes(Binary, Arg.Any<byte[]>());
+    }
+
+    [Fact]
+    public void Poll_SecondPollWithoutASave_DoesNotReadTheSourceAgain()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        _fileSystemMock.ReadAllText(Source).Returns("@State\ndef A():\n    Damage(12)\n");
+        session.Poll();
+        _fileSystemMock.ClearReceivedCalls();
+
+        // Act
+        session.Poll();
+
+        // Assert
+        _fileSystemMock.DidNotReceive().ReadAllText(Source);
+    }
+
+    [Fact]
+    public void Poll_NewSourceJustWritten_DoesNotReadItBack()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Source).Returns(false);
+        _fileSystemMock.LastWriteTimeUtc(Source).Returns(FirstSave);
+        ScriptSession session = CreateScriptSession();
+        session.Open();
+
+        // Act
+        session.Poll();
+
+        // Assert
+        _fileSystemMock.DidNotReceive().ReadAllText(Source);
+    }
+
+    [Fact]
     public void Rollback_ObjectStoppedBeforeTheEdit_MarksTheEditedLine()
     {
         // Arrange
@@ -146,6 +309,58 @@ public class ScriptSessionTests
 
         // Assert
         Assert.False(rolledBack);
+    }
+
+    [Fact]
+    public void Hold_NothingToRollBackTo_WaitsForAFixAndMarksTheLine()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        Saved(SecondSave, "@State\ndef A():\n    Damage(15)\n");
+        session.Poll();
+        session.Rollback(null, "Broke.");
+        _fileSystemMock.ReadAllText(Source).Returns("@State\ndef A():\n    Damage(15)\n");
+        _fileSystemMock.ClearReceivedCalls();
+        uint damage = ScriptMemory.File + 4 + 36 + 36;
+
+        // Act
+        bool held = session.Hold(damage, "Broke again.");
+
+        // Assert
+        Assert.True(held);
+        Assert.True(session.WaitsForFix);
+        Assert.Equal(ScriptSessionState.RolledBack, session.Status.State);
+        _fileSystemMock.Received(1).WriteAllText(Source, Arg.Is<string>(text => text.Contains("# !!! The game stopped here: Broke again.")));
+    }
+
+    [Fact]
+    public void Hold_InstructionOutsideTheScript_MarksTheFirstLine()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        _fileSystemMock.ReadAllText(Source).Returns("@State\ndef A():\n    Damage(12)\n");
+
+        // Act
+        session.Hold(null, "Broke.");
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(Source, "# !!! The game stopped here: Broke.\n@State\ndef A():\n    Damage(12)\n");
+    }
+
+    [Fact]
+    public void Hold_GameLoadedTheScriptAgain_ReturnsFalse()
+    {
+        // Arrange
+        ScriptSession session = OpenedSession();
+        _scriptMemory.Memory.UInt32At(ScriptMemory.Record, 0x07000000);
+        session.Poll();
+
+        // Act
+        bool held = session.Hold(null, "Broke.");
+
+        // Assert
+        Assert.False(held);
+        Assert.False(session.WaitsForFix);
     }
 
     [Fact]
@@ -268,7 +483,7 @@ public class ScriptSessionTests
     {
         _scriptMemory.Load(_loaded);
         ScriptDatabase database = ScriptTestDatabase.Create();
-        LiveScript live = new(_scriptMemory.Memory, _scriptBuffersMock, ScriptMemory.Record, ScriptBinary.Read(_loaded, database), database);
+        LiveScript live = new(_scriptMemory.Memory, _scriptBuffersMock, _gameHeapMock, ScriptMemory.Record, ScriptBinary.Read(_loaded, database), database, _moveRefreshMock);
         return new ScriptSession(_fileSystemMock, new ScriptPaths(source, Binary), live, database);
     }
 

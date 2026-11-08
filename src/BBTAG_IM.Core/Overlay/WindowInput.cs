@@ -4,6 +4,7 @@ namespace BBTAG_IM.Core.Overlay;
 
 public abstract record WindowInput
 {
+    private const uint KillFocus = 0x008;
     private const uint KeyDown = 0x100;
     private const uint SystemKeyDown = 0x104;
     private const uint KeyUp = 0x101;
@@ -30,6 +31,7 @@ public abstract record WindowInput
 
     public static WindowInput? Parse(uint message, ulong wParam, long lParam) => message switch
     {
+        KillFocus => new FocusLost(),
         KeyDown or SystemKeyDown when (lParam & RepeatFlag) == 0 => new KeyPressed((int)wParam),
         KeyUp or SystemKeyUp => new KeyReleased((int)wParam),
         Character => new CharacterTyped((char)wParam),
@@ -54,6 +56,12 @@ public abstract record WindowInput
         return point * displaySize / clientSize;
     }
 
+    public static MouseMoved ToClient(Vector2 point, Vector2 clientSize, Vector2 displaySize)
+    {
+        var client = displaySize.X <= 0 || displaySize.Y <= 0 ? point : point * clientSize / displaySize;
+        return new MouseMoved((int)MathF.Round(client.X), (int)MathF.Round(client.Y));
+    }
+
     private static short LowWord(long value) => (short)(value & WordMask);
 
     private static short HighWord(long value) => (short)((value >> HighWordShift) & WordMask);
@@ -70,3 +78,5 @@ public sealed record MouseMoved(int X, int Y) : WindowInput;
 public sealed record MouseButton(int Button, bool Down) : WindowInput;
 
 public sealed record MouseWheelTurned(float Notches) : WindowInput;
+
+public sealed record FocusLost : WindowInput;

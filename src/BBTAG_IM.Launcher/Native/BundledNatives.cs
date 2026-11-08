@@ -32,20 +32,13 @@ internal static class BundledNatives
     {
         try
         {
-            return bundle.Place(resource.FileName, Read(resource.Name));
+            using var stream = typeof(BundledNatives).Assembly.GetManifestResourceStream(resource.Name)!;
+            return bundle.Place(resource.FileName, stream);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return null;
         }
-    }
-
-    private static byte[] Read(string resourceName)
-    {
-        using var stream = typeof(BundledNatives).Assembly.GetManifestResourceStream(resourceName)!;
-        using var bytes = new MemoryStream();
-        stream.CopyTo(bytes);
-        return bytes.ToArray();
     }
 
     private sealed record BundledResource(string Name, string FileName);

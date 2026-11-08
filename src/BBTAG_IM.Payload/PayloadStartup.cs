@@ -2,6 +2,7 @@ using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Roster;
 using BBTAG_IM.Core.Patching;
 using BBTAG_IM.Core.Pe;
 using BBTAG_IM.Core.Scripting.Dev;
@@ -29,7 +30,7 @@ internal static class PayloadStartup
             return PayloadStatus.InvalidSession;
         }
 
-        var log = new FileLog(session.LogPath, TimeProvider.System);
+        ILog log = session.WriteLogs ? new FileLog(session.LogPath, TimeProvider.System) : new NullLog();
 
         try
         {
@@ -66,7 +67,7 @@ internal static class PayloadStartup
         ExitHooks.Install(game, log);
         PatchExecutable(mods, game, session.GameDirectory, log);
         RedirectModFiles(mods, game, session.GameDirectory, fileSystem, log);
-        PluginLoader.StartAll(mods, Path.GetDirectoryName(session.LogPath) ?? session.GameDirectory, log);
+        PluginLoader.StartAll(mods, session.PluginLogFolder, log);
     }
 
     private static void WaitForDebugger(LaunchSession session, ILog log)
@@ -111,8 +112,9 @@ internal static class PayloadStartup
             log.Info($"{mod}: {files} file(s) layered over the game data.");
 
         var executableDirectory = Path.GetDirectoryName(game.Path) ?? gameDirectory;
-        var redirector = new ModFileRedirector(index, gameDirectory, executableDirectory);
-        FileApiHooks.Install(game, WithDevFolder(redirector, index, gameDirectory, executableDirectory, fileSystem, log), log);
+        var aliases = new CharacterFileAliases(ModCharacterManifests.Load(mods, fileSystem).Manifests);
+        var redirector = new ModFileRedirector(index, gameDirectory, executableDirectory, aliases: aliases);
+        FileApiHooks.Install(game, WithDevFolder(redirector, index, gameDirectory, executableDirectory, aliases, fileSystem, log), log);
     }
 
     private static ModFileRedirector WithDevFolder(
@@ -120,6 +122,7 @@ internal static class PayloadStartup
         ModFileIndex index,
         string gameDirectory,
         string executableDirectory,
+        CharacterFileAliases aliases,
         IFileSystem fileSystem,
         ILog log)
     {
@@ -133,6 +136,6 @@ internal static class PayloadStartup
         }
 
         log.Info($"Files in {devFolder} are read live and win over every other mod. A folder named like an archive is packed into it when the game opens it.");
-        return new ModFileRedirector(index, gameDirectory, executableDirectory, new DevOverlay(fileSystem, devFolder, redirector.ResolveBelowDev));
+        return new ModFileRedirector(index, gameDirectory, executableDirectory, new DevOverlay(fileSystem, devFolder, redirector.ResolveBelowDev), aliases);
     }
 }

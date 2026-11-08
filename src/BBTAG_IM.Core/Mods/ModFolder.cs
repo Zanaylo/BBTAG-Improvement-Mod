@@ -21,6 +21,18 @@ public sealed record ModFolder(
     private static readonly string[] DataFolders = [GameDataFolder, OverhaulDataFolder];
     private static readonly string PreferredTableName = Path.GetFileNameWithoutExtension(GameExecutableName) + TableExtension;
 
+    public static ModFolder? TryInspect(string path, IFileSystem fileSystem)
+    {
+        try
+        {
+            return Inspect(path, fileSystem);
+        }
+        catch (InvalidModFolderException)
+        {
+            return null;
+        }
+    }
+
     public static ModFolder Inspect(string path, IFileSystem fileSystem)
     {
         if (!fileSystem.DirectoryExists(path))

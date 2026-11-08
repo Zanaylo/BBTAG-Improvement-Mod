@@ -20,8 +20,53 @@ public class WindowInputTests
     private const uint MiddleButtonDoubleClick = 0x209;
     private const uint MouseWheel = 0x20A;
     private const uint Paint = 0x000F;
+    private const uint KillFocus = 0x0008;
     private const ulong F1 = 0x70;
     private const long RepeatFlag = 1L << 30;
+
+    [Fact]
+    public void ToClient_DisplaySmallerThanTheWindow_ScalesThePointUp()
+    {
+        // Act
+        MouseMoved moved = WindowInput.ToClient(new Vector2(960, 1061), new Vector2(1920, 1080), new Vector2(1920, 1061));
+
+        // Assert
+        Assert.Equal(new MouseMoved(960, 1080), moved);
+    }
+
+    [Fact]
+    public void ToClient_AndBackToDisplay_ReturnsThePoint()
+    {
+        // Arrange
+        Vector2 clientSize = new(1920, 1080);
+        Vector2 displaySize = new(1920, 1061);
+
+        // Act
+        Vector2 point = WindowInput.ToDisplay(WindowInput.ToClient(new Vector2(913, 654), clientSize, displaySize), clientSize, displaySize);
+
+        // Assert
+        Assert.Equal(654, point.Y, 0);
+    }
+
+    [Fact]
+    public void ToClient_EmptyDisplay_KeepsThePoint()
+    {
+        // Act
+        MouseMoved moved = WindowInput.ToClient(new Vector2(10, 20), new Vector2(1920, 1080), Vector2.Zero);
+
+        // Assert
+        Assert.Equal(new MouseMoved(10, 20), moved);
+    }
+
+    [Fact]
+    public void Parse_WindowLostTheKeyboard_ReturnsFocusLost()
+    {
+        // Act
+        WindowInput? input = WindowInput.Parse(KillFocus, 0, 0);
+
+        // Assert
+        Assert.Equal(new FocusLost(), input);
+    }
 
     [Fact]
     public void Parse_KeyPressed_ReturnsTheKey()

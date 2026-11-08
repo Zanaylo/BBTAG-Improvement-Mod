@@ -2,15 +2,19 @@ using System.Text;
 
 namespace BBTAG_IM.Core.Launch;
 
-public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOnlyList<string> ModFolders, bool WaitForDebugger = false)
+public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOnlyList<string> ModFolders, bool WaitForDebugger = false, bool WriteLogs = false)
 {
     private const string GameKey = "game";
     private const string LogKey = "log";
     private const string ModKey = "mod";
     private const string DebuggerKey = "debugger";
     private const string WaitValue = "wait";
+    private const string LogsKey = "logs";
+    private const string WriteValue = "write";
     private const char KeySeparator = '=';
     private const char LineSeparator = '\n';
+
+    public string PluginLogFolder => WriteLogs ? Path.GetDirectoryName(LogPath) ?? GameDirectory : string.Empty;
 
     public string Serialize()
     {
@@ -24,6 +28,9 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
         if (WaitForDebugger)
             text.Append(DebuggerKey).Append(KeySeparator).Append(WaitValue).Append(LineSeparator);
 
+        if (WriteLogs)
+            text.Append(LogsKey).Append(KeySeparator).Append(WriteValue).Append(LineSeparator);
+
         return text.ToString();
     }
 
@@ -33,6 +40,7 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
         string? logPath = null;
         var modFolders = new List<string>();
         var waitForDebugger = false;
+        var writeLogs = false;
 
         foreach (var line in text.Split(LineSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -57,12 +65,15 @@ public sealed record LaunchSession(string GameDirectory, string LogPath, IReadOn
                 case DebuggerKey:
                     waitForDebugger = value == WaitValue;
                     break;
+                case LogsKey:
+                    writeLogs = value == WriteValue;
+                    break;
             }
         }
 
         if (gameDirectory is null || logPath is null)
             throw new InvalidLaunchSessionException("The Mod Loader did not say where the game and the log are.");
 
-        return new LaunchSession(gameDirectory, logPath, modFolders, waitForDebugger);
+        return new LaunchSession(gameDirectory, logPath, modFolders, waitForDebugger, writeLogs);
     }
 }

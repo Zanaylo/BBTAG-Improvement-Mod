@@ -10,6 +10,12 @@ public interface IHarnessTarget
 
     string State();
 
+    string ToggleMenu();
+
+    string MenuKey(int key, bool down);
+
+    string MenuClick(int x, int y);
+
     string BackToCharacterSelect();
 
     string Quit();

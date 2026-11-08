@@ -18,6 +18,10 @@ public sealed class LauncherSettings
 
     public bool ShowCheatEngineWindow { get; set; } = true;
 
+    public bool WriteLogs { get; set; }
+
+    public bool PlayOnStart { get; set; }
+
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, List<int>> ScriptSelections { get; } = new(StringComparer.OrdinalIgnoreCase);
 

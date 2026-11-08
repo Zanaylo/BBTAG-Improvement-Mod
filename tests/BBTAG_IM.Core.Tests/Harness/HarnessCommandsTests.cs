@@ -81,13 +81,70 @@ public class HarnessCommandsTests
     }
 
     [Theory]
+    [InlineData("menukey 17 down", 17, true)]
+    [InlineData("menukey 16 up", 16, false)]
+    public void Execute_MenuKey_PassesTheKeyAndItsState(string command, int key, bool down)
+    {
+        // Arrange
+        _targetMock.MenuKey(key, down).Returns("ok key");
+
+        // Act
+        string reply = HarnessCommands.Execute(command, _targetMock);
+
+        // Assert
+        Assert.Equal("ok key", reply);
+    }
+
+    [Theory]
+    [InlineData("menukey")]
+    [InlineData("menukey 17")]
+    [InlineData("menukey ctrl down")]
+    [InlineData("menukey 17 sideways")]
+    public void Execute_MenuKeyWithWrongWords_RepliesWithAnError(string command)
+    {
+        // Act
+        string reply = HarnessCommands.Execute(command, _targetMock);
+
+        // Assert
+        Assert.Equal("error menukey needs a key number and down or up", reply);
+    }
+
+    [Fact]
+    public void Execute_MenuClick_PassesThePoint()
+    {
+        // Arrange
+        _targetMock.MenuClick(120, 340).Returns("ok click");
+
+        // Act
+        string reply = HarnessCommands.Execute("menuclick 120 340", _targetMock);
+
+        // Assert
+        Assert.Equal("ok click", reply);
+    }
+
+    [Theory]
+    [InlineData("menuclick")]
+    [InlineData("menuclick 120")]
+    [InlineData("menuclick left top")]
+    public void Execute_MenuClickWithWrongWords_RepliesWithAnError(string command)
+    {
+        // Act
+        string reply = HarnessCommands.Execute(command, _targetMock);
+
+        // Assert
+        Assert.Equal("error menuclick needs two numbers", reply);
+    }
+
+    [Theory]
     [InlineData("state")]
+    [InlineData("menu")]
     [InlineData("back")]
     [InlineData("quit")]
     public void Execute_SimpleCommand_RepliesWithTheTargetAnswer(string command)
     {
         // Arrange
         _targetMock.State().Returns("ok state");
+        _targetMock.ToggleMenu().Returns("ok menu");
         _targetMock.BackToCharacterSelect().Returns("ok back");
         _targetMock.Quit().Returns("ok quit");
 

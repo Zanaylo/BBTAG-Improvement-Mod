@@ -32,6 +32,14 @@ public sealed class FileImage : IImageReader
         return offset < Bytes.Length ? (int)offset : null;
     }
 
+    public uint? RvaOf(int fileOffset)
+    {
+        var section = Headers.Sections.FirstOrDefault(candidate =>
+            fileOffset >= candidate.RawDataPointer && fileOffset - candidate.RawDataPointer < candidate.RawDataSize);
+
+        return section is null ? null : section.VirtualAddress + ((uint)fileOffset - section.RawDataPointer);
+    }
+
     public ushort ReadUInt16(uint rva) => BinaryPrimitives.ReadUInt16LittleEndian(Read(rva, sizeof(ushort)));
 
     public uint ReadUInt32(uint rva) => BinaryPrimitives.ReadUInt32LittleEndian(Read(rva, sizeof(uint)));

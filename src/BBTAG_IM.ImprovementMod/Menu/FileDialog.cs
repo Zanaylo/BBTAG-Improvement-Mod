@@ -9,6 +9,7 @@ internal enum FileDialogPurpose
     Import,
     Export,
     Program,
+    Game,
 }
 
 internal sealed record FileDialogAnswer(FileDialogPurpose Purpose, IReadOnlyList<string> Paths);
@@ -36,14 +37,16 @@ internal sealed unsafe class FileDialog
 
     public void ChooseProgram() => Start(FileDialogPurpose.Program, "Choose the program that opens scripts", "");
 
+    public void ChooseGame(string title, string filter) => Start(FileDialogPurpose.Game, title, "", filter);
+
     public FileDialogAnswer? Take() => Interlocked.Exchange(ref _answer, null);
 
-    private void Start(FileDialogPurpose purpose, string title, string fileName)
+    private void Start(FileDialogPurpose purpose, string title, string fileName, string filter = "")
     {
         if (Interlocked.Exchange(ref _state, Opened) == Opened)
             return;
 
-        var thread = new Thread(() => Run(purpose, title, fileName)) { IsBackground = true, Name = ThreadName };
+        var thread = new Thread(() => Run(purpose, title, fileName, filter)) { IsBackground = true, Name = ThreadName };
 
         if (OperatingSystem.IsWindows())
             thread.SetApartmentState(ApartmentState.STA);
@@ -51,7 +54,7 @@ internal sealed unsafe class FileDialog
         thread.Start();
     }
 
-    private void Run(FileDialogPurpose purpose, string title, string fileName)
+    private void Run(FileDialogPurpose purpose, string title, string fileName, string filter)
     {
         try
         {
@@ -59,6 +62,7 @@ internal sealed unsafe class FileDialog
             {
                 FileDialogPurpose.Import => AskForFiles(title, PaletteFilter, PaletteExtension, Comdlg32.AllowMultipleFiles),
                 FileDialogPurpose.Program => AskForFiles(title, ProgramFilter, ProgramExtension, 0),
+                FileDialogPurpose.Game => AskForFiles(title, filter, ProgramExtension, 0),
                 _ => AskForNewFile(title, fileName),
             };
 

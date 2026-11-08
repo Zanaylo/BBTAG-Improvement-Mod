@@ -1,3 +1,4 @@
+using System.Numerics;
 using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
@@ -15,9 +16,11 @@ internal static class MenuText
         ImGui.PopTextWrapPos();
     }
 
-    public static void Muted(string text)
+    public static void Muted(string text) => Colored(ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled], text);
+
+    public static void Colored(Vector4 color, string text)
     {
-        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]);
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
         Wrapped(text);
         ImGui.PopStyleColor();
     }

@@ -52,6 +52,58 @@ public class LaunchSessionTests
         Assert.Equal([@"C:\Mod"], parsed.ModFolders);
     }
 
+    [Fact]
+    public void Parse_SessionWritingLogs_KeepsTheChoice()
+    {
+        // Arrange
+        LaunchSession session = new(@"D:\Steam\steamapps\common\BBTAG", @"D:\BBTAG_IM\logs\BBTAG_IM.log", [], WriteLogs: true);
+
+        // Act
+        LaunchSession parsed = LaunchSession.Parse(session.Serialize());
+
+        // Assert
+        Assert.True(parsed.WriteLogs);
+    }
+
+    [Fact]
+    public void Parse_SessionNotAskingForLogs_LeavesThemOff()
+    {
+        // Arrange
+        LaunchSession session = new(@"D:\Steam\steamapps\common\BBTAG", @"D:\BBTAG_IM\logs\BBTAG_IM.log", []);
+
+        // Act
+        LaunchSession parsed = LaunchSession.Parse(session.Serialize());
+
+        // Assert
+        Assert.False(parsed.WriteLogs);
+    }
+
+    [Fact]
+    public void PluginLogFolder_LogsOn_IsTheFolderOfTheLog()
+    {
+        // Arrange
+        LaunchSession session = new(@"D:\Steam\BBTAG", @"D:\BBTAG_IM\logs\BBTAG_IM.log", [], WriteLogs: true);
+
+        // Act
+        string folder = session.PluginLogFolder;
+
+        // Assert
+        Assert.Equal(@"D:\BBTAG_IM\logs", folder);
+    }
+
+    [Fact]
+    public void PluginLogFolder_LogsOff_IsEmpty()
+    {
+        // Arrange
+        LaunchSession session = new(@"D:\Steam\BBTAG", @"D:\BBTAG_IM\logs\BBTAG_IM.log", []);
+
+        // Act
+        string folder = session.PluginLogFolder;
+
+        // Assert
+        Assert.Empty(folder);
+    }
+
     [Theory]
     [InlineData("log=C:\\log.txt\nmod=C:\\Mod")]
     [InlineData("game=C:\\Game\nmod=C:\\Mod")]

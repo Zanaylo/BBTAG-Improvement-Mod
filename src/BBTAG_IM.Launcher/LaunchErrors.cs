@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.Mods.Archives;
 using BBTAG_IM.Core.CheatEngine;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
@@ -11,7 +12,7 @@ internal static class LaunchErrors
 {
     public static bool IsExpected(Exception exception) =>
         exception is LaunchOptionsException or GameNotFoundException or InvalidModFolderException or LaunchFailedException
-            or InvalidCheatTableException or InvalidPeImageException or BridgeException or InvalidSessionTableException or IOException;
+            or InvalidCheatTableException or InvalidPeImageException or BridgeException or InvalidSessionTableException or ModArchiveException or IOException;
 
     public static bool IsSettingsWriteError(Exception exception) =>
         exception is IOException or UnauthorizedAccessException;

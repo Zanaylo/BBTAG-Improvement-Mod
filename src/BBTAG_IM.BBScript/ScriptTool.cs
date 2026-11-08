@@ -1,3 +1,4 @@
+using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Compiling;
 using BBTAG_IM.Core.Scripting.CSharp;
@@ -7,7 +8,7 @@ using BBTAG_IM.Core.Scripting.Importing;
 
 namespace BBTAG_IM.BBScript;
 
-internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandLine)
+internal sealed partial class ScriptTool(ScriptDatabases databases, CommandLine commandLine)
 {
     public const string Usage = """
         bbscript decompile <scr_xxx.bin | char_xxx_scr.pac>... [--out <folder>] [--python | --bbtools] [--db <bbscript folder>]

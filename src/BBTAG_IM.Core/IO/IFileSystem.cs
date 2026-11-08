@@ -26,5 +26,9 @@ public interface IFileSystem
 
     void DeleteFile(string path);
 
+    void DeleteDirectory(string path);
+
+    void MoveFile(string source, string destination);
+
     Version? FileVersion(string path);
 }

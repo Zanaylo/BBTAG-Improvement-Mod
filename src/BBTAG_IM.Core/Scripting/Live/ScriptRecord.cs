@@ -2,8 +2,6 @@ using BBTAG_IM.Core.Memory;
 
 namespace BBTAG_IM.Core.Scripting.Live;
 
-public sealed record ScriptMapNode(uint Address, string Name, int Offset);
-
 public sealed class ScriptRecord(IGameMemory memory, uint address)
 {
     public const int Length = 0x18;
@@ -15,14 +13,6 @@ public sealed class ScriptRecord(IGameMemory memory, uint address)
     private const uint StateTableOffset = 0xC;
     private const uint StateMapOffset = 0x10;
     private const uint SubroutineMapOffset = 0x14;
-    private const uint BucketsOffset = 0x10;
-    private const uint BucketCountOffset = 0x14;
-    private const uint BucketLength = 0x10;
-    private const uint BucketHeadOffset = 4;
-    private const uint NodeNextOffset = 4;
-    private const uint NodeNameOffset = 0x10;
-    private const uint NodeValueOffset = 0x30;
-    private const int MostNodes = 0x10000;
 
     public uint Address => address;
 
@@ -40,25 +30,9 @@ public sealed class ScriptRecord(IGameMemory memory, uint address)
 
     public IEnumerable<uint> Maps => [StateMap, SubroutineMap];
 
-    public IReadOnlyList<ScriptMapNode> Nodes(uint map)
-    {
-        var nodes = new List<ScriptMapNode>();
-        var buckets = memory.ReadUInt32(map + BucketsOffset);
-        var count = memory.ReadUInt32(map + BucketCountOffset);
+    public IReadOnlyList<ScriptMapNode> Nodes(uint map) => Map(map).Nodes();
 
-        for (var bucket = 0u; bucket < count; bucket++)
-        {
-            var node = memory.ReadUInt32(buckets + bucket * BucketLength + BucketHeadOffset);
-
-            while (node != 0 && nodes.Count < MostNodes)
-            {
-                nodes.Add(new ScriptMapNode(node, memory.ReadText(node + NodeNameOffset, ScriptBinary.NameLength), memory.ReadInt32(node + NodeValueOffset)));
-                node = memory.ReadUInt32(node + NodeNextOffset);
-            }
-        }
-
-        return nodes;
-    }
+    public ScriptMap Map(uint map) => new(memory, map);
 
     public void Point(uint file, int stateCount)
     {
@@ -68,5 +42,5 @@ public sealed class ScriptRecord(IGameMemory memory, uint address)
         memory.WriteInt32(address + StateTableOffset, (int)(file + sizeof(int)));
     }
 
-    public void SetOffset(ScriptMapNode node, int offset) => memory.WriteInt32(node.Address + NodeValueOffset, offset);
+    public void SetOffset(ScriptMapNode node, int offset) => memory.WriteInt32(node.Address + ScriptMap.NodeValueOffset, offset);
 }

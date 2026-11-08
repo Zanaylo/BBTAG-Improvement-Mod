@@ -1,4 +1,7 @@
 using BBTAG_IM.BBScript;
+#if !TESTER_BUILD
+using BBTAG_IM.Core.Hantei;
+#endif
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Scripting.Compiling;
 using BBTAG_IM.Core.Sprites;
@@ -31,6 +34,9 @@ try
         "import-bbcf" => tool.ImportBbcf() ? Success : Failure,
         "index" => tool.Index() ? Success : Failure,
         "where" => tool.Where() ? Success : Failure,
+#if !TESTER_BUILD
+        "port" => tool.Port() ? Success : Failure,
+#endif
         _ => WrongVerb(commandLine.Verb),
     };
 }
@@ -39,6 +45,13 @@ catch (Exception exception) when (exception is IOException or UnauthorizedAccess
     Console.Error.WriteLine(exception.Message);
     return Failure;
 }
+#if !TESTER_BUILD
+catch (InvalidHanteiDataException exception)
+{
+    Console.Error.WriteLine(exception.Message);
+    return Failure;
+}
+#endif
 
 static int WrongVerb(string verb)
 {

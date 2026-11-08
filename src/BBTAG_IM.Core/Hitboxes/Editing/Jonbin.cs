@@ -41,6 +41,8 @@ public sealed class Jonbin
     private const int ChunkFields = 8;
     private const int ChunkImageField = 60;
     private const int ChunkLayerField = 64;
+    private const int ChunkOpacityField = 40;
+    private const int ComposedTypeCount = 17;
     private const string PlaceholderImage = "999_99";
 
     private static readonly byte[] Signature = "JONB"u8.ToArray();
@@ -97,6 +99,36 @@ public sealed class Jonbin
             typeCount,
             boxes,
             pictures);
+    }
+
+    public static byte[] Compose(IReadOnlyList<string> images, IReadOnlyList<SpriteChunk> chunks, IReadOnlyList<JonbinBox> boxes)
+    {
+        var ordered = boxes.OrderBy(box => box.Type).ToList();
+        var countsStart = FirstImageField + images.Count * ImageNameLength;
+        var sectionsStart = countsStart + SectionCountsLength + ComposedTypeCount * sizeof(ushort);
+        var boxesStart = sectionsStart + ShortEntryLength + chunks.Count * MiddleEntryLength;
+        var bytes = new byte[boxesStart + ordered.Count * BoxLength];
+        var span = bytes.AsSpan();
+        Signature.CopyTo(span);
+        BinaryPrimitives.WriteUInt16LittleEndian(span[ImageCountField..], (ushort)images.Count);
+
+        for (var index = 0; index < images.Count; index++)
+            Encoding.Latin1.GetBytes(images[index], span.Slice(FirstImageField + index * ImageNameLength, ImageNameLength));
+
+        span[countsStart] = ComposedTypeCount + TypeCountBias;
+        BinaryPrimitives.WriteUInt16LittleEndian(span[(countsStart + ShortCountField)..], 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(span[(countsStart + MiddleCountField)..], (ushort)chunks.Count);
+
+        for (var type = 0; type < ComposedTypeCount; type++)
+            BinaryPrimitives.WriteUInt16LittleEndian(span[(countsStart + SectionCountsLength + type * sizeof(ushort))..], (ushort)ordered.Count(box => box.Type == type));
+
+        for (var index = 0; index < chunks.Count; index++)
+            WriteChunk(span.Slice(sectionsStart + ShortEntryLength + index * MiddleEntryLength, MiddleEntryLength), chunks[index]);
+
+        for (var index = 0; index < ordered.Count; index++)
+            WriteBox(span.Slice(boxesStart + index * BoxLength, BoxLength), ordered[index]);
+
+        return bytes;
     }
 
     public Jonbin With(IEnumerable<JonbinBox> boxes)
@@ -182,6 +214,18 @@ public sealed class Jonbin
             fields[7],
             BinaryPrimitives.ReadInt32LittleEndian(entry[ChunkLayerField..]),
             BinaryPrimitives.ReadInt32LittleEndian(entry[ChunkImageField..]));
+    }
+
+    private static void WriteChunk(Span<byte> entry, SpriteChunk chunk)
+    {
+        ReadOnlySpan<float> fields = [chunk.SourceX, chunk.SourceY, chunk.SourceWidth, chunk.SourceHeight, chunk.X, chunk.Y, chunk.Width, chunk.Height];
+
+        for (var field = 0; field < ChunkFields; field++)
+            BinaryPrimitives.WriteSingleLittleEndian(entry[(field * sizeof(float))..], fields[field]);
+
+        BinaryPrimitives.WriteSingleLittleEndian(entry[ChunkOpacityField..], 1f);
+        BinaryPrimitives.WriteInt32LittleEndian(entry[ChunkImageField..], chunk.Image);
+        BinaryPrimitives.WriteInt32LittleEndian(entry[ChunkLayerField..], chunk.Layer);
     }
 
     private static List<JonbinBox> ReadBoxes(ReadOnlySpan<byte> bytes, int countsStart, int typeCount, int boxesStart)

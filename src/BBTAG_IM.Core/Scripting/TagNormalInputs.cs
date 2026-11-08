@@ -9,7 +9,7 @@ public sealed class TagNormalInputs : INormalInputs
     private const int GroundDirections = 9;
     private const string AirMark = "J";
 
-    private static readonly string[] Buttons = ["A", "B", "C", "D"];
+    private static readonly string[] Buttons = ["A", "B", "C", "D", "E"];
 
     private static readonly NamedValue[] SystemInputs =
     [

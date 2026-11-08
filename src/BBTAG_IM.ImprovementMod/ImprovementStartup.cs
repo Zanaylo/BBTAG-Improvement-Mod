@@ -39,12 +39,7 @@ internal static class ImprovementStartup
 
     public static uint Run(string modFolder, string logFolder)
     {
-        var logPath = Path.Combine(logFolder, ImprovementModContract.LogFileName);
-
-        if (File.Exists(logPath))
-            File.Delete(logPath);
-
-        var log = new FileLog(logPath, TimeProvider.System);
+        var log = OpenLog(logFolder);
 
         try
         {
@@ -56,6 +51,19 @@ internal static class ImprovementStartup
             log.Error(exception is HookException or PatchFailedException ? exception.Message : exception.ToString());
             return ModPlugin.Failed;
         }
+    }
+
+    private static ILog OpenLog(string logFolder)
+    {
+        if (logFolder.Length == 0)
+            return new NullLog();
+
+        var logPath = Path.Combine(logFolder, ImprovementModContract.LogFileName);
+
+        if (File.Exists(logPath))
+            File.Delete(logPath);
+
+        return new FileLog(logPath, TimeProvider.System);
     }
 
     private static void Start(string modFolder, ILog log)
@@ -98,6 +106,7 @@ internal static class ImprovementStartup
         var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, new MenuImages(thumbnails, textures), screenPass, Bosses.Installed(fileSystem, dataFolders), new DataPlaces(fileSystem, modFolder, dataFolders), harness, log);
         IMenuSection[] sections = [features.Training, features.Palettes, new PerformanceSection(menuSettings, settings.Current.FrameLimiter), features.Dev, new ConfigSection(menuSettings)];
         AddMenu(frames, new ImprovementMenu(menuSettings, playerCount, sections, features.Windows), menuSettings, textures, screenPass, modFolder, log);
+        harness?.GrabAfterTheMenu(frames);
         frames.AddReset(screenPass.Release);
         AddFrameLimiter(frames, settings.Current.FrameLimiter, log);
 
@@ -205,12 +214,17 @@ internal static class ImprovementStartup
             var commands = table.Current(game.Memory);
             var dev = DevFolder.ForMod(places.ModFolder);
             var database = new ScriptDatabaseFolder(places.Files, databaseFolder);
-            var scripts = new DevScripts(game, roster, places.Files, dev, new ScriptFileFinder(places.Files, dev, places.DataFolders), database, table, () => menuSettings.Current, log);
+            var heap = new GameHeap(GameHeapCode.Locate(code));
+            var devFolderLoads = EnabledMods.IsOn(DevFolder.Name, places.ModFolder, places.Files);
+            var finder = new ScriptFileFinder(places.Files, dev, places.DataFolders);
+            var stateEntry = new GameStateEntry(StateEntryCode.Locate(code));
+            var subroutineCall = new GameSubroutineCall(SubroutineCallCode.Locate(code));
+            var scripts = new DevScripts(game, roster, places.Files, dev, finder, database, table, heap, stateEntry, subroutineCall, tools.Match, devFolderLoads, () => menuSettings.Current, log);
             frames.Add("Script editing", scripts.OnPresent);
             GameErrorGuard.RollBackScriptsWith(scripts.Recover);
             log.Info($"Script editing ready: the game looks script commands up in a list of {commands.Count} at 0x{commands.Address:X8}, read again whenever it changes. Command names {(database.Exists ? "come from " + databaseFolder : "are missing, so commands show as numbers")}.");
             var hitboxes = AddHitboxEditor(frames, game, scripts, places, dev, tools);
-            var section = new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), new ScriptLanguageChoice(menuSettings), hitboxes, databaseFolder);
+            var section = new DevSection(scripts, new MatchExit(game), new ScriptEditorCombo(menuSettings, new ScriptEditorList(log), new FileDialog()), new ScriptLanguageChoice(menuSettings), hitboxes, CreateDevPanels(places, databaseFolder, log), databaseFolder);
             return new DevFeatures(section, hitboxes is null ? [] : [hitboxes]);
         }
         catch (Exception exception) when (exception is GameLayoutException or HookException)
@@ -219,6 +233,13 @@ internal static class ImprovementStartup
             return new DevFeatures(new UnavailableSection(DevSection.Name, $"This game version is not supported, so this stays off. {exception.Message}"), []);
         }
     }
+
+    private static IReadOnlyList<IDevPanel> CreateDevPanels(DataPlaces places, string databaseFolder, ILog log) =>
+#if TESTER_BUILD
+        [];
+#else
+        [PortPanelFactory.Create(places.Files, places.ModFolder, databaseFolder, log)];
+#endif
 
     private static PaletteAssignmentsWindow CreateAssignmentsWindow(
         PaletteEditor editor,
@@ -471,9 +492,9 @@ internal static class ImprovementStartup
 
     private static void AddMenu(FrameDispatcher frames, ImprovementMenu menu, MenuSettings menuSettings, MenuTextures textures, BackBufferPass screenPass, string modFolder, ILog log)
     {
-        if (Kernel32.LoadLibrary(Path.Combine(modFolder, MenuOverlay.NativeLibraryName)) == 0)
+        if (!MenuLibrary.Load(modFolder))
         {
-            log.Error($"{MenuOverlay.NativeLibraryName} is missing from {modFolder}, so {MenuInput.ToggleKeyName} does not open the menu.");
+            log.Error($"{MenuOverlay.NativeLibraryName} could not be unpacked into {modFolder}, so {MenuInput.ToggleKeyName} does not open the menu.");
             return;
         }
 

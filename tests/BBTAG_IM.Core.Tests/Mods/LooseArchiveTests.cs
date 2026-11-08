@@ -20,6 +20,27 @@ public class LooseArchiveTests
         Assert.Equal([4], Read(archive)[1].Bytes);
     }
 
+    [Theory]
+    [InlineData(8, 32)]
+    [InlineData(16, 48)]
+    [InlineData(19, 48)]
+    [InlineData(20, 48)]
+    [InlineData(35, 64)]
+    public void Write_EntryLength_FollowsTheGamesRule(int nameCharacters, int expectedEntryLength)
+    {
+        // Arrange
+        ArchiveFile[] files = [new(new string('a', nameCharacters), [1]), new(new string('b', nameCharacters), [2])];
+
+        // Act
+        byte[] archive = LooseArchive.Write(files);
+
+        // Assert
+        int nameLength = BitConverter.ToInt32(archive, 20);
+        int gameEntryLength = ((nameLength + 12) & ~15) + 16;
+        Assert.Equal(gameEntryLength, expectedEntryLength);
+        Assert.Equal(0x20 + 2 * expectedEntryLength, FpacArchive.DataOffset(archive));
+    }
+
     [Fact]
     public void Write_FileData_StartsEveryFileOnSixteenBytes()
     {

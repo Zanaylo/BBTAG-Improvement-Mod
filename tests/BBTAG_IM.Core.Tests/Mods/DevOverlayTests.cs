@@ -70,6 +70,25 @@ public class DevOverlayTests
     }
 
     [Fact]
+    public void Resolve_FileTakenOutOfTheFolderAfterTheCacheWasBuilt_BuildsItAgain()
+    {
+        // Arrange
+        LooseFolderWith(Earlier);
+        _fileSystemMock.FileExists(Cache).Returns(true);
+        _fileSystemMock.LastWriteTimeUtc(Cache).Returns(Later);
+        _fileSystemMock.LastWriteTimeUtc(LooseFolder).Returns(Later.AddMinutes(1));
+        _fileSystemMock.FileExists(Original).Returns(true);
+        _fileSystemMock.ReadAllBytes(Original).Returns(SpriteFiles.Fpac(("scr_brg.bin", [1]), ("scr_brgea.bin", [2])));
+        DevOverlay overlay = CreateDevOverlay();
+
+        // Act
+        overlay.Resolve(Key);
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllBytes(Cache, Arg.Any<byte[]>());
+    }
+
+    [Fact]
     public void Resolve_NothingInTheDevFolder_ReturnsNull()
     {
         // Arrange

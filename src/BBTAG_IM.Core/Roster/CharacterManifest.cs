@@ -8,4 +8,5 @@ public sealed record CharacterManifest(
     string ShortName,
     SpriteFolder? SpriteFolder,
     Series Series,
-    CharacterNames Names);
+    CharacterNames Names,
+    string? FilesFrom = null);

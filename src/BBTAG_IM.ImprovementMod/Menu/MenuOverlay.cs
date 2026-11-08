@@ -88,6 +88,7 @@ internal sealed unsafe class MenuOverlay
         io.DeltaTime = (float)Math.Clamp(Stopwatch.GetElapsedTime(_lastFrame).TotalSeconds, ShortestFrameSeconds, LongestFrameSeconds);
         _lastFrame = Stopwatch.GetTimestamp();
         FeedInput(io, displaySize);
+        MenuInput.DisplayIs(displaySize);
 
         ImGui.NewFrame();
 
@@ -137,6 +138,12 @@ internal sealed unsafe class MenuOverlay
         style.ScaleAllSizes(size / DefaultFontSize);
     }
 
+    private static void ReleaseModifiers(ImGuiIOPtr io)
+    {
+        foreach (var key in MenuInputRoute.ModifierKeys)
+            MenuKeys.Press(io, key, false);
+    }
+
     private static void FeedInput(ImGuiIOPtr io, Vector2 displaySize)
     {
         var clientSize = User32.GetClientRect(MenuInput.Window, out var client)
@@ -165,6 +172,9 @@ internal sealed unsafe class MenuOverlay
                     break;
                 case CharacterTyped typed:
                     MenuKeys.Type(io, typed.Character);
+                    break;
+                case FocusLost:
+                    ReleaseModifiers(io);
                     break;
             }
         }

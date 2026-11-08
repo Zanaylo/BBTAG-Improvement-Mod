@@ -16,6 +16,19 @@ public sealed class ScriptFileFinder(IFileSystem files, DevFolder dev, IReadOnly
         if (files.FileExists(devBinary))
             return files.ReadAllBytes(devBinary);
 
+        return FindInGameData(code, effects);
+    }
+
+    public IReadOnlyList<byte[]> Versions(string code, bool effects)
+    {
+        var devBinary = dev.Script(code, effects).Binary;
+        byte[]?[] versions = [files.FileExists(devBinary) ? files.ReadAllBytes(devBinary) : null, FindInGameData(code, effects)];
+
+        return versions.OfType<byte[]>().ToList();
+    }
+
+    private byte[]? FindInGameData(string code, bool effects)
+    {
         var entryName = DevFolder.ScriptFileName(code, effects) + BinaryExtension;
 
         foreach (var dataFolder in dataFolders)

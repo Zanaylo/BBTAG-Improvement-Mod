@@ -58,5 +58,51 @@ public class ScriptFileFinderTests
         Assert.Null(bytes);
     }
 
+    [Fact]
+    public void Versions_BinaryInTheDevFolderAndTheGameArchive_ReturnsTheDevOneFirst()
+    {
+        // Arrange
+        string devBinary = DevFolder.ForMod(ModFolder).Script("brg", effects: false).Binary;
+        _fileSystemMock.FileExists(devBinary).Returns(true);
+        _fileSystemMock.ReadAllBytes(devBinary).Returns([9, 9]);
+        _fileSystemMock.FileExists(Archive).Returns(true);
+        _fileSystemMock.ReadAllBytes(Archive).Returns(SpriteFiles.Fpac(("scr_brg.bin", [1, 2, 3])));
+        ScriptFileFinder finder = CreateScriptFileFinder();
+
+        // Act
+        IReadOnlyList<byte[]> versions = finder.Versions("brg", effects: false);
+
+        // Assert
+        Assert.Equal([[9, 9], [1, 2, 3]], versions);
+    }
+
+    [Fact]
+    public void Versions_OnlyTheGameArchive_ReturnsItsScript()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(Archive).Returns(true);
+        _fileSystemMock.ReadAllBytes(Archive).Returns(SpriteFiles.Fpac(("scr_brg.bin", [1, 2, 3])));
+        ScriptFileFinder finder = CreateScriptFileFinder();
+
+        // Act
+        IReadOnlyList<byte[]> versions = finder.Versions("brg", effects: false);
+
+        // Assert
+        Assert.Equal([[1, 2, 3]], versions);
+    }
+
+    [Fact]
+    public void Versions_ScriptNowhere_ReturnsNothing()
+    {
+        // Arrange
+        ScriptFileFinder finder = CreateScriptFileFinder();
+
+        // Act
+        IReadOnlyList<byte[]> versions = finder.Versions("xyz", effects: false);
+
+        // Assert
+        Assert.Empty(versions);
+    }
+
     public ScriptFileFinder CreateScriptFileFinder() => new(_fileSystemMock, DevFolder.ForMod(ModFolder), [GameData]);
 }

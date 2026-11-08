@@ -27,6 +27,36 @@ public class FileImageTests
     }
 
     [Fact]
+    public void RvaOf_OffsetInsideASection_ReturnsItsAddress()
+    {
+        // Arrange
+        TestPeBuilder builder = new();
+        uint dataRva = builder.AddSection(".data", _faker.Random.Bytes(0x100));
+        FileImage image = new(builder.Build());
+
+        // Act
+        uint? rva = image.RvaOf(image.FileOffsetOf(dataRva + 0x10)!.Value);
+
+        // Assert
+        Assert.Equal(dataRva + 0x10, rva);
+    }
+
+    [Fact]
+    public void RvaOf_OffsetOutsideEverySection_ReturnsNothing()
+    {
+        // Arrange
+        TestPeBuilder builder = new();
+        builder.AddSection(".data", _faker.Random.Bytes(0x100));
+        FileImage image = new(builder.Build());
+
+        // Act
+        uint? rva = image.RvaOf(4);
+
+        // Assert
+        Assert.Null(rva);
+    }
+
+    [Fact]
     public void FileOffsetOf_RvaInsideTheHeaders_ReturnsTheSameValue()
     {
         // Arrange

@@ -22,4 +22,20 @@
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TesterBuild)' == 'true'">
+    <Compile Remove="Dev\PortRunner.cs;Dev\PortPanelFactory.cs;Menu\CharacterPortPanel.cs" />
+  </ItemGroup>
+
+  <Target Name="BundleMenuLibrary" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <EmbeddedResource Include="@(NativeCopyLocalItems)" Condition="'%(Filename)' == 'cimgui'" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="LeaveBundledLibraryOutOfPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'cimgui'" />
+    </ItemGroup>
+  </Target>
+
 </Project>

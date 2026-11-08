@@ -11,10 +11,13 @@ internal sealed class ScriptMemory
     public const uint StateMap = 0x03000000;
     public const uint SubroutineMap = 0x03100000;
     public const uint Nodes = 0x04000000;
+    public const uint FreeNodes = 0x04000800;
     public const int FileRoom = 0x1000;
+    public const uint NodeVtable = 0x00B7309C;
+    public const uint KeyVtable = 0x00AB0E44;
+    public const int BucketCount = 2;
 
     private const uint BucketArrayOffset = 0x100;
-    private const int BucketCount = 2;
     private const int BucketLength = 0x10;
     private const int NodeLength = 0x34;
 
@@ -51,15 +54,33 @@ internal sealed class ScriptMemory
     {
         uint node = _nextNode;
         _nextNode += NodeLength;
-        uint bucket = map + BucketArrayOffset + (uint)(name.Length % BucketCount) * BucketLength;
+        uint bucket = Bucket(map, name);
+        uint tail = Memory.ReadUInt32(bucket + 8);
         byte[] field = new byte[ScriptBinary.NameLength];
         Encoding.Latin1.GetBytes(name, field);
 
-        Memory.UInt32At(node + 4, Memory.ReadUInt32(bucket + 4))
+        Memory.UInt32At(node, NodeVtable)
+            .UInt32At(node + 8, tail)
+            .UInt32At(node + 0xC, KeyVtable)
             .BytesAt(node + 0x10, field)
             .Int32At(node + 0x30, offset)
-            .UInt32At(bucket + 4, node);
+            .UInt32At(tail == 0 ? bucket + 4 : tail + 4, node)
+            .UInt32At(bucket + 8, node)
+            .Int32At(bucket + 0xC, Memory.Int32From(bucket + 0xC) + 1);
         return node;
+    }
+
+    public uint Bucket(uint map, string name) => map + BucketArrayOffset + ScriptMapHash.Of(name) % BucketCount * BucketLength;
+
+    public IReadOnlyList<uint> BucketChain(uint map, string name)
+    {
+        uint bucket = Bucket(map, name);
+        List<uint> chain = [];
+
+        for (uint node = Memory.ReadUInt32(bucket + 4); node != 0; node = Memory.ReadUInt32(node + 4))
+            chain.Add(node);
+
+        return chain;
     }
 
     private void EmptyMap(uint map) =>

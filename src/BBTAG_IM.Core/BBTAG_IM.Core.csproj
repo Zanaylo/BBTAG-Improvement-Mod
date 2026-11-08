@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Iced" Version="1.21.0" />
+    <PackageReference Include="SharpCompress" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -16,6 +17,10 @@
   <ItemGroup>
     <EmbeddedResource Include="Scripting\Data\command_sizes.tsv" LogicalName="BBTAG_IM.Core.Scripting.Data.command_sizes.tsv" />
     <EmbeddedResource Include="Buttons\Data\e_icon.bgra" LogicalName="BBTAG_IM.Core.Buttons.Data.e_icon.bgra" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TesterBuild)' == 'true'">
+    <Compile Remove="Porting\**;Hantei\**;Palettes\HplWriter.cs;Sprites\HipWriter.cs" />
   </ItemGroup>
 
 </Project>

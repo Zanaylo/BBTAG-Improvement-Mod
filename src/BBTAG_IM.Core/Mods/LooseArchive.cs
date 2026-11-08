@@ -48,7 +48,7 @@ public static class LooseArchive
     public static byte[] Write(IReadOnlyList<ArchiveFile> files)
     {
         var nameLength = NameLength(files);
-        var entryLength = Align(nameLength + FieldsAfterName);
+        var entryLength = EntryLength(nameLength);
         var dataOffset = Align(FpacArchive.PrefixLength + files.Count * entryLength);
         var offsets = new int[files.Count];
         var dataLength = 0;
@@ -90,6 +90,8 @@ public static class LooseArchive
         var longest = files.Count == 0 ? 0 : files.Max(file => file.Name.Length) + 1;
         return Math.Max(ShortestNameField, (longest + NameFieldStep - 1) / NameFieldStep * NameFieldStep);
     }
+
+    private static int EntryLength(int nameLength) => ((nameLength + FieldsAfterName) & ~(Alignment - 1)) + Alignment;
 
     private static int Align(int value) => (value + Alignment - 1) / Alignment * Alignment;
 }

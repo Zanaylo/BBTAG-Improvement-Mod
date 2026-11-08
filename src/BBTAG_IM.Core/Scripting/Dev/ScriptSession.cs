@@ -45,11 +45,14 @@ public sealed class ScriptSession
 
     public bool HasEnded => Status.State == ScriptSessionState.Reloaded;
 
+    public bool WaitsForFix { get; private set; }
+
     public void Open()
     {
-        if (!files.FileExists(Paths.Source) || OtherLanguageIsNewer())
-            files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
+        if (files.FileExists(Paths.Source) && !OtherLanguageIsNewer())
+            return;
 
+        files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
         lastSeen = files.LastWriteTimeUtc(Paths.Source);
     }
 
@@ -92,8 +95,21 @@ public sealed class ScriptSession
         live.Apply(working);
         files.WriteAllBytes(Paths.Binary, working.Bytes);
         previous = null;
+        WaitsForFix = true;
         Mark(line ?? 1, $"The game stopped here: {reason}");
-        Status = new ScriptSessionStatus(ScriptSessionState.RolledBack, $"The game stopped on this script, so the last working version is back. {reason}");
+        Status = new ScriptSessionStatus(ScriptSessionState.RolledBack, $"The game stopped on this script, so the last working version is back. {reason} Fix it and save the file to go on.");
+        return true;
+    }
+
+    public bool Hold(uint? instruction, string reason)
+    {
+        if (HasEnded || !live.IsLoaded)
+            return false;
+
+        var line = instruction is { } address ? live.LineOf(address) : null;
+        WaitsForFix = true;
+        Mark(line ?? 1, $"The game stopped here: {reason}");
+        Status = new ScriptSessionStatus(ScriptSessionState.RolledBack, $"The game stopped on this script. {reason} Fix it and save the file to go on.");
         return true;
     }
 
@@ -116,11 +132,27 @@ public sealed class ScriptSession
         if (source != text)
             Write(source);
 
+        if (compiled.Bytes.AsSpan().SequenceEqual(live.Current.Bytes))
+        {
+            KeepRunning();
+            return;
+        }
+
         var before = new CompiledScript(live.Current.Bytes, new ScriptLineMap([]));
         var result = live.Apply(compiled);
         files.WriteAllBytes(Paths.Binary, compiled.Bytes);
         previous = before;
+        WaitsForFix = false;
         Status = new ScriptSessionStatus(ScriptSessionState.Applied, Describe(result));
+    }
+
+    private void KeepRunning()
+    {
+        if (!WaitsForFix)
+            return;
+
+        WaitsForFix = false;
+        Status = new ScriptSessionStatus(ScriptSessionState.Watching, "The file is the same as the working version the game runs. Save the file to apply it.");
     }
 
     private void MarkMistakes(string source, ScriptCompileException first)
@@ -172,9 +204,15 @@ public sealed class ScriptSession
             ? $"Applied now ({result.ChangedBytes} bytes changed)."
             : "Applied. Moves that are running finish the old way and start the new way next time.";
 
-        return result.AddedFunctions.Count == 0
-            ? applied
-            : $"{applied} New states or subroutines work after the next match loads: {string.Join(", ", result.AddedFunctions)}.";
+        var added = result.AddedFunctions.Count == 0 ? string.Empty : $" Ready to use: {string.Join(", ", result.AddedFunctions)}.";
+        var waiting = result.WaitingFunctions.Count == 0 ? string.Empty : $" These work after the next match loads: {string.Join(", ", result.WaitingFunctions)}.";
+        var moves = result.Moves switch
+        {
+            MoveRefreshResult.Refreshed => " Moves registered again from MatchInit.",
+            MoveRefreshResult.NotRefreshed => " Move_Register changes work after the next match loads.",
+            _ => string.Empty,
+        };
+        return applied + added + waiting + moves;
     }
 
     private bool OtherLanguageIsNewer()

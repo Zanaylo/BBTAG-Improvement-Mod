@@ -52,7 +52,7 @@ internal static unsafe class GameErrorGuard
         {
             case ErrorBoxAction.ScriptRolledBack:
                 SkipQuitAfter(caption);
-                SafeLog.Info(s_log, "A script edit caused it, so the last working script is back and the game keeps running.");
+                SafeLog.Info(s_log, "A script being edited raised it, so the last working version is back when there is one, and a training match freezes until the script is fixed and saved.");
                 return Ok;
             case ErrorBoxAction.Continue:
                 SafeLog.Info(s_log, "It is only a warning, so the game keeps running without the box.");

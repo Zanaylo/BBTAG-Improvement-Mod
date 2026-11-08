@@ -6,7 +6,7 @@ using BBTAG_IM.ImprovementMod.Menu;
 
 namespace BBTAG_IM.ImprovementMod.Training;
 
-internal sealed class MatchPause(GameView game, PauseGate gate, ILog log)
+internal sealed class MatchPause(GameView game, PauseGate gate, ILog log) : IMatchPause
 {
     private readonly FrameStepper _stepper = new();
     private readonly HeldStepRepeat _heldStep = new();
@@ -30,6 +30,15 @@ internal sealed class MatchPause(GameView game, PauseGate gate, ILog log)
 
         Toggle();
         gate.Holds = true;
+    }
+
+    public void Resume()
+    {
+        if (!IsPaused)
+            return;
+
+        Toggle();
+        gate.Holds = false;
     }
 
     public void HoldingNextFrameButton() => _buttonHeld = true;

@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Archives;
 using NSubstitute;
 
 namespace BBTAG_IM.Core.Tests.Mods;
@@ -28,6 +29,23 @@ public class ModDiscoveryTests
 
         // Assert
         Assert.Equal(["alpha", "Zeta"], mods.Select(mod => mod.Name));
+    }
+
+    [Fact]
+    public void InModsDirectory_FolderLeftByAnUnpackThatStopped_IsNotAMod()
+    {
+        // Arrange
+        string unpacking = Path.Combine(ModsDirectory, ModArchiveInstaller.UnpackingPrefix + "Foo");
+        _fileSystemMock.DirectoryExists(ModsDirectory).Returns(true);
+        _fileSystemMock.EnumerateDirectories(ModsDirectory).Returns([unpacking]);
+        _fileSystemMock.DirectoryExists(unpacking).Returns(true);
+        _fileSystemMock.DirectoryExists(Path.Combine(unpacking, "data")).Returns(true);
+
+        // Act
+        IReadOnlyList<ModFolder> mods = ModDiscovery.InModsDirectory(ModsDirectory, _fileSystemMock);
+
+        // Assert
+        Assert.Empty(mods);
     }
 
     [Fact]

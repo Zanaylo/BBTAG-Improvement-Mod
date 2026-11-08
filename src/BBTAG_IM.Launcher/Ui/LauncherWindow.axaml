@@ -13,7 +13,8 @@
         Width="820"
         Height="860"
         MinWidth="640"
-        MinHeight="560">
+        MinHeight="560"
+        Opened="OnWindowOpened">
 
   <Design.DataContext>
     <x:Static Member="ui:LauncherDesignData.ViewModel" />
@@ -60,7 +61,14 @@
           <TextBlock DockPanel.Dock="Top"
                      Margin="0,0,0,8"
                      TextWrapping="Wrap"
-                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order." />
+                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order. A .zip, .rar or .7z in the mods folder is unpacked next to it." />
+          <Button DockPanel.Dock="Bottom"
+                  Margin="0,8,0,0"
+                  HorizontalAlignment="Right"
+                  Content="Refresh"
+                  ToolTip.Tip="Read the mods folder again, to pick up mods and archives you added, removed or changed."
+                  IsEnabled="{Binding CanChangeMods}"
+                  Click="OnRefreshModsClick" />
           <ListBox ItemsSource="{Binding Mods}" IsEnabled="{Binding CanChangeMods}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="ui:ModEntry">
@@ -118,6 +126,24 @@
             </TreeView>
           </Border>
         </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Config">
+        <StackPanel Margin="0,8,0,0" Spacing="6">
+          <CheckBox IsChecked="{Binding WriteLogs}"
+                    IsEnabled="{Binding CanChangeMods}"
+                    Content="Write log files" />
+          <TextBlock TextWrapping="Wrap"
+                     Opacity="0.75"
+                     Text="Saves what the Mod Loader and the game do in the logs folder, and lists errors from inside the game below. Turn it on to report a problem. Changes the next time you press Play." />
+          <CheckBox Margin="0,10,0,0"
+                    IsChecked="{Binding PlayOnStart}"
+                    IsEnabled="{Binding CanChangeMods}"
+                    Content="Press Play when the Mod Loader opens" />
+          <TextBlock TextWrapping="Wrap"
+                     Opacity="0.75"
+                     Text="Starts the game with the ticked mods as soon as the Mod Loader opens, once each time it opens. To change the mods, close the game and change them here." />
+        </StackPanel>
       </TabItem>
     </TabControl>
   </DockPanel>

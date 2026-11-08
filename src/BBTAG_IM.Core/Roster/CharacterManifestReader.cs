@@ -18,7 +18,8 @@ public static class CharacterManifestReader
             file.ShortName ?? defaultName,
             OptionalSpriteFolder(file.SpriteFolder, source),
             RequiredSeries(file.Series, source),
-            new CharacterNames(file.Names?.Full ?? defaultName, file.Names?.Short ?? defaultName, file.Names?.Select ?? defaultName));
+            new CharacterNames(file.Names?.Full ?? defaultName, file.Names?.Short ?? defaultName, file.Names?.Select ?? defaultName),
+            file.FilesFrom);
     }
 
     private static CharacterManifestFile Deserialize(string json, string source)

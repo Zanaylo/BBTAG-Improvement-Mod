@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -18,6 +19,7 @@ internal static unsafe class MenuInput
     private static nint s_previousProcedure;
     private static volatile bool s_isOpen;
     private static volatile bool s_wantsText;
+    private static Vector2 s_displaySize;
 
     public static nint Window { get; private set; }
 
@@ -73,26 +75,40 @@ internal static unsafe class MenuInput
         if (!s_isOpen || input is null)
             return false;
 
-        if (input is KeyReleased)
-        {
+        var route = MenuInputRoute.Of(input, s_wantsText);
+
+        if (route.ReachesMenu)
             s_pending.Enqueue(input);
-            return s_wantsText;
-        }
 
-        if (input is KeyPressed or CharacterTyped && !s_wantsText)
-            return false;
-
-        s_pending.Enqueue(input);
-        return true;
+        return !route.ReachesGame;
     }
 
-    private static void Toggle()
+    public static bool Receive(WindowInput? input) => Handle(input);
+
+    public static MouseMoved AtDisplayPoint(Vector2 point)
+    {
+        var clientSize = User32.GetClientRect(Window, out var client)
+            ? new Vector2(client.Right - client.Left, client.Bottom - client.Top)
+            : Vector2.Zero;
+
+        return WindowInput.ToClient(point, clientSize, s_displaySize);
+    }
+
+    public static void DisplayIs(Vector2 size) => s_displaySize = size;
+
+    public static void Toggle()
     {
         s_pending.Clear();
         s_wantsText = false;
         s_isOpen = !s_isOpen;
 
-        if (s_isOpen && CursorInWindow() is { } cursor)
+        if (!s_isOpen)
+            return;
+
+        foreach (var key in MenuInputRoute.ModifierKeys)
+            s_pending.Enqueue(User32.IsKeyDown(key) ? new KeyPressed(key) : new KeyReleased(key));
+
+        if (CursorInWindow() is { } cursor)
             s_pending.Enqueue(cursor);
     }
 

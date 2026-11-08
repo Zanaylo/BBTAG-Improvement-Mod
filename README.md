@@ -41,4 +41,4 @@ Needs the .NET 10 SDK and Visual Studio with the C++ x86 tools (NativeAOT links 
 ./build.ps1
 ```
 
-Runs the tests and publishes everything to `export/BBTAG_IM`.
+Runs the tests and publishes `export/BBTAG_IM-<version>-tester` and its zip: only the Mod Loader and `ImprovementMod.dll`. The build fails if any other file lands in the export.

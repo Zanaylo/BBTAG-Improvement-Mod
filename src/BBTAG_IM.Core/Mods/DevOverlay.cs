@@ -20,7 +20,7 @@ public sealed class DevOverlay(IFileSystem files, string devFolder, Func<string,
             return loose;
 
         var looseFiles = LooseArchiveFiles(key);
-        return looseFiles.Count == 0 ? null : Built(key, looseFiles);
+        return looseFiles.Count == 0 ? null : Built(key, LooseFolderOf(key), looseFiles);
     }
 
     public bool Provides(string key) => files.FileExists(Path.Join(devFolder, key)) || LooseArchiveFiles(key).Count > 0;
@@ -30,7 +30,7 @@ public sealed class DevOverlay(IFileSystem files, string devFolder, Func<string,
         if (!key.EndsWith(ArchiveExtension, StringComparison.OrdinalIgnoreCase))
             return [];
 
-        var folder = Path.Join(devFolder, key)[..^ArchiveExtension.Length];
+        var folder = LooseFolderOf(key);
 
         if (!files.DirectoryExists(folder))
             return [];
@@ -40,14 +40,16 @@ public sealed class DevOverlay(IFileSystem files, string devFolder, Func<string,
             .ToList();
     }
 
-    private string Built(string key, IReadOnlyList<string> looseFiles)
+    private string LooseFolderOf(string key) => Path.Join(devFolder, key)[..^ArchiveExtension.Length];
+
+    private string Built(string key, string folder, IReadOnlyList<string> looseFiles)
     {
         var cache = Path.Join(devFolder, CacheFolder, key);
         var source = original(key);
 
         lock (_building)
         {
-            if (IsUpToDate(cache, source is null ? looseFiles : [.. looseFiles, source]))
+            if (IsUpToDate(cache, source is null ? [.. looseFiles, folder] : [.. looseFiles, folder, source]))
                 return cache;
 
             var archive = LooseArchive.Merge(

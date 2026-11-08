@@ -2,6 +2,7 @@ using BBTAG_IM.Core.CheatEngine;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Archives;
 using BBTAG_IM.Core.Roster;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Tables;
@@ -20,6 +21,7 @@ internal sealed class LauncherController
     private LaunchContext? _context;
     private GameSession? _session;
     private int _characterCheck;
+    private bool _unpacking;
 
     public LauncherController(IReadOnlyList<string> arguments, string launcherDirectory)
     {
@@ -29,7 +31,7 @@ internal sealed class LauncherController
         _settingsStore = SettingsStores.Launcher(fileSystem, launcherDirectory);
         var settings = TryLoadSettings(startupMessages);
         _settings = settings ?? new LauncherSettings();
-        _options = settings is null ? null : ParseOptions(arguments, startupMessages);
+        _options = settings is null ? null : WithArchivesInstalled(ParseOptions(arguments, startupMessages), startupMessages);
 
         if (_options is not null)
             _allMods = _settings.InLoadOrder(DiscoverMods(_options, fileSystem, startupMessages));
@@ -42,9 +44,13 @@ internal sealed class LauncherController
 
     public LauncherViewModel ViewModel { get; private set; }
 
+    public bool HasArchivesToUnpack => _options is not null && Archives().Pending().Count > 0;
+
+    public Task PlayOnStartAsync() => _settings.PlayOnStart ? PlayAsync() : Task.CompletedTask;
+
     public async Task PlayAsync()
     {
-        if (_context is null || _session is not null)
+        if (_context is null || _session is not null || _unpacking)
             return;
 
         ViewModel.CanPlay = false;
@@ -70,6 +76,60 @@ internal sealed class LauncherController
     }
 
     public void Close() => _session?.Dispose();
+
+    public async Task RefreshModsAsync()
+    {
+        if (_options is null || _session is not null || _unpacking)
+            return;
+
+        await UnpackArchivesAsync();
+        var before = _allMods.Select(mod => mod.Name).ToArray();
+        List<string> messages = [];
+        _allMods = _settings.InLoadOrder(DiscoverMods(_options, new PhysicalFileSystem(), messages));
+        messages.Add(ModRefreshMessage.From(before, _allMods.Select(mod => mod.Name).ToArray()));
+        Reload(messages);
+    }
+
+    private async Task UnpackArchivesAsync()
+    {
+        var archives = Archives();
+
+        if (archives.Pending().Count == 0)
+            return;
+
+        IProgress<string> progress = new Progress<string>(ViewModel.Report);
+        _unpacking = true;
+        ViewModel.CanPlay = false;
+        ViewModel.CanChangeMods = false;
+
+        try
+        {
+            await Task.Run(() => archives.InstallPending(progress.Report));
+        }
+        finally
+        {
+            _unpacking = false;
+        }
+    }
+
+    private ModArchiveInstaller Archives() =>
+        new(new PhysicalFileSystem(), new ArchiveUnpacker(), _settings.ModsDirectory(_launcherDirectory));
+
+    private LaunchOptions? WithArchivesInstalled(LaunchOptions? options, List<string> messages)
+    {
+        if (options is null)
+            return null;
+
+        try
+        {
+            return Archives().WithArchivesInstalled(options);
+        }
+        catch (Exception exception) when (LaunchErrors.IsExpected(exception))
+        {
+            messages.Add(exception.Message);
+            return options;
+        }
+    }
 
     private LauncherSettings? TryLoadSettings(List<string> messages)
     {
@@ -123,12 +183,16 @@ internal sealed class LauncherController
 
         var viewModel = CreateViewModel(_context);
         viewModel.ShowCheatEngineWindow = _settings.ShowCheatEngineWindow;
+        viewModel.WriteLogs = _settings.WriteLogs;
+        viewModel.PlayOnStart = _settings.PlayOnStart;
         viewModel.ShowActiveScripts(_selection.ToHashSet());
         viewModel.CanPlay = _context is not null;
         viewModel.ScriptToggled += OnScriptToggled;
         viewModel.ModToggled += OnModToggled;
         viewModel.ModMoveRequested += OnModMoveRequested;
         viewModel.ShowCheatEngineWindowChanged += OnShowCheatEngineWindowChanged;
+        viewModel.WriteLogsChanged += OnWriteLogsChanged;
+        viewModel.PlayOnStartChanged += OnPlayOnStartChanged;
 
         if (previous is not null)
             viewModel.KeepMessagesOf(previous);
@@ -180,7 +244,7 @@ internal sealed class LauncherController
             return;
 
         SaveModChange(() => _settings.EnableMod(mod.Name, mod.IsEnabled));
-        Reload(mod.IsEnabled ? $"{mod.Name} is on." : $"{mod.Name} is off and will not load.");
+        Reload([mod.IsEnabled ? $"{mod.Name} is on." : $"{mod.Name} is off and will not load."]);
     }
 
     private void OnModMoveRequested(ModEntry mod, ModMove move)
@@ -190,8 +254,12 @@ internal sealed class LauncherController
 
         SaveModChange(() => _settings.MoveMod(_allMods.Select(folder => folder.Name).ToArray(), mod.Name, move));
         _allMods = _settings.InLoadOrder(_allMods);
-        Reload(move == ModMove.Up ? $"{mod.Name} moved up." : $"{mod.Name} moved down.");
+        Reload([move == ModMove.Up ? $"{mod.Name} moved up." : $"{mod.Name} moved down."]);
     }
+
+    private void OnWriteLogsChanged(bool write) => SaveModChange(() => _settings.WriteLogs = write);
+
+    private void OnPlayOnStartChanged(bool play) => SaveModChange(() => _settings.PlayOnStart = play);
 
     private void SaveModChange(Action change)
     {
@@ -206,9 +274,9 @@ internal sealed class LauncherController
         }
     }
 
-    private void Reload(string message)
+    private void Reload(List<string> messages)
     {
-        ViewModel = Load([message], ViewModel);
+        ViewModel = Load(messages, ViewModel);
         ViewModelReplaced?.Invoke(ViewModel);
         CheckCharacters(_context);
     }
