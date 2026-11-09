@@ -78,30 +78,13 @@ public sealed class ModArchiveInstaller(IFileSystem files, IArchiveUnpacker unpa
         try
         {
             unpacker.Unpack(archive, work);
-            MoveFiles(ModRootIn(work), target);
+            MoveFiles(UnpackedModRoot.In(work, files), target);
             files.WriteAllText(StampOf(target), StampFor(archive));
         }
         finally
         {
             Remove(work);
         }
-    }
-
-    private string ModRootIn(string work)
-    {
-        var root = work;
-
-        while (ModFolder.TryInspect(root, files) is null)
-        {
-            var folders = files.EnumerateDirectories(root).ToArray();
-
-            if (folders.Length != 1)
-                throw new ModArchiveException($"it has no '{ModFolder.GameDataFolder}' folder, {ModFolder.TableExtension} table or {ModFolder.PluginExtension} to load.");
-
-            root = folders[0];
-        }
-
-        return root;
     }
 
     private void MoveFiles(string from, string to)

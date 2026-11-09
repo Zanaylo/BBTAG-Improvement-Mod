@@ -15,6 +15,8 @@ public sealed class PythonDialect(ScriptDatabase database, ScriptStyle style) : 
 
     public bool BlankLineBeforeFirstBlock => true;
 
+    public bool StacksBlocks => style == ScriptStyle.Mango;
+
     public string? FunctionEnd => null;
 
     public string? EmptyBlock => ScriptKeywords.Pass;
@@ -37,8 +39,13 @@ public sealed class PythonDialect(ScriptDatabase database, ScriptStyle style) : 
 
     public string CommandName(CommandDefinition command) => database.CallName(command);
 
-    public IReadOnlyList<string> IfStart(bool negated, string condition, bool constant) =>
-        [$"{(negated ? ScriptKeywords.If + " " + ScriptKeywords.Not : ScriptKeywords.If)} {condition}:"];
+    public IReadOnlyList<string> IfStart(bool negated, string condition, bool constant)
+    {
+        if (negated && style == ScriptStyle.Mango)
+            return [$"{ScriptKeywords.If} ({ScriptKeywords.Not} {condition}):"];
+
+        return [$"{(negated ? ScriptKeywords.If + " " + ScriptKeywords.Not : ScriptKeywords.If)} {condition}:"];
+    }
 
     public string? BlockEnd(BlockKind kind) => null;
 
@@ -47,8 +54,10 @@ public sealed class PythonDialect(ScriptDatabase database, ScriptStyle style) : 
         switch (instruction.Id)
         {
             case ScriptCommands.Upon:
-                var upon = database.UponName(instruction.Values[0].Number);
+                var upon = UponName(instruction.Values[0].Number);
                 return FunctionNames.IsIdentifier(upon) ? [$"{ScriptKeywords.Def} {upon}():"] : null;
+            case ScriptCommands.ObjectFunction or ScriptCommands.StateRegister when style == ScriptStyle.Mango:
+                return null;
             case ScriptCommands.ObjectFunction:
                 var objectFunction = $"{instruction.Command.Name}_{instruction.Values[0].Number.ToString(CultureInfo.InvariantCulture)}";
                 return instruction.Values[0].Number >= 0 && FunctionNames.IsIdentifier(objectFunction) ? [$"{ScriptKeywords.Def} {objectFunction}():"] : null;
@@ -65,6 +74,9 @@ public sealed class PythonDialect(ScriptDatabase database, ScriptStyle style) : 
 
     public string Value(NamedValueRequest request)
     {
+        if (style == ScriptStyle.Mango)
+            return request.Plain;
+
         var named = request.Kind switch
         {
             ValueKind.Input => database.Inputs.NameOf(request.Command, request.Value, request.Hex),
@@ -77,7 +89,11 @@ public sealed class PythonDialect(ScriptDatabase database, ScriptStyle style) : 
         return named is not null && FunctionNames.IsIdentifier(named) ? named : request.Plain;
     }
 
-    public string Slot(int slot) => database.SlotName(slot);
+    public string Slot(int slot) =>
+        style == ScriptStyle.Mango ? ScriptDatabase.SlotPrefix + slot.ToString(CultureInfo.InvariantCulture) : database.SlotName(slot);
+
+    private string UponName(int upon) =>
+        style == ScriptStyle.Mango ? ScriptDatabase.UponPrefix + MangoUpons.NameOf(upon) : database.UponName(upon);
 
     public string Text(string text) => ScriptLiterals.Text(text);
 

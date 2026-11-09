@@ -22,9 +22,18 @@
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TesterBuild)' == 'true'">
-    <Compile Remove="Dev\PortRunner.cs;Dev\PortPanelFactory.cs;Menu\CharacterPortPanel.cs" />
+  <ItemGroup Condition="'$(PublicBuild)' != 'true'">
+    <Compile Remove="Standalone\**;ImprovementStartup.Standalone.cs" />
   </ItemGroup>
+
+  <ItemGroup Condition="'$(PublicBuild)' == 'true'">
+    <Compile Remove="Exports.cs;ImprovementStartup.Full.cs;Dev\**;Training\BossFightControl.cs;Training\MatchSetupGate.cs;Training\OwnerlessTakemiGuard.cs;Training\SittingOutSpawnGate.cs;Menu\BossFightPanel.cs;Menu\DevSection.cs;Menu\CommandNamesCombo.cs;Menu\ScriptHelpWindow.cs;Menu\HitboxEditorWindow.cs;Menu\ScriptEditorCombo.cs;Menu\ScriptLanguageChoice.cs;Menu\SpritePreview.cs" />
+    <NativeLibrary Include="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)entry_gate.obj" />
+  </ItemGroup>
+
+  <Target Name="CompileEntryGate" AfterTargets="SetupOSSpecificProps" Condition="'$(PublicBuild)' == 'true'" Inputs="Standalone\entry_gate.c" Outputs="$(IntermediateOutputPath)entry_gate.obj">
+    <Exec Command="&quot;$(_CppToolsDirectory)cl.exe&quot; /nologo /c /O1 /GS- /Zl /Fo&quot;$(IntermediateOutputPath)entry_gate.obj&quot; Standalone\entry_gate.c" />
+  </Target>
 
   <Target Name="BundleMenuLibrary" AfterTargets="ResolvePackageAssets">
     <ItemGroup>

@@ -44,6 +44,26 @@ public class GameAddressesTests
         Assert.Equal("Camera list was not found in the game code. This game version is not supported.", layoutException.Message);
     }
 
+    [Fact]
+    public void Locate_OneGameStatePlaceChangedByAnotherPatch_StillReturnsTheGameObject()
+    {
+        // Arrange
+        byte[] code = CreateGameCode()
+            .Bytes(0x100, "?? ?? ?? ?? ?? C7 80 18 01 00 00 0B 00 00 00")
+            .CallAt(0x100, 0x200)
+            .Bytes(0x120, "?? ?? ?? ?? ?? C7 80 18 01 00 00 23 00 00 00")
+            .CallAt(0x120, 0x200)
+            .Bytes(0x005, "90 90 90 90 90 90 90 90 90 90")
+            .ToArray();
+        CodeImage image = CreateCodeImage(code);
+
+        // Act
+        GameAddresses addresses = GameAddresses.Locate(image);
+
+        // Assert
+        Assert.Equal(GameObject, addresses.Game);
+    }
+
     private static GameCode CreateGameCode() =>
         new GameCode(CodeSize)
             .Bytes(0x000, "?? ?? ?? ?? ?? C7 80 18 01 00 00 17 00 00 00 E8")

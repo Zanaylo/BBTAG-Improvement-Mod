@@ -25,6 +25,8 @@ public sealed class CSharpDialect(ScriptDatabase database) : IScriptDialect
 
     public bool BlankLineBeforeFirstBlock => false;
 
+    public bool StacksBlocks => false;
+
     public string? FunctionEnd => CloseBrace;
 
     public string? EmptyBlock => null;

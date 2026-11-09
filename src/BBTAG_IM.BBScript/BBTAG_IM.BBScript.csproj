@@ -15,8 +15,4 @@
     <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TesterBuild)' == 'true'">
-    <Compile Remove="ScriptTool.Port.cs" />
-  </ItemGroup>
-
 </Project>

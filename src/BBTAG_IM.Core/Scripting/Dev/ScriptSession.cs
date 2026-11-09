@@ -22,13 +22,15 @@ public sealed class ScriptSession
     private readonly IFileSystem files;
     private readonly LiveScript live;
     private readonly ScriptDatabase database;
+    private readonly ScriptStyle pythonLayout;
     private readonly ScriptCompiler compiler;
     private CompiledScript? previous;
     private DateTime? lastSeen;
 
-    public ScriptSession(IFileSystem files, ScriptPaths paths, LiveScript live, ScriptDatabase database)
+    public ScriptSession(IFileSystem files, ScriptPaths paths, LiveScript live, ScriptDatabase database, ScriptStyle pythonLayout = ScriptStyle.Readable)
     {
         this.files = files;
+        this.pythonLayout = pythonLayout;
         this.live = live;
         this.database = database;
         compiler = new ScriptCompiler(database, ScriptLanguages.Of(paths.Source));
@@ -52,7 +54,7 @@ public sealed class ScriptSession
         if (files.FileExists(Paths.Source) && !OtherLanguageIsNewer())
             return;
 
-        files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
+        files.WriteAllText(Paths.Source, ScriptLanguages.Decompiler(database, Language, pythonLayout).Decompile(live.Current, Path.GetFileNameWithoutExtension(Paths.Source)));
         lastSeen = files.LastWriteTimeUtc(Paths.Source);
     }
 

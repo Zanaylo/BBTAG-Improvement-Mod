@@ -18,6 +18,8 @@ public interface IScriptDialect
 
     bool BlankLineBeforeFirstBlock { get; }
 
+    bool StacksBlocks { get; }
+
     string? FunctionEnd { get; }
 
     string? EmptyBlock { get; }

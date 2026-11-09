@@ -10,9 +10,12 @@ public class SingletonLocatorTests
     private const uint SiteOffset = 0x10;
     private const uint GetterOffset = 0x80;
     private const uint ObjectAddress = 0x00E59100;
+    private const uint OtherGetterOffset = 0xC0;
     private const string SiteTail = "C7 80 18 01 00 00 17 00 00 00";
 
     private static readonly SingletonPattern Pattern = new("Game state", BytePattern.Parse("?? ?? ?? ?? ?? " + SiteTail), 0);
+
+    private static readonly SingletonPattern MostCalledPattern = new("Game state", BytePattern.Parse("E8 ?? ?? ?? ?? C7 80 18 01 00 00 ?? 00 00 00"), 0, SiteChoice.MostCalled);
 
     public SingletonLocator CreateSingletonLocator(byte[] code) => new(new CodeImage([new CodeBlock(CodeAddress, code)]));
 
@@ -75,6 +78,26 @@ public class SingletonLocatorTests
         // Assert
         GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
         Assert.Equal("The Game state getter holds no object address. This game version is not supported.", layoutException.Message);
+    }
+
+    [Fact]
+    public void Locate_MostCalledPatternWithOnePlaceCallingAnotherGetter_ReturnsTheObjectMostPlacesReach()
+    {
+        // Arrange
+        byte[] code = CreateGameCode()
+            .CallAt(SiteOffset + 0x20, OtherGetterOffset)
+            .Bytes(SiteOffset + 0x25, SiteTail)
+            .CallAt(SiteOffset + 0x40, GetterOffset)
+            .Bytes(SiteOffset + 0x45, SiteTail)
+            .SingletonGetterAt(OtherGetterOffset, 0x00C0A788)
+            .ToArray();
+        SingletonLocator locator = CreateSingletonLocator(code);
+
+        // Act
+        uint address = locator.Locate(MostCalledPattern);
+
+        // Assert
+        Assert.Equal(ObjectAddress, address);
     }
 
     private static GameCode CreateGameCode() =>

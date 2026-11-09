@@ -24,9 +24,27 @@ public sealed class CodeImage(IReadOnlyList<CodeBlock> blocks)
         return matches.Count switch
         {
             1 => matches[0],
-            0 => throw new GameLayoutException($"{name} was not found in the game code. {GameLayoutException.UnsupportedVersion}"),
+            0 => throw NotFound(name),
             _ => throw new GameLayoutException($"{name} was found {matches.Count} times in the game code. {GameLayoutException.UnsupportedVersion}"),
         };
+    }
+
+    public uint MostCalledTarget(BytePattern pattern, int callOffset, string name)
+    {
+        var targets = FindAll(pattern)
+            .Select(match => match + (uint)callOffset)
+            .Where(IsCall)
+            .GroupBy(call => CallTarget(call, name))
+            .OrderByDescending(group => group.Count())
+            .ToArray();
+
+        if (targets.Length == 0)
+            throw NotFound(name);
+
+        if (targets.Length > 1 && targets[0].Count() == targets[1].Count())
+            throw new GameLayoutException($"{name} calls different functions equally often in the game code. {GameLayoutException.UnsupportedVersion}");
+
+        return targets[0].Key;
     }
 
     public uint CallTarget(uint call, string name)
@@ -38,6 +56,11 @@ public sealed class CodeImage(IReadOnlyList<CodeBlock> blocks)
 
         return (uint)(call + CallLength + BinaryPrimitives.ReadInt32LittleEndian(callBytes[1..]));
     }
+
+    private bool IsCall(uint address) => Slice(address, 1) is [CallOpcode];
+
+    private static GameLayoutException NotFound(string name) =>
+        new($"{name} was not found in the game code. {GameLayoutException.UnsupportedVersion}");
 
     public ReadOnlySpan<byte> Slice(uint address, int length)
     {

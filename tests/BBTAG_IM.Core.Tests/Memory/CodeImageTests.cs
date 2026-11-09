@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.Memory;
+using BBTAG_IM.Core.Tests.Support;
 
 namespace BBTAG_IM.Core.Tests.Memory;
 
@@ -6,6 +7,12 @@ public class CodeImageTests
 {
     private const uint FirstBlock = 0x401000;
     private const uint SecondBlock = 0x900000;
+    private const int CallingCodeSize = 0x100;
+    private const uint MostCalledFunction = 0x80;
+    private const uint OtherFunction = 0xC0;
+    private const string StoreAfterCall = "C7 80 18 01 00 00 17 00 00 00";
+
+    private static readonly BytePattern CallThenStore = BytePattern.Parse("E8 ?? ?? ?? ?? C7 80 18 01 00 00 ?? 00 00 00");
 
     public CodeImage CreateCodeImage() =>
         new(
@@ -133,5 +140,59 @@ public class CodeImageTests
         // Assert
         GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
         Assert.Equal("Fate does not call its getter. This game version is not supported.", layoutException.Message);
+    }
+
+    [Fact]
+    public void MostCalledTarget_MostPlacesCallOneFunction_ReturnsThatFunction()
+    {
+        // Arrange
+        CodeImage image = CreateCallingImage(MostCalledFunction, OtherFunction, MostCalledFunction);
+
+        // Act
+        uint target = image.MostCalledTarget(CallThenStore, 0, "Game state");
+
+        // Assert
+        Assert.Equal(FirstBlock + MostCalledFunction, target);
+    }
+
+    [Fact]
+    public void MostCalledTarget_PatternMissing_ThrowsGameLayoutExceptionNamingIt()
+    {
+        // Arrange
+        CodeImage image = CreateCodeImage();
+
+        // Act
+        Exception? exception = Record.Exception(() => image.MostCalledTarget(CallThenStore, 0, "Game state"));
+
+        // Assert
+        GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
+        Assert.Equal("Game state was not found in the game code. This game version is not supported.", layoutException.Message);
+    }
+
+    [Fact]
+    public void MostCalledTarget_FunctionsCalledEquallyOften_ThrowsGameLayoutException()
+    {
+        // Arrange
+        CodeImage image = CreateCallingImage(MostCalledFunction, OtherFunction);
+
+        // Act
+        Exception? exception = Record.Exception(() => image.MostCalledTarget(CallThenStore, 0, "Game state"));
+
+        // Assert
+        GameLayoutException layoutException = Assert.IsType<GameLayoutException>(exception);
+        Assert.Equal("Game state calls different functions equally often in the game code. This game version is not supported.", layoutException.Message);
+    }
+
+    private static CodeImage CreateCallingImage(params uint[] targets)
+    {
+        var code = new GameCode(CallingCodeSize);
+
+        for (var place = 0; place < targets.Length; place++)
+        {
+            var offset = (uint)(place * 0x10);
+            code.CallAt(offset, targets[place]).Bytes(offset + 5, StoreAfterCall);
+        }
+
+        return new CodeImage([new CodeBlock(FirstBlock, code.ToArray())]);
     }
 }

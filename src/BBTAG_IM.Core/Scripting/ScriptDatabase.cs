@@ -80,7 +80,7 @@ public sealed class ScriptDatabase
             return null;
 
         var rest = name[UponPrefix.Length..];
-        return Upons.ValueOf(rest) ?? (int.TryParse(rest, out var number) ? number : null);
+        return Upons.ValueOf(rest) ?? MangoUpons.ValueOf(rest) ?? (int.TryParse(rest, out var number) ? number : null);
     }
 
     public ScriptDatabase WithGameSizes(IReadOnlyDictionary<int, int> sizes)

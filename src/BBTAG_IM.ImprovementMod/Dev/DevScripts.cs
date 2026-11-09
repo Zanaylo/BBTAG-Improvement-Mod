@@ -36,6 +36,7 @@ internal sealed class DevScripts(
 {
     private const uint EffectsRecordOffset = ScriptRecord.Length;
     private const int FirstLine = 1;
+    private const string WaitForCharacterSelect = "Go back to character select first. Scripts being edited keep their names and layout until the match loads again.";
 
     private static readonly string[] SlotNames = ["P1 point", "P2 point", "P1 partner", "P2 partner"];
     private static readonly bool[] ScriptKinds = [false, true];
@@ -56,6 +57,10 @@ internal sealed class DevScripts(
     public DevFolder Folder => dev;
 
     public bool HasCommandNames => databaseFolder.Exists;
+
+    public CommandDatabaseChoice CommandChoice => databaseFolder.CommandChoice;
+
+    public bool CanRewriteScripts => _sessions.All(session => session.HasEnded);
 
     public bool DevFolderLoads => devFolderLoads;
 
@@ -105,6 +110,83 @@ internal sealed class DevScripts(
         {
             return exception.Message;
         }
+    }
+
+    public string AddAndUseCommands(string source)
+    {
+        try
+        {
+            return UseCommands(CommandChoice.Add(source));
+        }
+        catch (Exception exception) when (exception is InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
+        {
+            return exception.Message;
+        }
+    }
+
+    public string UseCommands(string path)
+    {
+        if (!CanRewriteScripts)
+            return WaitForCharacterSelect;
+
+        var previousPath = databaseFolder.CommandsPath;
+
+        try
+        {
+            var before = Database();
+            CommandChoice.Choose(path);
+            ForgetDatabase();
+            var after = Database();
+            var result = new DevScriptRenamer(files, dev).RenameAll((name, language) => DatabaseFor(before, name, language), (name, language) => DatabaseFor(after, name, language), DateTime.Now, settings().PythonLayout);
+            databaseFolder.WriteEditorApi(CSharpApi.Write(after, databaseFolder.LoadDocs()));
+            return Describe($"Commands are named by {Path.GetFileNameWithoutExtension(path)} now.", result);
+        }
+        catch (Exception exception) when (exception is InvalidScriptDatabaseException or IOException or UnauthorizedAccessException)
+        {
+            CommandChoice.Choose(previousPath);
+            ForgetDatabase();
+            return $"The command list was not changed: {exception.Message}";
+        }
+    }
+
+    public string UsePythonLayout(ScriptStyle layout)
+    {
+        if (!CanRewriteScripts)
+            return WaitForCharacterSelect;
+
+        var database = Database();
+        var result = new DevScriptRenamer(files, dev).RenameAll(
+            (name, language) => DatabaseFor(database, name, language),
+            (name, language) => DatabaseFor(database, name, language),
+            DateTime.Now,
+            layout,
+            ScriptLanguage.Python);
+        return Describe(layout == ScriptStyle.Mango ? "Python scripts are written in the Mango layout now." : "Python scripts are written in the previous layout now.", result);
+    }
+
+    private string Describe(string change, DevRenameResult result)
+    {
+        var message = change;
+
+        if (result.Renamed > 0)
+            message += $" {result.Renamed} saved {(result.Renamed == 1 ? "script was" : "scripts were")} written again. The old files are in {result.BackupFolder}.";
+
+        if (result.Failures.Count > 0)
+            message += $" {result.Failures.Count} could not be read and stay as they were: {string.Join(" ", result.Failures)}";
+
+        SafeLog.Info(log, message);
+        return message;
+    }
+
+    private ScriptDatabase DatabaseFor(ScriptDatabase shared, string scriptName, ScriptLanguage language) =>
+        language == ScriptLanguage.Python && databaseFolder.Exists && ScriptArchive.CharacterCode(scriptName) is { } code
+            ? databaseFolder.ForCharacter(shared, code)
+            : shared;
+
+    private void ForgetDatabase()
+    {
+        _database = null;
+        _moves.Clear();
     }
 
     public IReadOnlyList<CharacterMove> Moves(DevCharacter character, bool effects)
@@ -272,10 +354,9 @@ internal sealed class DevScripts(
         var bytes = versions.FirstOrDefault(version => Runs(record, version))
             ?? throw new InvalidScriptException("The game runs a different version of this script than the files have. Load the match again.");
 
-        var csharp = ScriptLanguages.Of(paths.Source) == ScriptLanguage.CSharp;
-        var database = databaseFolder.Exists && !csharp ? databaseFolder.ForCharacter(Database(), code) : Database();
+        var database = DatabaseFor(Database(), Path.GetFileNameWithoutExtension(paths.Source), ScriptLanguages.Of(paths.Source));
         var live = new LiveScript(game.Memory, _buffers, heap, recordAddress, ScriptBinary.Read(bytes, database), database, _moveRefresh);
-        var session = new ScriptSession(files, paths, live, database);
+        var session = new ScriptSession(files, paths, live, database, settings().PythonLayout);
 
         Directory.CreateDirectory(Path.GetDirectoryName(paths.Source)!);
         session.Open();

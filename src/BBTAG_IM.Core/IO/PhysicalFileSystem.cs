@@ -19,6 +19,14 @@ public sealed class PhysicalFileSystem : IFileSystem
 
     public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
 
+    public Stream OpenRead(string path) => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+
+    public Stream CreateFile(string path)
+    {
+        CreateDirectoryOf(path);
+        return File.Create(path);
+    }
+
     public byte[] ReadBytes(string path, long offset, int length)
     {
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

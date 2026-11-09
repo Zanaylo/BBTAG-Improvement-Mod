@@ -324,6 +324,16 @@ public class LauncherSettingsTests
     }
 
     [Fact]
+    public void UpdateModsOnStart_NewSettings_IsOn()
+    {
+        // Act
+        LauncherSettings settings = new();
+
+        // Assert
+        Assert.True(settings.UpdateModsOnStart);
+    }
+
+    [Fact]
     public void WriteLogs_NewSettings_IsOff()
     {
         // Act

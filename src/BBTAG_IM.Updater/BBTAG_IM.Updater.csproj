@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>BBTAG_IM.Updater</RootNamespace>
+    <AssemblyName>BBTAG_IM_Updater</AssemblyName>
+    <AssemblyTitle>BBTAG Improvement Mod Updater</AssemblyTitle>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x86</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <ApplicationIcon>..\..\resource\Updater\BBTAG_IM_Updater.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
+  </ItemGroup>
+
+</Project>

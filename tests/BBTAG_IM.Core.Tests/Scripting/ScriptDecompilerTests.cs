@@ -212,6 +212,290 @@ public class ScriptDecompilerTests
         Assert.StartsWith("@State\n", text);
     }
 
+    [Fact]
+    public void Decompile_MangoStyleUponOpenedInsideAnother_NestsItLikeTheStack()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("ShieldBit")
+            .Command(15, 0).Command(ScriptTestDatabase.Damage, 1)
+            .Command(15, 10).Command(ScriptTestDatabase.Damage, 2).Command(16)
+            .Command(16)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.StartsWith("@State\ndef ShieldBit():\n\n    def upon_IMMEDIATE():\n        Damage(1)\n\n        def upon_ON_HIT_OR_BLOCK():\n            Damage(2)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleBlockClosedByAnotherCommand_EndsTheBlockWithThatCommand()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(15, 0).Command(ScriptTestDatabase.Damage, 1).Command(5)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    def upon_IMMEDIATE():\n        Damage(1)\n        endIf()\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleCloserWithNothingOpen_WritesItAsACall()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(ScriptTestDatabase.Damage, 1).Command(16).Command(ScriptTestDatabase.Damage, 2)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    Damage(1)\n    endUpon()\n    Damage(2)\n", text);
+        Assert.DoesNotContain("@RawState", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleComparisonThenIf_WritesTheComparisonInTheIf()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(40, (int)ScriptOperator.Greater, SlotType, 51, ConstantType, 25000)
+            .Command(4, SlotType, 0).Command(ScriptTestDatabase.Damage, 1).Command(5)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    if (SLOT_51 > 25000):\n        Damage(1)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleIfNot_PutsTheNotInParentheses()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(54, SlotType, 51).Command(ScriptTestDatabase.Damage, 1).Command(55)
+            .Command(56).Command(ScriptTestDatabase.Damage, 2).Command(57)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    if (not SLOT_51):\n        Damage(1)\n    else:\n        Damage(2)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleElseWithoutAnIfBefore_WritesItAsACall()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(ScriptTestDatabase.Damage, 1).Command(56).Command(ScriptTestDatabase.Damage, 2).Command(57)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    Else()\n    Damage(2)\n    endElse()\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleBlockStillOpenWhenTheStateEnds_KeepsTheRawLayout()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(15, 0).Command(ScriptTestDatabase.Damage, 1)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("@RawState", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleStateWithoutAnEnd_KeepsTheNestingUnderRawState()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A").Command(15, 0).Command(ScriptTestDatabase.Damage, 1).Command(16).Command(ScriptTestDatabase.Damage, 2)
+            .State("B").Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("@RawState\ndef A():\n\n    def upon_IMMEDIATE():\n        Damage(1)\n    Damage(2)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleEndInTheMiddle_WritesItAsACall()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A").Command(ScriptTestDatabase.Damage, 1).Command(1).Command(ScriptTestDatabase.Damage, 2).Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("@State\ndef A():\n    Damage(1)\n    endState()\n    Damage(2)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleUponNumbers_AreWrittenLikeThe2019Parser()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(15, 33).Command(ScriptTestDatabase.ClearUpon, 33).Command(16)
+            .Command(15, 1).Command(16)
+            .Command(15, 2).Command(16)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    def upon_33():\n        clearUponHandler(33)\n", text);
+        Assert.Contains("    def upon_STATE_END():\n", text);
+        Assert.Contains("    def upon_LANDING():\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleStoreValue_UsesTheSlotNumber()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes().State("A").Command(41, SlotType, 56, ConstantType, 1).Command(1).Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    SLOT_56 = 1\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleCallThenIf_WritesTheCallInTheIf()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(ScriptTestDatabase.CheckInput, 0xAC)
+            .Command(4, SlotType, 0).Command(ScriptTestDatabase.Damage, 1).Command(5)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    if CheckInput(0xac):\n        Damage(1)\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleMoveRegister_StaysAPlainCall()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A")
+            .Command(14001, "NmlAtk5A", 0x0402).Command(14002)
+            .Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("    Move_Register('NmlAtk5A', 0x402)\n    Move_EndRegister()\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyle_HasNoEditorSettings()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes().State("A").Command(1).Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.StartsWith("@State\n", text);
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleEmptyState_WritesPass()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes().State("A").Command(1).Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("def A():\n    pass\n", text);
+        Assert.Equal(bytes, CompileMango(text));
+    }
+
+    [Fact]
+    public void Decompile_MangoStyleStateReference_IsText()
+    {
+        // Arrange
+        byte[] bytes = new ScriptBytes()
+            .State("A").Command(ScriptTestDatabase.SharedGatling, "B").Command(1)
+            .State("B").Command(1)
+            .Build();
+
+        // Act
+        string text = Mango(bytes);
+
+        // Assert
+        Assert.Contains("SharedGatling('B')", text);
+    }
+
+    private static string Mango(byte[] bytes) => new ScriptDecompiler(ScriptTestDatabase.Create(), ScriptStyle.Mango).Decompile(Read(bytes));
+
+    private static byte[] CompileMango(string text) => new ScriptCompiler(ScriptTestDatabase.Create()).Compile(text).Bytes;
+
     public ScriptDecompiler CreateScriptDecompiler() => new(ScriptTestDatabase.Create());
 
     private static ScriptBinary Read(byte[] bytes) => ScriptBinary.Read(bytes, ScriptTestDatabase.Create());

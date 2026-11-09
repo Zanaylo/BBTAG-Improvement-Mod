@@ -181,15 +181,13 @@ public sealed class ScriptCompiler
         var (opener, closer) = negated ? (ScriptCommands.IfNot, ScriptCommands.EndIfNot) : (ScriptCommands.If, ScriptCommands.EndIf);
 
         WriteCommand(opener, [condition], conditional.Line);
-        WriteBody(conditional.Body);
-        WriteCommand(closer, [], LastLineOf(conditional.Body, conditional.Line));
+        WriteClosedBody(conditional.Body, closer, LastLineOf(conditional.Body, conditional.Line));
 
         if (conditional.Otherwise.Count == 0)
             return;
 
         WriteCommand(ScriptCommands.Else, [], conditional.ElseLine);
-        WriteBody(conditional.Otherwise);
-        WriteCommand(ScriptCommands.EndElse, [], LastLineOf(conditional.Otherwise, conditional.ElseLine));
+        WriteClosedBody(conditional.Otherwise, ScriptCommands.EndElse, LastLineOf(conditional.Otherwise, conditional.ElseLine));
     }
 
     private void WriteInnerFunction(FunctionStatement function)
@@ -230,16 +228,30 @@ public sealed class ScriptCompiler
             throw new ScriptCompileException($"{block.Opener.Name} does not open a block, so it cannot take '() => {{ }}'.", block.Line);
 
         WriteCall(block.Opener);
-        WriteBody(block.Body);
-        WriteCommand(closer, [], block.EndLine);
+        WriteClosedBody(block.Body, closer, block.EndLine);
     }
 
     private void WriteBlock(int opener, IReadOnlyList<Expression> arguments, FunctionStatement function)
     {
         WriteCommand(opener, arguments, function.Line);
-        WriteBody(function.Body);
-        WriteCommand(ScriptCommands.CloserOf(opener)!.Value, [], function.EndLine);
+        WriteClosedBody(function.Body, ScriptCommands.CloserOf(opener)!.Value, function.EndLine);
     }
+
+    private void WriteClosedBody(IReadOnlyList<Statement> body, int closer, int endLine)
+    {
+        if (body.Count > 0 && body[^1] is ExpressionStatement { Value: CallExpression call } && IsCloserCall(call))
+        {
+            WriteBody([.. body.Take(body.Count - 1)]);
+            Collect(() => WriteCall(call));
+            return;
+        }
+
+        WriteBody(body);
+        WriteCommand(closer, [], endLine);
+    }
+
+    private bool IsCloserCall(CallExpression call) =>
+        call.Arguments.Count == 0 && database.Find(call.Name) is { } command && ScriptCommands.IsStackCloser(command.Id);
 
     private int? ObjectFunctionTarget(string name)
     {

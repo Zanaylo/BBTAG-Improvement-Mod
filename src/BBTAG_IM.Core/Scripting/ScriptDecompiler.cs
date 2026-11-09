@@ -61,10 +61,10 @@ public sealed class ScriptDecompiler
     private void AppendFunction(StringBuilder text, IReadOnlyList<ScriptInstruction> instructions, int start, int end, Dictionary<string, int> identifiers, ref int unnamed)
     {
         var opener = instructions[start];
-        var structured = Structured(instructions, start, end);
+        var (structured, raw) = dialect.StacksBlocks ? StackedFunction(instructions, start, end) : (Structured(instructions, start, end), false);
         var name = opener.TextAt(0);
         var identifier = dialect.FunctionIdentifier(name);
-        var decorator = ScriptDecorators.For(opener.Id, structured is null);
+        var decorator = ScriptDecorators.For(opener.Id, raw || structured is null);
         var outer = IndentOf(dialect.BodyDepth - 1);
         string? realName = null;
 
@@ -101,6 +101,116 @@ public sealed class ScriptDecompiler
         var closer = ScriptCommands.CloserOf(instructions[start].Id)!.Value;
 
         return Block(lines, instructions, end, dialect.BodyDepth, ref index, closer) && index == end ? lines : null;
+    }
+
+    private (List<string>? Lines, bool Raw) StackedFunction(IReadOnlyList<ScriptInstruction> instructions, int start, int end)
+    {
+        var endsWithCloser = end - start >= 2 && instructions[end - 1].Id == ScriptCommands.CloserOf(instructions[start].Id);
+
+        if (endsWithCloser && Stacked(instructions, start + 1, end - 1) is { } closed)
+            return (closed, false);
+
+        return (Stacked(instructions, start + 1, end), true);
+    }
+
+    private List<string>? Stacked(IReadOnlyList<ScriptInstruction> instructions, int first, int last)
+    {
+        var lines = new List<string>();
+        var open = new Stack<OpenBlock>();
+        var afterIf = new HashSet<int>();
+        var comparison = (Index: -1, Expression: string.Empty);
+
+        for (var index = first; index < last; index++)
+        {
+            var instruction = instructions[index];
+            var depth = dialect.BodyDepth + open.Count;
+
+            if (ScriptCommands.IsStackCloser(instruction.Id))
+            {
+                Close(lines, open, afterIf, instruction, depth);
+                continue;
+            }
+
+            if (instruction.Id == ScriptCommands.Else && afterIf.Contains(depth))
+            {
+                afterIf.Remove(depth);
+                lines.AddRange(dialect.ElseStart.Select(line => IndentOf(depth) + line));
+                open.Push(new OpenBlock(ScriptCommands.EndElse, depth, lines.Count, IsCondition: false));
+                afterIf.Remove(depth + 1);
+                continue;
+            }
+
+            afterIf.Remove(depth);
+
+            if (ScriptCommands.CloserOf(instruction.Id) is { } closer && instruction.Id != ScriptCommands.Else
+                && StackedHeader(instruction, lines, comparison.Index == index - 1 ? comparison.Expression : null) is { } header)
+            {
+                if (header.Kind == BlockKind.Call && (lines.Count > 0 || dialect.BlankLineBeforeFirstBlock))
+                    lines.Add(string.Empty);
+
+                lines.AddRange(header.Lines.Select(line => IndentOf(depth) + line));
+                open.Push(new OpenBlock(closer, depth, lines.Count, header.Kind == BlockKind.Condition));
+                afterIf.Remove(depth + 1);
+                continue;
+            }
+
+            var statement = ScriptCommands.CloserOf(instruction.Id) is null ? Statement(instruction) : Call(instruction, paired: true);
+            lines.Add(IndentOf(depth) + dialect.Statement(statement));
+
+            if (TestedValue(instruction) is { } tested)
+                comparison = (index, tested);
+        }
+
+        if (open.Count > 0)
+            return null;
+
+        if (lines.Count == 0 && dialect.EmptyBlock is { } empty)
+            lines.Add(IndentOf(dialect.BodyDepth) + empty);
+
+        return lines;
+    }
+
+    private void Close(List<string> lines, Stack<OpenBlock> open, HashSet<int> afterIf, ScriptInstruction closer, int depth)
+    {
+        if (open.Count == 0)
+        {
+            lines.Add(IndentOf(depth) + dialect.Statement(Call(closer, paired: true)));
+            return;
+        }
+
+        var block = open.Pop();
+        afterIf.Remove(block.Depth + 1);
+
+        if (closer.Id != block.Closer)
+            lines.Add(IndentOf(block.Depth + 1) + dialect.Statement(Call(closer, paired: true)));
+        else if (lines.Count == block.FirstLine && dialect.EmptyBlock is { } empty)
+            lines.Add(IndentOf(block.Depth + 1) + empty);
+
+        if (block.IsCondition)
+            afterIf.Add(block.Depth);
+    }
+
+    private (BlockKind Kind, IReadOnlyList<string> Lines)? StackedHeader(ScriptInstruction instruction, List<string> lines, string? comparison)
+    {
+        var mergesComparison = instruction.Id is ScriptCommands.If or ScriptCommands.IfNot
+            && IsSlot(instruction, 0) && SlotOf(instruction, 0) == 0;
+
+        if (comparison is null || !mergesComparison)
+            return Header(instruction);
+
+        lines.RemoveAt(lines.Count - 1);
+        return (BlockKind.Condition, dialect.IfStart(instruction.Id == ScriptCommands.IfNot, comparison, constant: false));
+    }
+
+    private string? TestedValue(ScriptInstruction instruction)
+    {
+        if (instruction.Id == ScriptCommands.Operation)
+            return ScriptOperators.IsKnown(instruction.Values[OperationIndex].Number) && Expression(instruction) is { } expression ? $"({expression})" : null;
+
+        if (instruction.Id is ScriptCommands.OperationInto or ScriptCommands.ModifyValue or ScriptCommands.StoreValue || ScriptCommands.CloserOf(instruction.Id) is not null || ScriptCommands.IsCloser(instruction.Id))
+            return null;
+
+        return Call(instruction, paired: true);
     }
 
     private List<string> Raw(IReadOnlyList<ScriptInstruction> instructions, int start, int end)
@@ -343,6 +453,8 @@ public sealed class ScriptDecompiler
             SlotType => dialect.Slot(instruction.Values[typeIndex + 1].Number),
             _ => null,
         };
+
+    private sealed record OpenBlock(int Closer, int Depth, int FirstLine, bool IsCondition);
 
     private static string IndentOf(int depth) => depth <= 0 ? string.Empty : string.Concat(Enumerable.Repeat(Indent, depth));
 

@@ -479,12 +479,27 @@ public class ScriptSessionTests
         _fileSystemMock.DidNotReceive().WriteAllText(Source, Arg.Any<string>());
     }
 
-    public ScriptSession CreateScriptSession(string source = Source)
+    [Fact]
+    public void Open_MangoLayout_WritesThePythonInThatLayout()
+    {
+        // Arrange
+        _loaded = new ScriptBytes().State("A").Command(54, 2, 51).Command(ScriptTestDatabase.Damage, 12).Command(55).Command(1).Build();
+        _fileSystemMock.FileExists(Source).Returns(false);
+        ScriptSession session = CreateScriptSession(layout: ScriptStyle.Mango);
+
+        // Act
+        session.Open();
+
+        // Assert
+        _fileSystemMock.Received(1).WriteAllText(Source, Arg.Is<string>(text => text.Contains("if (not SLOT_51):")));
+    }
+
+    public ScriptSession CreateScriptSession(string source = Source, ScriptStyle layout = ScriptStyle.Readable)
     {
         _scriptMemory.Load(_loaded);
         ScriptDatabase database = ScriptTestDatabase.Create();
         LiveScript live = new(_scriptMemory.Memory, _scriptBuffersMock, _gameHeapMock, ScriptMemory.Record, ScriptBinary.Read(_loaded, database), database, _moveRefreshMock);
-        return new ScriptSession(_fileSystemMock, new ScriptPaths(source, Binary), live, database);
+        return new ScriptSession(_fileSystemMock, new ScriptPaths(source, Binary), live, database, layout);
     }
 
     private ScriptSession OpenedSession(byte[]? loaded = null)

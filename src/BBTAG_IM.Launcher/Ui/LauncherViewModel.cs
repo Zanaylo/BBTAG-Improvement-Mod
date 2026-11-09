@@ -20,6 +20,9 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     private bool _showCheatEngineWindow = true;
     private bool _writeLogs;
     private bool _playOnStart;
+    private bool _updateModsOnStart = true;
+    private ModEntry? _selectedMod;
+    private string _linkText = "";
 
     public event Action<ScriptNode>? ScriptToggled;
 
@@ -32,6 +35,8 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
     public event Action<bool>? WriteLogsChanged;
 
     public event Action<bool>? PlayOnStartChanged;
+
+    public event Action<bool>? UpdateModsOnStartChanged;
 
     public string GameText { get; init; } = "";
 
@@ -50,6 +55,27 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
                 mod.MoveRequested += (moved, move) => ModMoveRequested?.Invoke(moved, move);
             }
         }
+    }
+
+    public ModEntry? SelectedMod
+    {
+        get => _selectedMod;
+        set
+        {
+            if (!SetProperty(ref _selectedMod, value))
+                return;
+
+            LinkText = value?.Link ?? "";
+            OnPropertyChanged(nameof(HasSelectedMod));
+        }
+    }
+
+    public bool HasSelectedMod => _selectedMod is not null;
+
+    public string LinkText
+    {
+        get => _linkText;
+        set => SetProperty(ref _linkText, value);
     }
 
     public bool CanChangeMods
@@ -122,6 +148,16 @@ internal sealed class LauncherViewModel : ObservableObject, ILauncherView
         {
             if (SetProperty(ref _playOnStart, value))
                 PlayOnStartChanged?.Invoke(value);
+        }
+    }
+
+    public bool UpdateModsOnStart
+    {
+        get => _updateModsOnStart;
+        set
+        {
+            if (SetProperty(ref _updateModsOnStart, value))
+                UpdateModsOnStartChanged?.Invoke(value);
         }
     }
 

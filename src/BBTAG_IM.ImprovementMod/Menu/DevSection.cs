@@ -6,7 +6,7 @@ using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, ScriptLanguageChoice language, HitboxEditorWindow? hitboxes, IReadOnlyList<IDevPanel> panels, string databaseFolder) : IMenuSection
+internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEditorCombo editor, ScriptLanguageChoice language, CommandNamesCombo commandNames, ScriptHelpWindow help, HitboxEditorWindow? hitboxes, string databaseFolder) : IMenuSection
 {
     public const string Name = "Dev";
 
@@ -24,6 +24,11 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
         DrawHitboxes();
         ImGui.Spacing();
         ImGui.SeparatorText("Scripts");
+
+        if (ImGui.Button("Script help"))
+            help.Toggle();
+
+        MenuText.Tooltip("What the mod does while you edit: live saves, mistakes, crashes and rollback, what needs a reload.");
         MenuText.Wrapped("Edit a character's script while the match runs. Save the file and the change applies right away.");
         MenuText.Muted($"Files go to {scripts.Folder.Path}");
 
@@ -35,6 +40,7 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
 
         ImGui.Spacing();
         language.Draw();
+        commandNames.Draw();
         editor.Draw();
         ImGui.Spacing();
         DrawCharacters();
@@ -43,12 +49,6 @@ internal sealed class DevSection(DevScripts scripts, MatchExit exit, ScriptEdito
 
         if (_notice.Length > 0)
             MenuText.Wrapped(_notice);
-
-        foreach (var panel in panels)
-        {
-            ImGui.Spacing();
-            panel.Draw();
-        }
     }
 
     private void DrawHitboxes()

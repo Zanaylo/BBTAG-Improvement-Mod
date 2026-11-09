@@ -7,12 +7,8 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>BBTAG Improvement Mod</Product>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TesterBuild)' == 'true'">
-    <DefineConstants>$(DefineConstants);TESTER_BUILD</DefineConstants>
   </PropertyGroup>
 
 </Project>

@@ -43,9 +43,13 @@ public static class ScriptCommands
 
     private static readonly HashSet<int> AllClosers = [.. Closers.Values];
 
+    private static readonly HashSet<int> StackClosers = [EndState, EndIf, EndSubroutine, EndUpon, EndIfNot, EndElse];
+
     public static int? CloserOf(int opener) => Closers.TryGetValue(opener, out var closer) ? closer : null;
 
     public static bool IsCloser(int id) => AllClosers.Contains(id);
+
+    public static bool IsStackCloser(int id) => StackClosers.Contains(id);
 
     public static bool StartsFunction(int id) => id is StartState or StartSubroutine;
 }

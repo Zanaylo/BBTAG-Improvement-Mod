@@ -18,9 +18,20 @@ public struct ScreenPoint
     public int Y;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct CursorInfo
+{
+    public int Size;
+    public int Flags;
+    public nint Cursor;
+    public ScreenPoint Position;
+}
+
 public static partial class User32
 {
     public const int WindowProcedureIndex = -4;
+
+    private const int CursorShowing = 1;
 
     private const string Library = "user32.dll";
     private const short KeyDownBit = unchecked((short)0x8000);
@@ -51,6 +62,16 @@ public static partial class User32
     public static partial bool SetForegroundWindow(nint window);
 
     public static bool IsKeyDown(int key) => (GetAsyncKeyState(key) & KeyDownBit) != 0;
+
+    public static unsafe bool IsCursorShowing()
+    {
+        var info = new CursorInfo { Size = sizeof(CursorInfo) };
+        return GetCursorInfo(ref info) && (info.Flags & CursorShowing) != 0 && info.Cursor != 0;
+    }
+
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorInfo(ref CursorInfo info);
 
     [LibraryImport(Library)]
     private static partial short GetAsyncKeyState(int key);

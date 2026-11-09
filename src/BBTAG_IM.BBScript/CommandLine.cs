@@ -2,16 +2,13 @@ using BBTAG_IM.Core.Scripting;
 
 namespace BBTAG_IM.BBScript;
 
-internal sealed record CommandLine(string Verb, IReadOnlyList<string> Inputs, string? Output, string? Database, bool BBTools, bool Python, bool Foreign, string? Roster, string? Name, string? Series)
+internal sealed record CommandLine(string Verb, IReadOnlyList<string> Inputs, string? Output, string? Database, bool BBTools, bool Python, bool Mango)
 {
     private const string OutputOption = "--out";
     private const string DatabaseOption = "--db";
     private const string BBToolsOption = "--bbtools";
     private const string PythonOption = "--python";
-    private const string ForeignOption = "--foreign";
-    private const string RosterOption = "--roster";
-    private const string NameOption = "--name";
-    private const string SeriesOption = "--series";
+    private const string MangoOption = "--mango";
 
     public static CommandLine? Parse(IReadOnlyList<string> arguments)
     {
@@ -23,10 +20,7 @@ internal sealed record CommandLine(string Verb, IReadOnlyList<string> Inputs, st
         string? database = null;
         var bbtools = false;
         var python = false;
-        var foreign = false;
-        string? roster = null;
-        string? name = null;
-        string? series = null;
+        var mango = false;
 
         for (var index = 1; index < arguments.Count; index++)
         {
@@ -38,23 +32,14 @@ internal sealed record CommandLine(string Verb, IReadOnlyList<string> Inputs, st
                 case DatabaseOption when index + 1 < arguments.Count:
                     database = arguments[++index];
                     break;
-                case RosterOption when index + 1 < arguments.Count:
-                    roster = arguments[++index];
-                    break;
-                case NameOption when index + 1 < arguments.Count:
-                    name = arguments[++index];
-                    break;
-                case SeriesOption when index + 1 < arguments.Count:
-                    series = arguments[++index];
-                    break;
                 case BBToolsOption:
                     bbtools = true;
                     break;
                 case PythonOption:
                     python = true;
                     break;
-                case ForeignOption:
-                    foreign = true;
+                case MangoOption:
+                    mango = true;
                     break;
                 default:
                     inputs.Add(arguments[index]);
@@ -62,10 +47,10 @@ internal sealed record CommandLine(string Verb, IReadOnlyList<string> Inputs, st
             }
         }
 
-        return new CommandLine(arguments[0].ToLowerInvariant(), inputs, output, database, bbtools, python, foreign, roster, name, series);
+        return new CommandLine(arguments[0].ToLowerInvariant(), inputs, output, database, bbtools, python, mango);
     }
 
-    public ScriptStyle Style => BBTools ? ScriptStyle.BBTools : ScriptStyle.Readable;
+    public ScriptStyle Style => BBTools ? ScriptStyle.BBTools : Mango ? ScriptStyle.Mango : ScriptStyle.Readable;
 
-    public ScriptLanguage Language => BBTools || Python ? ScriptLanguage.Python : ScriptLanguage.CSharp;
+    public ScriptLanguage Language => BBTools || Python || Mango ? ScriptLanguage.Python : ScriptLanguage.CSharp;
 }

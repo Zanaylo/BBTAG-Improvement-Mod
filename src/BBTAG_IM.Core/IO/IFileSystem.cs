@@ -16,6 +16,10 @@ public interface IFileSystem
 
     byte[] ReadAllBytes(string path);
 
+    Stream OpenRead(string path);
+
+    Stream CreateFile(string path);
+
     byte[] ReadBytes(string path, long offset, int length);
 
     DateTime LastWriteTimeUtc(string path);

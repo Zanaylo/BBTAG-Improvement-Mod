@@ -1,27 +1,34 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using BBTAG_IM.Core.CheatEngine;
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Mods;
 using BBTAG_IM.Core.Mods.Archives;
-using BBTAG_IM.Core.Roster;
+using BBTAG_IM.Core.Mods.Updates;
 using BBTAG_IM.Core.Settings;
 using BBTAG_IM.Core.Tables;
+using BBTAG_IM.Core.Updates;
 
 namespace BBTAG_IM.Launcher.Ui;
 
 internal sealed class LauncherController
 {
+    private static readonly HttpClient GitHubClient = new() { Timeout = TimeSpan.FromMinutes(2) };
+
     private readonly string _launcherDirectory;
     private readonly LaunchOptions? _options;
     private readonly JsonFileStore<LauncherSettings> _settingsStore;
     private readonly LauncherSettings _settings;
     private IReadOnlyList<ModFolder> _allMods = [];
     private readonly List<int> _selection = [];
+    private readonly ModSourceStore _sources = new(new PhysicalFileSystem());
+    private readonly CancellationTokenSource _closing = new();
 
     private LaunchContext? _context;
     private GameSession? _session;
     private int _characterCheck;
-    private bool _unpacking;
+    private bool _busy;
 
     public LauncherController(IReadOnlyList<string> arguments, string launcherDirectory)
     {
@@ -44,13 +51,26 @@ internal sealed class LauncherController
 
     public LauncherViewModel ViewModel { get; private set; }
 
-    public bool HasArchivesToUnpack => _options is not null && Archives().Pending().Count > 0;
+    private bool HasArchivesToUnpack => _options is not null && Archives().Pending().Count > 0;
+
+    public async Task OpenedAsync()
+    {
+        UpdaterStarter.TryStartAfter(_launcherDirectory, Environment.ProcessId);
+
+        if (HasArchivesToUnpack)
+            await RefreshModsAsync();
+
+        if (_settings.UpdateModsOnStart)
+            await UpdateModsAsync();
+
+        await PlayOnStartAsync();
+    }
 
     public Task PlayOnStartAsync() => _settings.PlayOnStart ? PlayAsync() : Task.CompletedTask;
 
     public async Task PlayAsync()
     {
-        if (_context is null || _session is not null || _unpacking)
+        if (_context is null || _session is not null || _busy)
             return;
 
         ViewModel.CanPlay = false;
@@ -75,11 +95,15 @@ internal sealed class LauncherController
         }
     }
 
-    public void Close() => _session?.Dispose();
+    public void Close()
+    {
+        _closing.Cancel();
+        _session?.Dispose();
+    }
 
     public async Task RefreshModsAsync()
     {
-        if (_options is null || _session is not null || _unpacking)
+        if (_options is null || _session is not null || _busy)
             return;
 
         await UnpackArchivesAsync();
@@ -98,7 +122,7 @@ internal sealed class LauncherController
             return;
 
         IProgress<string> progress = new Progress<string>(ViewModel.Report);
-        _unpacking = true;
+        _busy = true;
         ViewModel.CanPlay = false;
         ViewModel.CanChangeMods = false;
 
@@ -108,9 +132,123 @@ internal sealed class LauncherController
         }
         finally
         {
-            _unpacking = false;
+            _busy = false;
         }
     }
+
+    public Task UpdateModsAsync() =>
+        _options is null ? Task.CompletedTask : RunUpdatesAsync(_sources.LinkedFolders(_settings.ModsDirectory(_launcherDirectory)));
+
+    public async Task SaveLinkAsync()
+    {
+        if (ViewModel.SelectedMod is not { } entry || _allMods.FirstOrDefault(mod => mod.Name == entry.Name) is not { } mod)
+            return;
+
+        if (ImprovementModRelease.IsUpdatedByTheUpdater(mod.Name))
+        {
+            ViewModel.Report($"{mod.Name} is updated by {ImprovementModRelease.UpdaterFileName} from {ImprovementModRelease.Repository.Url}, so its link stays.");
+            return;
+        }
+
+        var text = ViewModel.LinkText.Trim();
+
+        if (text.Length == 0)
+        {
+            ChangeLink(() => _sources.Unlink(mod.RootPath), $"{mod.Name} no longer updates from GitHub.");
+            return;
+        }
+
+        if (ParseLink(text) is not { } repository)
+            return;
+
+        if (ChangeLink(() => _sources.Link(mod.RootPath, repository), $"{mod.Name} now updates from {repository.Url}."))
+            await RunUpdatesAsync([mod.RootPath]);
+    }
+
+    public async Task AddModFromLinkAsync()
+    {
+        if (_options is null || ParseLink(ViewModel.LinkText.Trim()) is not { } repository)
+            return;
+
+        var modsDirectory = _settings.ModsDirectory(_launcherDirectory);
+        var folder = Path.Combine(modsDirectory, repository.Name);
+
+        if (ChangeLink(() => _sources.AddFolder(modsDirectory, repository), $"{repository.Url} is downloading into the mods folder as {repository.Name}."))
+            await RunUpdatesAsync([folder]);
+    }
+
+    private GitHubRepository? ParseLink(string text)
+    {
+        var repository = GitHubRepository.TryParse(text);
+
+        if (repository is null)
+            ViewModel.Report($"\"{text}\" is not a GitHub repository link. It looks like https://github.com/owner/mod.");
+
+        return repository;
+    }
+
+    private bool ChangeLink(Action change, string message)
+    {
+        if (_session is not null || _busy)
+            return false;
+
+        try
+        {
+            change();
+            Reload([message]);
+            return true;
+        }
+        catch (Exception exception) when (IsUpdateError(exception))
+        {
+            ViewModel.Report(exception.Message);
+            return false;
+        }
+    }
+
+    private async Task RunUpdatesAsync(IReadOnlyList<string> folders)
+    {
+        if (_options is null || _session is not null || _busy || folders.Count == 0)
+            return;
+
+        _busy = true;
+        ViewModel.CanPlay = false;
+        ViewModel.CanChangeMods = false;
+        IProgress<string> progress = new Progress<string>(ViewModel.ShowStatus);
+        var updater = new ModUpdater(new GitHubApi(GitHubClient), new PhysicalFileSystem(), new ArchiveUnpacker());
+
+        try
+        {
+            foreach (var folder in folders)
+                await UpdateOneAsync(updater, folder, progress);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (!_closing.IsCancellationRequested)
+            await RefreshModsAsync();
+    }
+
+    private async Task UpdateOneAsync(ModUpdater updater, string folder, IProgress<string> progress)
+    {
+        try
+        {
+            var result = await Task.Run(() => updater.UpdateAsync(folder, progress, _closing.Token));
+            ViewModel.Report(result.Message);
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception) when (IsUpdateError(exception))
+        {
+            ViewModel.Report($"{Path.GetFileName(folder)} was not updated: {exception.Message}");
+        }
+    }
+
+    private static bool IsUpdateError(Exception exception) =>
+        exception is ModUpdateException or GitHubException or ModArchiveException or IOException or UnauthorizedAccessException;
 
     private ModArchiveInstaller Archives() =>
         new(new PhysicalFileSystem(), new ArchiveUnpacker(), _settings.ModsDirectory(_launcherDirectory));
@@ -185,6 +323,7 @@ internal sealed class LauncherController
         viewModel.ShowCheatEngineWindow = _settings.ShowCheatEngineWindow;
         viewModel.WriteLogs = _settings.WriteLogs;
         viewModel.PlayOnStart = _settings.PlayOnStart;
+        viewModel.UpdateModsOnStart = _settings.UpdateModsOnStart;
         viewModel.ShowActiveScripts(_selection.ToHashSet());
         viewModel.CanPlay = _context is not null;
         viewModel.ScriptToggled += OnScriptToggled;
@@ -193,6 +332,7 @@ internal sealed class LauncherController
         viewModel.ShowCheatEngineWindowChanged += OnShowCheatEngineWindowChanged;
         viewModel.WriteLogsChanged += OnWriteLogsChanged;
         viewModel.PlayOnStartChanged += OnPlayOnStartChanged;
+        viewModel.UpdateModsOnStartChanged += OnUpdateModsOnStartChanged;
 
         if (previous is not null)
             viewModel.KeepMessagesOf(previous);
@@ -232,7 +372,7 @@ internal sealed class LauncherController
         };
 
     private ModEntry ToEntry(ModFolder mod, int position) =>
-        new(mod.Name, ModContents.Describe(mod, ModPlugin.IsPlugin), _settings.IsModEnabled(mod.Name))
+        new(mod.Name, ModContents.Describe(mod, ModPlugin.IsPlugin), _settings.IsModEnabled(mod.Name), LinkOf(mod), LinkCaptionOf(mod))
         {
             CanMoveUp = position > 0,
             CanMoveDown = position < _allMods.Count - 1,
@@ -260,6 +400,41 @@ internal sealed class LauncherController
     private void OnWriteLogsChanged(bool write) => SaveModChange(() => _settings.WriteLogs = write);
 
     private void OnPlayOnStartChanged(bool play) => SaveModChange(() => _settings.PlayOnStart = play);
+
+    private void OnUpdateModsOnStartChanged(bool update) => SaveModChange(() => _settings.UpdateModsOnStart = update);
+
+    private string LinkOf(ModFolder mod)
+    {
+        try
+        {
+            return _sources.Load(mod.RootPath)?.Repository ?? ImprovementModRelease.DefaultLinkOf(mod.Name) ?? "";
+        }
+        catch (ModUpdateException)
+        {
+            return "";
+        }
+    }
+
+    private static string LinkCaptionOf(ModFolder mod) =>
+        ImprovementModRelease.IsUpdatedByTheUpdater(mod.Name) ? $"Updates from {ImprovementModRelease.Repository.Url} through {ImprovementModRelease.UpdaterFileName}" : "";
+
+    public void OpenLink(ModEntry mod)
+    {
+        if (!Uri.TryCreate(mod.Link, UriKind.Absolute, out var address) || address.Scheme != Uri.UriSchemeHttps)
+        {
+            ViewModel.Report($"{mod.Name} has no web link to open.");
+            return;
+        }
+
+        try
+        {
+            using var browser = Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Win32Exception exception)
+        {
+            ViewModel.Report($"{address} could not be opened: {exception.Message}");
+        }
+    }
 
     private void SaveModChange(Action change)
     {
@@ -304,15 +479,13 @@ internal sealed class LauncherController
     private static IReadOnlyList<string> CharacterFileProblems(LaunchContext context)
     {
         var fileSystem = new PhysicalFileSystem();
-        var manifests = ModCharacterManifests.Load(context.Mods, fileSystem);
-        var tableCodes = context.TablePath is { } tablePath ? TableRoster.Codes(fileSystem.ReadAllText(tablePath)) : [];
-        string[] roster = [.. tableCodes.Concat(manifests.Manifests.Select(manifest => manifest.Code)).Distinct()];
+        string[] roster = context.TablePath is { } tablePath ? [.. TableRoster.Codes(fileSystem.ReadAllText(tablePath)).Distinct()] : [];
 
         if (roster.Length == 0)
-            return manifests.Problems;
+            return [];
 
         var reports = new ModCharacterAudit(fileSystem, context.GameDirectory).Run(context.Mods, roster);
-        return [.. manifests.Problems, .. CharacterFileMessages.From(reports)];
+        return CharacterFileMessages.From(reports);
     }
 
     private async void OnScriptToggled(ScriptNode script)

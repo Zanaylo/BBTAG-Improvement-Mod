@@ -20,7 +20,9 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     public bool Exists => fileSystem.FileExists(CommandsPath);
 
-    public string CommandsPath => Path.Combine(folder, CommandsFile);
+    public CommandDatabaseChoice CommandChoice => new(fileSystem, folder);
+
+    public string CommandsPath => CommandChoice.CurrentPath;
 
     public string GlobalSlotsPath => Path.Combine(folder, SlotsFolder, GlobalFile);
 
@@ -76,7 +78,22 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     private IEnumerable<CommandDefinition> Commands()
     {
-        using var document = Parse(CommandsPath) ?? throw new InvalidScriptDatabaseException($"{CommandsFile} cannot be read.");
+        var chosen = Commands(CommandsPath);
+        var defaultPath = CommandChoice.DefaultPath;
+
+        if (string.Equals(CommandsPath, defaultPath, StringComparison.OrdinalIgnoreCase) || !fileSystem.FileExists(defaultPath))
+            return chosen;
+
+        var layouts = Commands(defaultPath).ToDictionary(command => command.Id);
+        var named = chosen.Select(command => layouts.TryGetValue(command.Id, out var layout) ? layout with { Name = command.Name } : command).ToList();
+        var chosenIds = chosen.Select(command => command.Id).ToHashSet();
+
+        return named.Concat(layouts.Values.Where(layout => !chosenIds.Contains(layout.Id)).Select(layout => layout with { Name = CommandDefinition.UnknownName(layout.Id) }));
+    }
+
+    private List<CommandDefinition> Commands(string path)
+    {
+        using var document = Parse(path) ?? throw new InvalidScriptDatabaseException($"{Path.GetFileName(path)} cannot be read.");
         var commands = new List<CommandDefinition>();
 
         foreach (var entry in document.RootElement.EnumerateObject())
@@ -106,10 +123,20 @@ public sealed class ScriptDatabaseFolder(IFileSystem fileSystem, string folder)
 
     private static bool HasLayout(JsonElement data) => data.TryGetProperty("format", out _) || data.TryGetProperty("size", out _);
 
-    private static IReadOnlyList<CommandArgument> Arguments(JsonElement data) =>
-        data.TryGetProperty("format", out var format)
-            ? CommandFormat.Parse(format.GetString() ?? string.Empty)
-            : CommandFormat.ForSize(data.GetProperty("size").GetInt32());
+    private static IReadOnlyList<CommandArgument> Arguments(JsonElement data)
+    {
+        if (!data.TryGetProperty("format", out var format))
+            return CommandFormat.ForSize(data.GetProperty("size").GetInt32());
+
+        try
+        {
+            return CommandFormat.Parse(format.GetString() ?? string.Empty);
+        }
+        catch (InvalidScriptDatabaseException)
+        {
+            return data.TryGetProperty("size", out var size) ? CommandFormat.ForSize(size.GetInt32()) : [];
+        }
+    }
 
     private static HashSet<int> SlotTypeArguments(JsonElement data) =>
         data.TryGetProperty("type_check", out var typeCheck)

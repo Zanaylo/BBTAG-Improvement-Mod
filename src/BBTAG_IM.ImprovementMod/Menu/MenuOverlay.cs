@@ -27,6 +27,7 @@ internal sealed unsafe class MenuOverlay
     private readonly ImGuiRenderer _renderer;
     private readonly string _layoutPath;
     private readonly Action<Direct3DDevice, DeviceViewport> _draw;
+    private readonly Action<Direct3DDevice, DeviceViewport> _drawCursor;
 
     private long _lastFrame = Stopwatch.GetTimestamp();
     private bool _contextCreated;
@@ -43,6 +44,7 @@ internal sealed unsafe class MenuOverlay
         _renderer = new ImGuiRenderer(textures, log);
         _layoutPath = Path.Combine(modFolder, LayoutFileName);
         _draw = Draw;
+        _drawCursor = DrawCursor;
     }
 
     public void OnPresent(nint device)
@@ -56,7 +58,50 @@ internal sealed unsafe class MenuOverlay
 
         if (isOpen)
             _pass.Run(device, _draw);
+        else if (SoftwareCursor.IsNeeded(User32.IsCursorShowing(), IsOverGameWindow()))
+            _pass.Run(device, _drawCursor);
     }
+
+    private static bool IsOverGameWindow() =>
+        User32.GetForegroundWindow() == MenuInput.Window && MenuInput.CursorInWindow() is { } cursor
+        && User32.GetClientRect(MenuInput.Window, out var client)
+        && cursor.X >= 0 && cursor.Y >= 0 && cursor.X < client.Right - client.Left && cursor.Y < client.Bottom - client.Top;
+
+    private void DrawCursor(Direct3DDevice device, DeviceViewport viewport)
+    {
+        var displaySize = new Vector2(viewport.Width, viewport.Height);
+
+        if (!BeginFrame(device, displaySize) || MenuInput.CursorInWindow() is not { } cursor)
+            return;
+
+        var io = ImGui.GetIO();
+        io.MouseDrawCursor = true;
+        var point = WindowInput.ToDisplay(cursor, ClientSize(), displaySize);
+        io.AddMousePosEvent(point.X, point.Y);
+
+        ImGui.NewFrame();
+        ImGui.Render();
+        _renderer.Render(device, ImGui.GetDrawData());
+    }
+
+    private bool BeginFrame(Direct3DDevice device, Vector2 displaySize)
+    {
+        CreateContext();
+        BuildFont(MenuFont.SizeFor(_settings.Current.MenuFontSize, displaySize.Y));
+        _textures.Use(device);
+
+        if (!_renderer.PrepareFonts())
+            return false;
+
+        var io = ImGui.GetIO();
+        io.DisplaySize = displaySize;
+        io.DeltaTime = (float)Math.Clamp(Stopwatch.GetElapsedTime(_lastFrame).TotalSeconds, ShortestFrameSeconds, LongestFrameSeconds);
+        _lastFrame = Stopwatch.GetTimestamp();
+        return true;
+    }
+
+    private static Vector2 ClientSize() =>
+        User32.GetClientRect(MenuInput.Window, out var client) ? new Vector2(client.Right - client.Left, client.Bottom - client.Top) : Vector2.Zero;
 
     public void OnReset() => _textures.ReleaseAll();
 
@@ -75,18 +120,12 @@ internal sealed unsafe class MenuOverlay
     private void Draw(Direct3DDevice device, DeviceViewport viewport)
     {
         var displaySize = new Vector2(viewport.Width, viewport.Height);
-        CreateContext();
-        BuildFont(MenuFont.SizeFor(_settings.Current.MenuFontSize, displaySize.Y));
 
-        _textures.Use(device);
-
-        if (!_renderer.PrepareFonts())
+        if (!BeginFrame(device, displaySize))
             return;
 
         var io = ImGui.GetIO();
-        io.DisplaySize = displaySize;
-        io.DeltaTime = (float)Math.Clamp(Stopwatch.GetElapsedTime(_lastFrame).TotalSeconds, ShortestFrameSeconds, LongestFrameSeconds);
-        _lastFrame = Stopwatch.GetTimestamp();
+        io.MouseDrawCursor = !User32.IsCursorShowing();
         FeedInput(io, displaySize);
         MenuInput.DisplayIs(displaySize);
 
@@ -109,7 +148,6 @@ internal sealed unsafe class MenuOverlay
         ImGui.CreateContext();
         var io = ImGui.GetIO();
         io.NativePtr->IniFilename = (byte*)Marshal.StringToCoTaskMemUTF8(_layoutPath);
-        io.MouseDrawCursor = true;
 
         ImGui.StyleColorsDark();
         MenuStyle.Apply(ImGui.GetStyle());
@@ -146,9 +184,7 @@ internal sealed unsafe class MenuOverlay
 
     private static void FeedInput(ImGuiIOPtr io, Vector2 displaySize)
     {
-        var clientSize = User32.GetClientRect(MenuInput.Window, out var client)
-            ? new Vector2(client.Right - client.Left, client.Bottom - client.Top)
-            : Vector2.Zero;
+        var clientSize = ClientSize();
 
         while (MenuInput.TryTake(out var input))
         {

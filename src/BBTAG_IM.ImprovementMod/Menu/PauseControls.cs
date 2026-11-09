@@ -21,6 +21,7 @@ internal sealed class PauseControls(MatchPause? pause)
 
         ImGui.SameLine();
         ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Pause)})");
+        ImGui.SameLine();
         ImGui.BeginDisabled(!paused);
 
         if (ImGui.Button("Next frame"))

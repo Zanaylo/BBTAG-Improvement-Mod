@@ -48,10 +48,31 @@ internal sealed partial class LauncherWindow : Window
         if (_controller is null)
             return;
 
-        if (_controller.HasArchivesToUnpack)
-            await _controller.RefreshModsAsync();
+        await _controller.OpenedAsync();
+    }
 
-        await _controller.PlayOnStartAsync();
+    private async void OnSaveLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (_controller is not null)
+            await _controller.SaveLinkAsync();
+    }
+
+    private async void OnAddModClick(object? sender, RoutedEventArgs e)
+    {
+        if (_controller is not null)
+            await _controller.AddModFromLinkAsync();
+    }
+
+    private async void OnUpdateModsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_controller is not null)
+            await _controller.UpdateModsAsync();
+    }
+
+    private void OnOpenLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (_controller is not null && sender is Control { DataContext: ModEntry mod })
+            _controller.OpenLink(mod);
     }
 
     private void OnMoveUpClick(object? sender, RoutedEventArgs e) => MoveMod(sender, ModMove.Up);

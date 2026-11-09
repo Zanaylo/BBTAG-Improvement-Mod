@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.Hitboxes;
+using BBTAG_IM.Core.Meter;
 using BBTAG_IM.Core.Scripting;
 using BBTAG_IM.Core.Settings;
 
@@ -14,6 +15,33 @@ public class ImprovementSettingsTests
 
         // Assert
         Assert.Equal((true, false), (settings.HitboxViewer, settings.FrameLimiter));
+    }
+
+    [Fact]
+    public void Constructor_NewSettings_HideTheFrameMeterWithEveryRowReadyAndNoAutoPause()
+    {
+        // Act
+        ImprovementSettings settings = new();
+
+        // Assert
+        FrameMeterOptions meter = settings.FrameMeter;
+        Assert.Equal((false, 1f, 1f), (meter.Shown, meter.Scale, meter.Opacity));
+        Assert.Equal((true, true, true, true), (meter.Counts, meter.Invulnerability, meter.Partners, meter.Totals));
+        Assert.Equal((false, false, false, false), (meter.AutoPause.OnMoveStart, meter.AutoPause.OnHit, meter.AutoPause.OnCombo, meter.AutoPause.OnBlock));
+        Assert.Equal((true, false), (meter.AutoPause.Player1, meter.AutoPause.Player2));
+    }
+
+    [Fact]
+    public void Look_MeterOptions_CarriesThemIntoTheLayout()
+    {
+        // Arrange
+        FrameMeterOptions meter = new() { Scale = 1.5f, Opacity = 0.8f, Counts = false, OffsetY = -0.1f };
+
+        // Act
+        MeterLook look = meter.Look();
+
+        // Assert
+        Assert.Equal(new MeterLook(1.5f, 0.8f, false, true, true, true, 0, -0.1f), look);
     }
 
     [Fact]
@@ -55,6 +83,16 @@ public class ImprovementSettingsTests
 
         // Assert
         Assert.Equal(ScriptLanguage.CSharp, settings.ScriptLanguage);
+    }
+
+    [Fact]
+    public void Constructor_NewSettings_WritePythonInTheMangoLayout()
+    {
+        // Act
+        ImprovementSettings settings = new();
+
+        // Assert
+        Assert.Equal(ScriptStyle.Mango, settings.PythonLayout);
     }
 
     [Theory]

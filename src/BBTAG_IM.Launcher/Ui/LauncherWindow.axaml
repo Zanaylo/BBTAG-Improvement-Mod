@@ -10,6 +10,7 @@
         x:Class="BBTAG_IM.Launcher.Ui.LauncherWindow"
         x:DataType="ui:LauncherViewModel"
         Title="BBTAG Mod Loader"
+        Icon="/Assets/BBTAG_Mod_Loader.ico"
         Width="820"
         Height="860"
         MinWidth="640"
@@ -62,18 +63,41 @@
                      Margin="0,0,0,8"
                      TextWrapping="Wrap"
                      Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order. A .zip, .rar or .7z in the mods folder is unpacked next to it." />
-          <Button DockPanel.Dock="Bottom"
-                  Margin="0,8,0,0"
-                  HorizontalAlignment="Right"
-                  Content="Refresh"
-                  ToolTip.Tip="Read the mods folder again, to pick up mods and archives you added, removed or changed."
-                  IsEnabled="{Binding CanChangeMods}"
-                  Click="OnRefreshModsClick" />
-          <ListBox ItemsSource="{Binding Mods}" IsEnabled="{Binding CanChangeMods}">
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" Spacing="6" IsEnabled="{Binding CanChangeMods}">
+            <TextBlock TextWrapping="Wrap"
+                       Opacity="0.75"
+                       Text="GitHub link of a mod. Save it on the selected mod to keep that mod up to date, or add it as a new mod. Linked mods download their new files when the Mod Loader opens." />
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0" Orientation="Horizontal" Spacing="6">
+                <Button Content="Save on the selected mod"
+                        ToolTip.Tip="Link the selected mod to this repository and download what changed. Leave the box empty to remove the link."
+                        IsEnabled="{Binding HasSelectedMod}"
+                        Click="OnSaveLinkClick" />
+                <Button Content="Add as a new mod"
+                        ToolTip.Tip="Download this repository into a new folder in the mods folder."
+                        Click="OnAddModClick" />
+              </StackPanel>
+              <TextBox Text="{Binding LinkText}" Watermark="https://github.com/owner/mod" />
+            </DockPanel>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="6">
+              <Button Content="Update linked mods"
+                      ToolTip.Tip="Check every linked mod on GitHub now and download what changed."
+                      Click="OnUpdateModsClick" />
+              <Button Content="Refresh"
+                      ToolTip.Tip="Read the mods folder again, to pick up mods and archives you added, removed or changed."
+                      Click="OnRefreshModsClick" />
+            </StackPanel>
+          </StackPanel>
+          <ListBox ItemsSource="{Binding Mods}" SelectedItem="{Binding SelectedMod}" IsEnabled="{Binding CanChangeMods}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="ui:ModEntry">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Content="GitHub"
+                            IsVisible="{Binding HasLink}"
+                            ToolTip.Tip="{Binding Link}"
+                            AutomationProperties.Name="Open the GitHub page"
+                            Click="OnOpenLinkClick" />
                     <Button ToolTip.Tip="Move up" AutomationProperties.Name="Move up" IsEnabled="{Binding CanMoveUp}" Click="OnMoveUpClick">
                       <PathIcon Width="12" Height="8" Data="M 0,8 L 6,0 L 12,8 Z" />
                     </Button>
@@ -85,6 +109,7 @@
                     <StackPanel Spacing="2">
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                       <TextBlock Text="{Binding Contents}" Opacity="0.75" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding LinkCaption}" IsVisible="{Binding HasLink}" Opacity="0.75" TextWrapping="Wrap" />
                     </StackPanel>
                   </CheckBox>
                 </DockPanel>
@@ -143,6 +168,13 @@
           <TextBlock TextWrapping="Wrap"
                      Opacity="0.75"
                      Text="Starts the game with the ticked mods as soon as the Mod Loader opens, once each time it opens. To change the mods, close the game and change them here." />
+          <CheckBox Margin="0,10,0,0"
+                    IsChecked="{Binding UpdateModsOnStart}"
+                    IsEnabled="{Binding CanChangeMods}"
+                    Content="Update linked mods when the Mod Loader opens" />
+          <TextBlock TextWrapping="Wrap"
+                     Opacity="0.75"
+                     Text="Checks the GitHub link of each linked mod and downloads the files that changed before the game can start." />
         </StackPanel>
       </TabItem>
     </TabControl>

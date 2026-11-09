@@ -21,7 +21,7 @@ internal sealed class ScriptDatabases(ScriptDatabaseFolder folder, ScriptDatabas
 
         var sizes = folder.LoadGameSizes() ?? StockCommandSizes.Load();
         var loaded = (folder.Exists ? folder.Load() : ScriptDatabase.Unnamed).WithGameSizes(sizes);
-        var shared = style == ScriptStyle.Readable ? loaded.WithTagNames() : loaded;
+        var shared = style == ScriptStyle.BBTools ? loaded : loaded.WithTagNames();
 
         return new ScriptDatabases(folder, shared, sizes);
     }

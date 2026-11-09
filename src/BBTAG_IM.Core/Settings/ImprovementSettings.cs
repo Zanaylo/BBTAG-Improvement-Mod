@@ -20,6 +20,8 @@ public sealed class ImprovementSettings
 
     public bool HitboxOrigins { get; set; } = true;
 
+    public FrameMeterOptions FrameMeter { get; set; } = new();
+
     public string PaletteCreator { get; set; } = "";
 
     public float? MenuFontSize { get; set; }
@@ -30,6 +32,9 @@ public sealed class ImprovementSettings
 
     [JsonConverter(typeof(JsonStringEnumConverter<ScriptLanguage>))]
     public ScriptLanguage ScriptLanguage { get; set; } = ScriptLanguage.CSharp;
+
+    [JsonConverter(typeof(JsonStringEnumConverter<ScriptStyle>))]
+    public ScriptStyle PythonLayout { get; set; } = ScriptStyle.Mango;
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, Dictionary<int, string>> Palettes { get; } = new(StringComparer.OrdinalIgnoreCase);

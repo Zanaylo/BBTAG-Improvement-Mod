@@ -12,6 +12,7 @@ public class GameDataFoldersTests
     private const string Overhaul = @"D:\BBTAG\mods\BBTAG-OverHaul";
     private const string Costumes = @"D:\BBTAG\mods\Costumes";
     private const string LauncherSettingsPath = @"D:\BBTAG\BBTAG_IM.json";
+    private const string SteamGameFolder = @"C:\Steam\BBTAG";
 
     private readonly IFileSystem _fileSystemMock = Substitute.For<IFileSystem>();
 
@@ -32,7 +33,7 @@ public class GameDataFoldersTests
         _fileSystemMock.FileExists(LauncherSettingsPath).Returns(false);
 
         // Act
-        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, _fileSystemMock);
+        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, GameFolder, _fileSystemMock);
 
         // Assert
         Assert.Equal([Overhaul + @"\data", Costumes + @"\data", GameFolder + @"\data"], folders);
@@ -46,10 +47,33 @@ public class GameDataFoldersTests
         _fileSystemMock.ReadAllText(LauncherSettingsPath).Returns("""{ "DisabledMods": ["Costumes"] }""");
 
         // Act
-        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, _fileSystemMock);
+        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, GameFolder, _fileSystemMock);
 
         // Assert
         Assert.Equal([Overhaul + @"\data", GameFolder + @"\data"], folders);
+    }
+
+    [Fact]
+    public void Of_GameOutsideTheLoaderFolder_EndsWithThatGamesData()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(false);
+
+        // Act
+        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, SteamGameFolder, _fileSystemMock);
+
+        // Assert
+        Assert.Equal([Overhaul + @"\data", Costumes + @"\data", SteamGameFolder + @"\data"], folders);
+    }
+
+    [Fact]
+    public void GameOnly_EnabledModsAround_ListsOnlyTheGameData()
+    {
+        // Act
+        IReadOnlyList<string> folders = GameDataFolders.GameOnly(GameFolder);
+
+        // Assert
+        Assert.Equal([GameFolder + @"\data"], folders);
     }
 
     private void ModWithData(string mod)

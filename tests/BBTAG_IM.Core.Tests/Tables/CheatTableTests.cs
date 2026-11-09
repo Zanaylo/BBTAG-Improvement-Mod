@@ -91,7 +91,7 @@ public class CheatTableTests
     [Theory]
     [InlineData("Corner Fix")]
     [InlineData("Hardcore Mode")]
-    [InlineData("Danny Stuff")]
+    [InlineData("Extra Stuff")]
     public void IsRequired_TopLevelScriptWithAnotherName_IsNotRequired(string description)
     {
         // Arrange

@@ -22,6 +22,8 @@ public sealed class LauncherSettings
 
     public bool PlayOnStart { get; set; }
 
+    public bool UpdateModsOnStart { get; set; } = true;
+
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
     public Dictionary<string, List<int>> ScriptSelections { get; } = new(StringComparer.OrdinalIgnoreCase);
 

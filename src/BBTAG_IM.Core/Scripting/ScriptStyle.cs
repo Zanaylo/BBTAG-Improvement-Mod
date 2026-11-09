@@ -4,4 +4,5 @@ public enum ScriptStyle
 {
     Readable,
     BBTools,
+    Mango,
 }

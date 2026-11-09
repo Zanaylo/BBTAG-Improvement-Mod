@@ -8,10 +8,10 @@ using BBTAG_IM.Core.Scripting.Importing;
 
 namespace BBTAG_IM.BBScript;
 
-internal sealed partial class ScriptTool(ScriptDatabases databases, CommandLine commandLine)
+internal sealed class ScriptTool(ScriptDatabases databases, CommandLine commandLine)
 {
     public const string Usage = """
-        bbscript decompile <scr_xxx.bin | char_xxx_scr.pac>... [--out <folder>] [--python | --bbtools] [--db <bbscript folder>]
+        bbscript decompile <scr_xxx.bin | char_xxx_scr.pac>... [--out <folder>] [--python | --mango | --bbtools] [--db <bbscript folder>]
         bbscript convert <scr_xxx.py>... [--out <folder>] [--db <bbscript folder>]
         bbscript compile <scr_xxx.cs | scr_xxx.py>... [--out <folder>] [--db <bbscript folder>]
         bbscript check <scr_xxx.cs | scr_xxx.py>... [--db <bbscript folder>]
@@ -37,6 +37,7 @@ internal sealed partial class ScriptTool(ScriptDatabases databases, CommandLine 
 
         --db       the folder with command_db.json (default: the bbscript folder next to this program)
         --python   write .py files (the BBTools-py3 syntax with the mod's names)
+        --mango    write .py files nested like the 2019 BBTAG parser: upons inside upons, if (not SLOT_X):
         --bbtools  write .py files with only what BBTools-py3 understands
         """;
 

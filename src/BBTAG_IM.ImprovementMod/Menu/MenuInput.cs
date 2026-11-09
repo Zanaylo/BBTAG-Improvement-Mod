@@ -112,7 +112,7 @@ internal static unsafe class MenuInput
             s_pending.Enqueue(cursor);
     }
 
-    private static MouseMoved? CursorInWindow()
+    public static MouseMoved? CursorInWindow()
     {
         if (!User32.GetCursorPos(out var point) || !User32.ScreenToClient(Window, ref point))
             return null;

@@ -13,6 +13,7 @@
     <SelfContained>true</SelfContained>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>..\..\resource\ModLoader\BBTAG_Mod_Loader.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +24,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BBTAG_IM.Core\BBTAG_IM.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\resource\ModLoader\BBTAG_Mod_Loader.ico" Link="Assets\BBTAG_Mod_Loader.ico" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BundledPayload)' != ''">

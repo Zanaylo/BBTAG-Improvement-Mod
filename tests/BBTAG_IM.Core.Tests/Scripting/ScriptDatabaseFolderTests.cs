@@ -243,6 +243,89 @@ public class ScriptDatabaseFolderTests
     }
 
     [Fact]
+    public void Load_CommandWithAFormatLetterItDoesNotKnow_KeepsItsNameAndTakesTheLayoutFromTheGame()
+    {
+        // Arrange
+        string commands = Path.Combine(Folder, ScriptDatabaseFolder.CommandsFile);
+        _fileSystemMock.FileExists(commands).Returns(true);
+        _fileSystemMock.ReadAllText(commands).Returns("""{ "18003": { "format": "64h", "name": "SetShorts" } }""");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        ScriptDatabase database = folder.Load().WithGameSizes(new Dictionary<int, int> { [18003] = 132 });
+
+        // Assert
+        CommandDefinition command = database.Command(18003);
+        Assert.Equal("SetShorts", command.Name);
+        Assert.Equal(132, command.Size);
+    }
+
+    [Fact]
+    public void Load_AnotherListChosen_TakesTheNamesFromItAndTheLayoutsFromTheDefaultList()
+    {
+        // Arrange
+        string commands = Path.Combine(Folder, ScriptDatabaseFolder.CommandsFile);
+        string chosen = ChooseList("""{ "4": { "format": "ii", "name": "if" }, "9000": { "format": "i", "name": "SetDamage" } }""");
+        _fileSystemMock.FileExists(commands).Returns(true);
+        _fileSystemMock.ReadAllText(commands).Returns("""{ "4": { "format": "ii", "name": "If", "type_check": [0] }, "9000": { "format": "i", "name": "Damage" }, "43": { "format": "i", "name": "CheckInput", "hex": true } }""");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        ScriptDatabase database = folder.Load();
+
+        // Assert
+        Assert.Equal("if", database.Command(4).Name);
+        Assert.Contains(0, database.Command(4).SlotTypeArguments);
+        Assert.Equal("SetDamage", database.Command(9000).Name);
+        Assert.Equal(CommandDefinition.UnknownName(43), database.Command(43).Name);
+        Assert.Equal(HexArguments.All, database.Command(43).Hex);
+        Assert.Equal(chosen, folder.CommandsPath);
+    }
+
+    [Fact]
+    public void Load_AnotherListChosenWithoutADefaultList_UsesItAsItIs()
+    {
+        // Arrange
+        ChooseList("""{ "9000": { "format": "i", "name": "SetDamage" } }""");
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        ScriptDatabase database = folder.Load();
+
+        // Assert
+        Assert.Equal("SetDamage", database.Command(9000).Name);
+    }
+
+    private string ChooseList(string text)
+    {
+        string choice = Path.Combine(Folder, CommandDatabaseChoice.ChoiceFile);
+        string chosen = Path.Combine(Folder, CommandDatabaseChoice.LibraryFolder, "Team Blue.json");
+        _fileSystemMock.FileExists(choice).Returns(true);
+        _fileSystemMock.ReadAllText(choice).Returns(Path.Combine(CommandDatabaseChoice.LibraryFolder, "Team Blue.json"));
+        _fileSystemMock.FileExists(chosen).Returns(true);
+        _fileSystemMock.ReadAllText(chosen).Returns(text);
+        return chosen;
+    }
+
+    [Fact]
+    public void CommandsPath_AnotherFileChosen_IsThatFile()
+    {
+        // Arrange
+        string choice = Path.Combine(Folder, CommandDatabaseChoice.ChoiceFile);
+        string chosen = Path.Combine(Folder, CommandDatabaseChoice.LibraryFolder, "Team Blue.json");
+        _fileSystemMock.FileExists(choice).Returns(true);
+        _fileSystemMock.ReadAllText(choice).Returns(Path.Combine(CommandDatabaseChoice.LibraryFolder, "Team Blue.json"));
+        _fileSystemMock.FileExists(chosen).Returns(true);
+        ScriptDatabaseFolder folder = CreateScriptDatabaseFolder();
+
+        // Act
+        string path = folder.CommandsPath;
+
+        // Assert
+        Assert.Equal(chosen, path);
+    }
+
+    [Fact]
     public void GlobalSlotsPath_Folder_IsTheGlobalFileOfTheSlotFolder()
     {
         // Arrange

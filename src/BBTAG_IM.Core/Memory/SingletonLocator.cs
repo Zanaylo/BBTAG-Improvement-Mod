@@ -2,7 +2,13 @@ using Iced.Intel;
 
 namespace BBTAG_IM.Core.Memory;
 
-public sealed record SingletonPattern(string Name, BytePattern Site, int CallOffset);
+public enum SiteChoice
+{
+    OnlyMatch,
+    MostCalled,
+}
+
+public sealed record SingletonPattern(string Name, BytePattern Site, int CallOffset, SiteChoice Choice = SiteChoice.OnlyMatch);
 
 public sealed class SingletonLocator(CodeImage image)
 {
@@ -13,10 +19,17 @@ public sealed class SingletonLocator(CodeImage image)
 
     public uint LocateGetter(SingletonPattern pattern)
     {
-        var call = image.FindSingle(pattern.Site, pattern.Name) + (uint)pattern.CallOffset;
-        var getter = image.CallTarget(call, pattern.Name);
+        var getter = GetterCalledBy(pattern);
         AddressLoadedBy(getter, pattern);
         return getter;
+    }
+
+    private uint GetterCalledBy(SingletonPattern pattern)
+    {
+        if (pattern.Choice == SiteChoice.MostCalled)
+            return image.MostCalledTarget(pattern.Site, pattern.CallOffset, pattern.Name);
+
+        return image.CallTarget(image.FindSingle(pattern.Site, pattern.Name) + (uint)pattern.CallOffset, pattern.Name);
     }
 
     private uint AddressLoadedBy(uint getter, SingletonPattern pattern) =>

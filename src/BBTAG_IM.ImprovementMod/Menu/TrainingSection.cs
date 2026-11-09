@@ -1,22 +1,18 @@
 using System.Numerics;
-using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.Hitboxes;
 using BBTAG_IM.Core.Overlay;
-using BBTAG_IM.Core.Selection;
 using BBTAG_IM.Core.Settings;
-using BBTAG_IM.ImprovementMod.Training;
 using ImGuiNET;
 
 namespace BBTAG_IM.ImprovementMod.Menu;
 
-internal sealed class TrainingSection(MenuSettings settings, PauseControls pause, BossFightControl? bossFight) : IMenuSection
+internal sealed class TrainingSection(MenuSettings settings, PauseControls pause, FrameMeterControls? frameMeter, ITrainingPanel? bossFight) : IMenuSection
 {
     public const string Name = "Training";
 
     private const int TypeColumns = 4;
     private const float Transparent = 0;
     private const float Opaque = 1;
-    private const string NoBossLabel = "Off";
 
     public string Title => Name;
 
@@ -26,70 +22,45 @@ internal sealed class TrainingSection(MenuSettings settings, PauseControls pause
 
     public void Draw()
     {
-        var hitboxViewer = settings.Current.HitboxViewer;
-
-        if (ImGui.Checkbox("Hitbox viewer", ref hitboxViewer))
-            settings.Save(options => options.HitboxViewer = hitboxViewer);
-
-        ImGui.SameLine();
-        ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Hitboxes)})");
-        MenuText.Tooltip("Shows during training matches only.");
-
-        ImGui.Spacing();
+        ImGui.SeparatorText("Pause");
         pause.Draw();
+
+        ImGui.SeparatorText("Hitboxes");
+        DrawHitboxViewer();
         DrawBoxTypes();
-        ImGui.Spacing();
-        DrawBossFight();
-    }
 
-    private void DrawBossFight()
-    {
-        if (bossFight is null)
-            return;
-
-        Boss?[] choices = [null, .. bossFight.Bosses];
-        var current = Array.IndexOf(choices, bossFight.Chosen);
-
-        if (ImGui.BeginCombo("Boss fight", NameOf(choices[current])))
+        if (frameMeter is not null)
         {
-            for (var choice = 0; choice < choices.Length; choice++)
-                DrawBossChoice(bossFight, choices[choice], choice == current);
-
-            ImGui.EndCombo();
+            ImGui.SeparatorText("Frame meter");
+            frameMeter.Draw();
         }
 
-        var next = WheelChoice.Next(current, choices.Length, MenuCombo.WheelSteps());
-
-        if (next != current)
-            bossFight.Choose(choices[next]);
-
-        MenuText.Tooltip("Needs the overhaul with its table turned on. Pick a boss, then confirm any team for Player 2 and any stage on character select. Player 2 becomes the boss alone and the match is played on the boss stage. This is a test and can still crash. It turns off when the game closes.");
-
-        if (bossFight.NotReady is { } notReady)
-            MenuText.Muted(notReady);
+        bossFight?.Draw();
     }
 
-    private static void DrawBossChoice(BossFightControl control, Boss? boss, bool selected)
+    private void DrawHitboxViewer()
     {
-        if (ImGui.Selectable(NameOf(boss), selected) && !selected)
-            control.Choose(boss);
+        var hitboxViewer = settings.Current.HitboxViewer;
 
-        MenuCombo.KeepSelectedInView(selected);
-    }
+        if (ImGui.Checkbox("Show hitboxes", ref hitboxViewer))
+            settings.Save(options => options.HitboxViewer = hitboxViewer);
 
-    private static string NameOf(Boss? boss) => boss?.Name ?? NoBossLabel;
-
-    private void DrawBoxTypes()
-    {
-        if (!ImGui.TreeNode("Hitbox types"))
-            return;
-
+        MenuText.Tooltip("Shows during training matches only.");
+        ImGui.SameLine();
+        ImGui.TextDisabled($"({Hotkeys.NameOf(Hotkey.Hitboxes)})");
+        ImGui.SameLine();
         var origins = settings.Current.HitboxOrigins;
 
         if (ImGui.Checkbox("Show origin", ref origins))
             settings.Save(options => options.HitboxOrigins = origins);
 
         MenuText.Tooltip("Draws a cross at each object's position, the point its boxes are measured from. Use it to tell if boxes belong to a projectile or to the character who fired it.");
+    }
+
+    private void DrawBoxTypes()
+    {
+        if (!ImGui.TreeNode("Box colors"))
+            return;
 
         if (ImGui.BeginTable("types", TypeColumns, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
         {

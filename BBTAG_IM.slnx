@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/mods/">
-    <Project Path="../../../Jogos/steam/steamapps/common/BBTAG/mods/BBTAG-Improvement-Mod/bbscript/Scripts/Scripts.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/BBTAG_IM.BBScript/BBTAG_IM.BBScript.csproj" />
     <Project Path="src/BBTAG_IM.Core/BBTAG_IM.Core.csproj" />
@@ -9,6 +6,7 @@
     <Project Path="src/BBTAG_IM.Launcher/BBTAG_IM.Launcher.csproj" />
     <Project Path="src/BBTAG_IM.Native/BBTAG_IM.Native.csproj" />
     <Project Path="src/BBTAG_IM.Payload/BBTAG_IM.Payload.csproj" />
+    <Project Path="src/BBTAG_IM.Updater/BBTAG_IM.Updater.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BBTAG_IM.Core.Tests/BBTAG_IM.Core.Tests.csproj" />

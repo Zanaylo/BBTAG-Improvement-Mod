@@ -13,13 +13,13 @@ internal static class LauncherDesignData
             Mods =
             [
                 new ModEntry("BBTAG-Improvement-Mod", "data folder, plugin ImprovementMod.dll", true) { CanMoveDown = true },
-                new ModEntry("BBTAG-OverHaul", "data folder, BBTAG.exe, Cheat Engine table BBTAG.CT", true) { CanMoveUp = true },
+                new ModEntry("BBTAG-OverHaul", "data folder, BBTAG.exe, Cheat Engine table BBTAG.CT", true, "https://github.com/owner/BBTAG-OverHaul") { CanMoveUp = true },
             ],
             TableName = "BBTAG.CT",
             Scripts =
             [
                 new ScriptNode(1, "Core / Geo Stuff", true, true, true, []),
-                new ScriptNode(1567, "Danny Stuff", false, false, true,
+                new ScriptNode(1567, "Extra Scripts", false, false, true,
                 [
                     new ScriptNode(21610, "Training Mode Toggle Edit", true, false, false, []),
                 ]),

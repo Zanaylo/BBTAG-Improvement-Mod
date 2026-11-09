@@ -6,8 +6,9 @@ public sealed record GameAddresses(uint Game, uint Battle, uint Characters, uint
 {
     private static readonly SingletonPattern GamePattern = new(
         "Game state",
-        BytePattern.Parse("E8 ?? ?? ?? ?? C7 80 18 01 00 00 17 00 00 00 E8"),
-        CallOffset: 0);
+        BytePattern.Parse("E8 ?? ?? ?? ?? C7 80 18 01 00 00 ?? 00 00 00"),
+        CallOffset: 0,
+        SiteChoice.MostCalled);
 
     private static readonly SingletonPattern BattlePattern = new(
         "Battle",
