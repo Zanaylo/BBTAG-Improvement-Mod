@@ -107,10 +107,8 @@ The repository must stay public for the updater and linked mods to reach it.
   taken from it.
 - [BBTools-py3](https://github.com/MorphRed/BBTools-py3) and [bbtools](https://github.com/dantarion/bbtools):
   the BBScript format and the command lists the script editor reads.
-- **Team Blue Modding (and Friends)** Discord: the 2019 BBTAG script tools
+- **Team Blue Modding (and Friends)** Discord: the BBTAG script tools
   and Mango's script parser, whose layout the Python scripts follow, and the community command lists.
-- [BBTAG-OverHaul-Patches](https://github.com/ZeroTwo-0/BBTAG-OverHaul-Patches): the overhaul the
-  Mod Loader was built to run.
 - [UNI2-Improvement-Mod](https://github.com/Zanaylo/UNI2-Improvement-Mod): the menu layout.
 - [Avalonia](https://avaloniaui.net), [Dear ImGui](https://github.com/ocornut/imgui),
   [ImGui.NET](https://github.com/ImGuiNET/ImGui.NET), [Iced](https://github.com/icedland/iced),
