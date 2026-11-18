@@ -67,6 +67,44 @@ public class GameDataFoldersTests
     }
 
     [Fact]
+    public void Of_ModWithAnAssetFolder_ListsItRightAfterItsData()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(false);
+        _fileSystemMock.DirectoryExists(Overhaul + @"\asset").Returns(true);
+
+        // Act
+        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, GameFolder, _fileSystemMock);
+
+        // Assert
+        Assert.Equal([Overhaul + @"\data", Overhaul + @"\asset", Costumes + @"\data", GameFolder + @"\data"], folders);
+    }
+
+    [Fact]
+    public void Of_GameWithAnAssetFolder_ListsItAfterTheGameData()
+    {
+        // Arrange
+        _fileSystemMock.FileExists(LauncherSettingsPath).Returns(false);
+        _fileSystemMock.DirectoryExists(GameFolder + @"\asset").Returns(true);
+
+        // Act
+        IReadOnlyList<string> folders = GameDataFolders.Of(ImprovementMod, GameFolder, _fileSystemMock);
+
+        // Assert
+        Assert.Equal([Overhaul + @"\data", Costumes + @"\data", GameFolder + @"\data", GameFolder + @"\asset"], folders);
+    }
+
+    [Fact]
+    public void EncryptedAmong_DataAndAssetFolders_ReturnsOnlyTheAssetFolders()
+    {
+        // Act
+        IEnumerable<string> encrypted = GameDataFolders.EncryptedAmong([Overhaul + @"\data", Overhaul + @"\Asset", GameFolder + @"\data", GameFolder + @"\asset"]);
+
+        // Assert
+        Assert.Equal([Overhaul + @"\Asset", GameFolder + @"\asset"], encrypted);
+    }
+
+    [Fact]
     public void GameOnly_EnabledModsAround_ListsOnlyTheGameData()
     {
         // Act

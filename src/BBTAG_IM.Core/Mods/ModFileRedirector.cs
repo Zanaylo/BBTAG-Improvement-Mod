@@ -1,6 +1,8 @@
+using BBTAG_IM.Core.Mods.Assets;
+
 namespace BBTAG_IM.Core.Mods;
 
-public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, string executableDirectory, DevOverlay? dev = null)
+public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, string executableDirectory, DevOverlay? dev = null, EncryptedAssetFolder? assets = null)
 {
     public const uint OpenExisting = 3;
 
@@ -48,9 +50,21 @@ public sealed class ModFileRedirector(ModFileIndex index, string gameDirectory, 
         return readsExistingFile && key is not null ? Resolve(key) : null;
     }
 
-    public string? ResolveBelowDev(string key) => index.Resolve(key) ?? (File.Exists(Path.Join(gameDirectory, key)) ? Path.Join(gameDirectory, key) : null);
+    public string? ResolveBelowDev(string key) => index.ResolvePlain(key) ?? (File.Exists(Path.Join(gameDirectory, key)) ? Path.Join(gameDirectory, key) : null);
 
-    private string? Resolve(string key) => dev?.Resolve(key) ?? index.Resolve(key);
+    public int? AssetKeyStartOf(string path) => index.AssetKeyStartOf(path) ?? assets?.KeyStartOf(path);
+
+    public int? XorKeyStartFor(string? requested, string served)
+    {
+        var servedKeyStart = AssetKeyStartOf(served);
+
+        if (GameFileKey(requested) is not { } key || EncryptedAssets.AssetNameIn(key) is not { } askedAsset)
+            return servedKeyStart;
+
+        return servedKeyStart is null ? EncryptedAssets.KeyStartOf(askedAsset) : null;
+    }
+
+    private string? Resolve(string key) => dev?.Resolve(key) ?? index.Resolve(key) ?? assets?.Locate(key);
 
     private string? KeyBesideExecutable(string? path) =>
         Path.IsPathFullyQualified(path ?? "") ? GamePathKey.From(path, executableDirectory) : null;

@@ -167,7 +167,7 @@ internal sealed class GameSession(LaunchContext context, LauncherSettings settin
         foreach (var mod in context.Mods)
             log.Info($"Mod: {mod.Name}");
 
-        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.RootPath).ToArray(), settings.WaitForDebugger, settings.WriteLogs);
+        var session = new LaunchSession(context.GameDirectory, context.LogPath, context.Mods.Select(mod => mod.Location).ToArray(), settings.WaitForDebugger, settings.WriteLogs);
         var injector = new PayloadInjector(new BundledFiles(new PhysicalFileSystem(), context.LauncherDirectory).PathOf(PayloadContract.DllFileName));
         return new GameLauncher(injector, new VisualStudioAttacher(), log).Launch(session, context.Target);
     }

@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.Game;
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Mods.Assets;
 using BBTAG_IM.Core.Scripting.Dev;
 
 namespace BBTAG_IM.Core.Mods;
@@ -9,7 +10,7 @@ public sealed class ModCharacterAudit(IFileSystem files, string gameDirectory)
     public IReadOnlyList<CharacterFileReport> Run(IReadOnlyList<ModFolder> enabledMods, IReadOnlyList<string> rosterCodes)
     {
         var index = ModFileIndex.Build(enabledMods, files);
-        var lookup = new GameFileLookup(files, gameDirectory, index, DevOverlayOf(enabledMods));
+        var lookup = new GameFileLookup(files, gameDirectory, index, DevOverlayOf(enabledMods), new EncryptedAssetFolder(files, gameDirectory));
         return new CharacterFileCheck(lookup).Run(rosterCodes.Where(IsFighter));
     }
 

@@ -51,5 +51,31 @@ public class ModContentsTests
         Assert.Equal("library cimgui.dll, plugin ImprovementMod.dll", contents);
     }
 
+    [Fact]
+    public void Describe_ModWithEncryptedAssets_ListsTheAssetFolder()
+    {
+        // Arrange
+        ModFolder mod = new("BBTAG-UNLIMITED", Root, [], null, null, [], Root + @"\asset");
+
+        // Act
+        string contents = ModContents.Describe(mod, IsPlugin);
+
+        // Assert
+        Assert.Equal("asset folder (encrypted)", contents);
+    }
+
+    [Fact]
+    public void Describe_ModWithoutGameFiles_SaysThereIsNothingToLoad()
+    {
+        // Arrange
+        ModFolder mod = new("Notes", Root, [], null, null, []);
+
+        // Act
+        string contents = ModContents.Describe(mod, IsPlugin);
+
+        // Assert
+        Assert.Equal("nothing to load yet", contents);
+    }
+
     private static bool IsPlugin(string path) => path.EndsWith("ImprovementMod.dll", StringComparison.Ordinal);
 }

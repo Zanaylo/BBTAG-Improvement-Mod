@@ -3,6 +3,8 @@ using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Launch;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Archives;
+using BBTAG_IM.Core.Mods.Assets;
 using BBTAG_IM.Core.Patching;
 using BBTAG_IM.Core.Pe;
 using BBTAG_IM.Core.Scripting.Dev;
@@ -58,14 +60,15 @@ internal static class PayloadStartup
 
     private static void Start(LaunchSession session, ILog log)
     {
-        var fileSystem = new PhysicalFileSystem();
-        var mods = session.ModFolders.Select(folder => ModFolder.Inspect(folder, fileSystem)).ToArray();
+        var fileSystem = new ArchiveFileSystem(new PhysicalFileSystem());
+        var mods = session.ModFolders.Select(folder => ModOpener.Open(folder, fileSystem)).ToArray();
         var game = LoadedModule.MainModule();
 
         log.Info($"Payload loaded into {game.Path} at 0x{game.BaseAddress:X8}.");
         WaitForDebugger(session, log);
         ExitHooks.Install(game, log);
         PatchExecutable(mods, game, session.GameDirectory, log);
+        DataFolderReading.Apply(game, log);
         RedirectModFiles(mods, game, session.GameDirectory, fileSystem, log);
         Environment.SetEnvironmentVariable(ImprovementModContract.GameFolderVariable, session.GameDirectory);
         PluginLoader.StartAll(mods, session.PluginLogFolder, log);
@@ -105,7 +108,7 @@ internal static class PayloadStartup
         MemoryPatcher.Apply(plan, game, log);
     }
 
-    private static void RedirectModFiles(IReadOnlyList<ModFolder> mods, LoadedModule game, string gameDirectory, IFileSystem fileSystem, ILog log)
+    private static void RedirectModFiles(IReadOnlyList<ModFolder> mods, LoadedModule game, string gameDirectory, ArchiveFileSystem fileSystem, ILog log)
     {
         var index = ModFileIndex.Build(mods, fileSystem);
 
@@ -113,8 +116,22 @@ internal static class PayloadStartup
             log.Info($"{mod}: {files} file(s) layered over the game data.");
 
         var executableDirectory = Path.GetDirectoryName(game.Path) ?? gameDirectory;
-        var redirector = new ModFileRedirector(index, gameDirectory, executableDirectory);
-        FileApiHooks.Install(game, WithDevFolder(redirector, index, gameDirectory, executableDirectory, fileSystem, log), log);
+        var assets = EncryptedAssetsOf(gameDirectory, fileSystem, log);
+        var redirector = new ModFileRedirector(index, gameDirectory, executableDirectory, assets: assets);
+        var gameRedirector = WithDevFolder(redirector, index, gameDirectory, executableDirectory, fileSystem, assets, log);
+        FileApiHooks.Install(game, gameRedirector, fileSystem, log);
+        EncryptedAssetReads.Install(game, log);
+        ArchiveEntryReads.Install(game, fileSystem, gameRedirector, log);
+    }
+
+    private static EncryptedAssetFolder EncryptedAssetsOf(string gameDirectory, IFileSystem fileSystem, ILog log)
+    {
+        var folder = Path.Join(gameDirectory, EncryptedAssets.FolderName);
+
+        if (fileSystem.DirectoryExists(folder))
+            log.Info($"Game files missing from every mod and from the data folder are read from {folder} and decrypted while the game reads them.");
+
+        return new EncryptedAssetFolder(fileSystem, gameDirectory);
     }
 
     private static ModFileRedirector WithDevFolder(
@@ -123,6 +140,7 @@ internal static class PayloadStartup
         string gameDirectory,
         string executableDirectory,
         IFileSystem fileSystem,
+        EncryptedAssetFolder assets,
         ILog log)
     {
         var devFolder = Path.Combine(gameDirectory, ModSelection.ModsFolderName, DevFolder.Name);
@@ -135,6 +153,6 @@ internal static class PayloadStartup
         }
 
         log.Info($"Files in {devFolder} are read live and win over every other mod. A folder named like an archive is packed into it when the game opens it.");
-        return new ModFileRedirector(index, gameDirectory, executableDirectory, new DevOverlay(fileSystem, devFolder, redirector.ResolveBelowDev));
+        return new ModFileRedirector(index, gameDirectory, executableDirectory, new DevOverlay(fileSystem, devFolder, redirector.ResolveBelowDev), assets);
     }
 }

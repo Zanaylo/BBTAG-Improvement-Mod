@@ -10,7 +10,7 @@ public static class ModSelection
     public static IReadOnlyList<ModFolder> Resolve(LaunchOptions options, string modsDirectory, IFileSystem fileSystem)
     {
         if (options.ModFolders.Count > 0)
-            return options.ModFolders.Select(folder => ModFolder.Inspect(folder, fileSystem)).ToArray();
+            return options.ModFolders.Select(folder => ModOpener.Open(folder, fileSystem)).ToArray();
 
         var discovered = ModDiscovery.InModsDirectory(modsDirectory, fileSystem);
 

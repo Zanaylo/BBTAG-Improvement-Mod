@@ -23,7 +23,7 @@ internal static unsafe class PluginLoader
 
         try
         {
-            Start(mod, pluginPath, name, logDirectory, log);
+            Start(pluginPath, name, logDirectory, log);
         }
         catch (Exception exception) when (exception is InvalidPeImageException or IOException)
         {
@@ -31,7 +31,7 @@ internal static unsafe class PluginLoader
         }
     }
 
-    private static void Start(ModFolder mod, string pluginPath, string name, string logDirectory, ILog log)
+    private static void Start(string pluginPath, string name, string logDirectory, ILog log)
     {
         if (ModPlugin.FindStart(FileImage.Load(pluginPath)) is null)
         {
@@ -50,7 +50,7 @@ internal static unsafe class PluginLoader
         var start = (delegate* unmanaged[Stdcall]<char*, char*, uint>)Kernel32.GetProcAddress(module, ModPlugin.StartExport);
         uint status;
 
-        fixed (char* modFolder = mod.RootPath)
+        fixed (char* modFolder = Path.GetDirectoryName(pluginPath))
         fixed (char* logFolder = logDirectory)
             status = start(modFolder, logFolder);
 

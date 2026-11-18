@@ -20,11 +20,11 @@ mods replace the same file, the higher one wins. Keep BBTAG-Improvement-Mod
 above BBTAG-OverHaul.
 
 A mod can also be a .zip, .rar, .7z, .tar, .tar.gz or .tgz file. Put it in the
-mods folder (or drag it onto BBTAG_Mod_Loader.exe) and it is unpacked into a
-folder of the same name there, the next time the Mod Loader starts or you press
-Refresh. A newer archive updates that folder. Files you added to it stay, and so
-does a folder that did not come from an archive. Deleting the archive does not
-delete the folder.
+mods folder (or drag it onto BBTAG_Mod_Loader.exe). It is not unpacked: the
+game reads its files from inside the archive. Only a BBTAG.exe, .CT table or
+.dll in it is copied to mods\.archive-cache, because Windows and Cheat Engine
+need them as normal files. A big .7z or solid .rar is slower to read than a
+.zip, since each file is read from the start of the archive.
 
 GitHub links: paste the link of a mod's GitHub repository in the box under
 the list. "Save on the selected mod" keeps that mod up to date, "Add as a new
@@ -59,8 +59,9 @@ In the game
 
 Palettes are .impl files in mods\BBTAG-Improvement-Mod\palettes\<Character>\.
 
-A mod folder can hold data\ (replacement game files), BBTAG.exe, a .CT table
-and Mod Loader plugin DLLs.
+Every folder or archive in mods\ is a mod, whatever its name. It can hold
+data\ (replacement game files), asset\ (encrypted files of older mods),
+BBTAG.exe, a .CT table and Mod Loader plugin DLLs.
 
 Problems? Tick Write log files in the Config tab, do it again, and send
 logs\BBTAG_IM.log and logs\ImprovementMod.log.

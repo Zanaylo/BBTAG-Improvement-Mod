@@ -6,6 +6,8 @@ using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Memory;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Archives;
+using BBTAG_IM.Core.Mods.Assets;
 using BBTAG_IM.Core.Online;
 using BBTAG_IM.Core.Overlay;
 using BBTAG_IM.Core.Palettes;
@@ -61,7 +63,7 @@ internal static partial class ImprovementStartup
 
     private static void Start(string modFolder, ILog log)
     {
-        var fileSystem = new PhysicalFileSystem();
+        var fileSystem = new ArchiveFileSystem(new PhysicalFileSystem());
         var settings = new SettingsWatcher<ImprovementSettings>(SettingsStores.Improvement(fileSystem, modFolder), fileSystem);
         var gameModule = LoadedModule.MainModule();
         var memory = new ProcessMemory();
@@ -81,22 +83,23 @@ internal static partial class ImprovementStartup
         var gameFolder = ImprovementModContract.GameFolder(Environment.GetEnvironmentVariable(ImprovementModContract.GameFolderVariable), modFolder);
         var dataFolders = ReadableDataFolders(modFolder, gameFolder, fileSystem);
         log.Info($"Game data is read from {string.Join(", ", dataFolders)}.");
+        var gameFiles = new EncryptedAssetView(fileSystem, GameDataFolders.EncryptedAmong(dataFolders));
         var textures = new MenuTextures();
-        var thumbnails = new SpriteThumbnails(new CharacterSprites(fileSystem, dataFolders, log), textures);
+        var thumbnails = new SpriteThumbnails(new CharacterSprites(gameFiles, dataFolders, log), textures);
         var code = gameModule.ReadCode();
         var cacheFolder = Path.Combine(modFolder, CharSelectCacheFolder);
         AddFileSubstitutions(
             gameModule,
-            new CharSelectPalettes(fileSystem, dataFolders, catalog, () => settings.Current, cacheFolder),
-            new LocalizedTextFiles(fileSystem, dataFolders, ExtraButtonTexts(settings.Current), cacheFolder),
-            settings.Current.AdvancedMapperButtons ? new ButtonIconArchive(fileSystem, dataFolders, cacheFolder) : null,
+            new CharSelectPalettes(gameFiles, dataFolders, catalog, () => settings.Current, cacheFolder),
+            new LocalizedTextFiles(gameFiles, dataFolders, ExtraButtonTexts(settings.Current), cacheFolder),
+            settings.Current.AdvancedMapperButtons ? new ButtonIconArchive(gameFiles, dataFolders, cacheFolder) : null,
             log);
         AddWindowResolutions(gameModule, code, log);
 
         if (settings.Current.AdvancedMapperButtons)
             AddExtraButtons(code, log);
 
-        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, new MenuImages(thumbnails, textures), screenPass, new DataPlaces(fileSystem, modFolder, gameFolder, dataFolders), harness, log);
+        var features = AddGameFeatures(frames, gameModule, code, memory, settings, catalog, menuSettings, new MenuImages(thumbnails, textures), screenPass, new DataPlaces(gameFiles, modFolder, gameFolder, dataFolders), harness, log);
         IMenuSection[] sections = [features.Training, features.Palettes, new PerformanceSection(menuSettings, settings.Current.FrameLimiter), .. features.Dev, new ConfigSection(menuSettings)];
         AddMenu(frames, new ImprovementMenu(menuSettings, playerCount, sections, features.Windows), menuSettings, textures, screenPass, modFolder, log);
         harness?.GrabAfterTheMenu(frames);

@@ -1,4 +1,5 @@
 using BBTAG_IM.Core.IO;
+using BBTAG_IM.Core.Mods.Assets;
 
 namespace BBTAG_IM.Core.Mods;
 
@@ -10,7 +11,9 @@ public sealed record ModFolder(
     IReadOnlyList<ModDataRoot> DataRoots,
     string? ExecutablePath,
     string? TablePath,
-    IReadOnlyList<string> PluginPaths)
+    IReadOnlyList<string> PluginPaths,
+    string? EncryptedAssetsPath = null,
+    string? ArchivePath = null)
 {
     public const string GameDataFolder = "data";
     public const string OverhaulDataFolder = "data2";
@@ -21,17 +24,10 @@ public sealed record ModFolder(
     private static readonly string[] DataFolders = [GameDataFolder, OverhaulDataFolder];
     private static readonly string PreferredTableName = Path.GetFileNameWithoutExtension(GameExecutableName) + TableExtension;
 
-    public static ModFolder? TryInspect(string path, IFileSystem fileSystem)
-    {
-        try
-        {
-            return Inspect(path, fileSystem);
-        }
-        catch (InvalidModFolderException)
-        {
-            return null;
-        }
-    }
+    public string Location => ArchivePath ?? RootPath;
+
+    public bool HasGameFiles =>
+        DataRoots.Count > 0 || ExecutablePath is not null || TablePath is not null || PluginPaths.Count > 0 || EncryptedAssetsPath is not null;
 
     public static ModFolder Inspect(string path, IFileSystem fileSystem)
     {
@@ -49,12 +45,10 @@ public sealed record ModFolder(
         var files = fileSystem.EnumerateFiles(root).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         var tablePath = FindTable(files);
         var pluginPaths = files.Where(file => HasExtension(file, PluginExtension)).ToArray();
+        var assets = Path.Combine(root, EncryptedAssets.FolderName);
+        var assetsPath = fileSystem.DirectoryExists(assets) ? assets : null;
 
-        if (dataRoots.Length == 0 && executablePath is null && tablePath is null && pluginPaths.Length == 0)
-            throw new InvalidModFolderException(
-                $"{root} has no '{GameDataFolder}' or '{OverhaulDataFolder}' folder, no {GameExecutableName}, no {TableExtension} table and no {PluginExtension}, so there is nothing to load.");
-
-        return new ModFolder(Path.GetFileName(root), root, dataRoots, executablePath, tablePath, pluginPaths);
+        return new ModFolder(Path.GetFileName(root), root, dataRoots, executablePath, tablePath, pluginPaths, assetsPath);
     }
 
     private static string? FindTable(IReadOnlyList<string> files)

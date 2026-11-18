@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BBTAG_IM.Core.Logging;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Archives;
 using BBTAG_IM.Native;
 using BBTAG_IM.Native.Hooks;
 
@@ -17,8 +18,17 @@ internal static unsafe class FileApiHooks
     private const nint InvalidHandle = -1;
     private const char Wildcard = '*';
     private const char SingleWildcard = '?';
+    private const int StandardAttributes = 0;
+    private const int AttributeSizeHighOffset = 28;
+    private const int AttributeSizeLowOffset = 32;
+    private const int FindSizeHighOffset = 28;
+    private const int FindSizeLowOffset = 32;
+    private const int FindFileNameOffset = 44;
+    private const int FindFileNameLength = 260;
+    private const int FindAlternateNameOffset = 304;
 
     private static ModFileRedirector s_redirector = null!;
+    private static ArchiveFileSystem s_archives = null!;
     private static ILog s_log = null!;
     private static int s_loggedRedirects;
     private static int s_loggedEnumerations;
@@ -32,9 +42,10 @@ internal static unsafe class FileApiHooks
     private static delegate* unmanaged[Stdcall]<byte*, void*, nint> s_findFirstFileA;
     private static delegate* unmanaged[Stdcall]<byte*, int, void*, int, void*, uint, nint> s_findFirstFileExA;
 
-    public static void Install(LoadedModule game, ModFileRedirector redirector, ILog log)
+    public static void Install(LoadedModule game, ModFileRedirector redirector, ArchiveFileSystem archives, ILog log)
     {
         s_redirector = redirector;
+        s_archives = archives;
         s_log = log;
         s_kernelCreateFileW = (delegate* unmanaged[Stdcall]<char*, uint, uint, nint, uint, uint, nint, nint>)
             Kernel32.GetProcAddress(Kernel32.GetModuleHandle(Kernel32Dll), "CreateFileW");
@@ -62,8 +73,11 @@ internal static unsafe class FileApiHooks
         if (redirected is null)
             return CheckedOpen(requested, disposition, s_createFileA(fileName, access, share, security, disposition, flags, template));
 
+        if (ArchiveEntryReads.Serves(redirected))
+            return CheckedOpen(requested, disposition, ArchiveEntryReads.Open(requested, redirected));
+
         fixed (char* path = redirected)
-            return CheckedOpen(requested, disposition, s_kernelCreateFileW(path, access, share, security, disposition, flags, template));
+            return EncryptedAssetReads.Track(s_redirector.XorKeyStartFor(requested, redirected), redirected, flags, CheckedOpen(requested, disposition, s_kernelCreateFileW(path, access, share, security, disposition, flags, template)));
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
@@ -75,8 +89,11 @@ internal static unsafe class FileApiHooks
         if (redirected is null)
             return CheckedOpen(requested, disposition, s_createFileW(fileName, access, share, security, disposition, flags, template));
 
+        if (ArchiveEntryReads.Serves(redirected))
+            return CheckedOpen(requested, disposition, ArchiveEntryReads.Open(requested, redirected));
+
         fixed (char* path = redirected)
-            return CheckedOpen(requested, disposition, s_createFileW(path, access, share, security, disposition, flags, template));
+            return EncryptedAssetReads.Track(s_redirector.XorKeyStartFor(requested, redirected), redirected, flags, CheckedOpen(requested, disposition, s_createFileW(path, access, share, security, disposition, flags, template)));
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
@@ -88,21 +105,30 @@ internal static unsafe class FileApiHooks
         if (redirected is null)
             return CheckedLookup(requested, s_getFileAttributesExW(fileName, infoLevel, information));
 
-        fixed (char* path = redirected)
-            return CheckedLookup(requested, s_getFileAttributesExW(path, infoLevel, information));
+        var archive = s_archives.ArchiveOf(redirected);
+
+        fixed (char* path = archive ?? redirected)
+        {
+            var succeeded = s_getFileAttributesExW(path, infoLevel, information);
+
+            if (succeeded != 0 && archive is not null && infoLevel == StandardAttributes)
+                WriteSize((byte*)information, AttributeSizeHighOffset, AttributeSizeLowOffset, redirected);
+
+            return CheckedLookup(requested, succeeded);
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static nint FindFirstFileA(byte* fileName, void* findData)
     {
-        var ansi = RedirectFindAnsi(fileName);
+        var ansi = RedirectFindAnsi(fileName, out var entry);
 
         if (ansi == 0)
             return CheckedFind(fileName, s_findFirstFileA(fileName, findData));
 
         try
         {
-            return CheckedFind(fileName, s_findFirstFileA((byte*)ansi, findData));
+            return CheckedFind(fileName, Described(entry, findData, s_findFirstFileA((byte*)ansi, findData)));
         }
         finally
         {
@@ -113,14 +139,14 @@ internal static unsafe class FileApiHooks
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static nint FindFirstFileExA(byte* fileName, int infoLevel, void* findData, int searchOp, void* searchFilter, uint flags)
     {
-        var ansi = RedirectFindAnsi(fileName);
+        var ansi = RedirectFindAnsi(fileName, out var entry);
 
         if (ansi == 0)
             return CheckedFind(fileName, s_findFirstFileExA(fileName, infoLevel, findData, searchOp, searchFilter, flags));
 
         try
         {
-            return CheckedFind(fileName, s_findFirstFileExA((byte*)ansi, infoLevel, findData, searchOp, searchFilter, flags));
+            return CheckedFind(fileName, Described(entry, findData, s_findFirstFileExA((byte*)ansi, infoLevel, findData, searchOp, searchFilter, flags)));
         }
         finally
         {
@@ -203,9 +229,10 @@ internal static unsafe class FileApiHooks
         }
     }
 
-    private static nint RedirectFindAnsi(byte* fileName)
+    private static nint RedirectFindAnsi(byte* fileName, out string? archiveEntry)
     {
         var path = Marshal.PtrToStringAnsi((nint)fileName);
+        archiveEntry = null;
 
         if (path is not null && path.IndexOfAny([Wildcard, SingleWildcard]) >= 0)
         {
@@ -214,7 +241,51 @@ internal static unsafe class FileApiHooks
         }
 
         var redirected = RedirectLookup(path);
-        return redirected is null ? 0 : ToAnsiOrZero(redirected);
+
+        if (redirected is null)
+            return 0;
+
+        if (s_archives.ArchiveOf(redirected) is not { } archive)
+            return ToAnsiOrZero(redirected);
+
+        archiveEntry = redirected;
+        return ToAnsiOrZero(archive);
+    }
+
+    private static nint Described(string? archiveEntry, void* findData, nint handle)
+    {
+        if (archiveEntry is null || handle == InvalidHandle)
+            return handle;
+
+        var data = (byte*)findData;
+        WriteSize(data, FindSizeHighOffset, FindSizeLowOffset, archiveEntry);
+        WriteAnsiName(data + FindFileNameOffset, FindFileNameLength, Path.GetFileName(archiveEntry));
+        data[FindAlternateNameOffset] = 0;
+        return handle;
+    }
+
+    private static void WriteSize(byte* data, int highOffset, int lowOffset, string archiveEntry)
+    {
+        var length = s_archives.LengthOf(archiveEntry) ?? 0;
+        *(uint*)(data + highOffset) = (uint)(length >> 32);
+        *(uint*)(data + lowOffset) = (uint)length;
+    }
+
+    private static void WriteAnsiName(byte* target, int capacity, string name)
+    {
+        var ansi = Marshal.StringToHGlobalAnsi(name);
+
+        try
+        {
+            var whole = MemoryMarshal.CreateReadOnlySpanFromNullTerminated((byte*)ansi);
+            var bytes = whole[..Math.Min(capacity - 1, whole.Length)];
+            bytes.CopyTo(new Span<byte>(target, capacity));
+            target[bytes.Length] = 0;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ansi);
+        }
     }
 
     private static nint ToAnsiOrZero(string path)

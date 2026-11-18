@@ -12,20 +12,24 @@ public sealed class ArchiveUnpacker : IArchiveUnpacker
         {
             using var opened = ArchiveFactory.Open(archive);
 
-            if (opened.Type == ArchiveType.GZip)
-                UnpackCompressedTar(archive, folder);
-            else if (MustBeReadInOrder(opened))
-                UnpackInOrder(opened, folder);
-            else
-                UnpackEachEntry(opened, folder);
+            switch (ArchiveReadings.Of(opened))
+            {
+                case ArchiveReading.CompressedTar:
+                    UnpackCompressedTar(archive, folder);
+                    break;
+                case ArchiveReading.InOrder:
+                    UnpackInOrder(opened, folder);
+                    break;
+                default:
+                    UnpackEachEntry(opened, folder);
+                    break;
+            }
         }
         catch (Exception exception) when (exception is not (ModArchiveException or OutOfMemoryException))
         {
             throw new ModArchiveException(exception.Message, exception);
         }
     }
-
-    private static bool MustBeReadInOrder(IArchive archive) => archive.IsSolid || archive.Type == ArchiveType.SevenZip;
 
     private static void UnpackCompressedTar(string archive, string folder)
     {
@@ -53,13 +57,13 @@ public sealed class ArchiveUnpacker : IArchiveUnpacker
 
     private static void Write(IEntry entry, string folder, Func<Stream> open)
     {
-        if (entry.IsDirectory || !string.IsNullOrEmpty(entry.LinkTarget) || entry.Key is null)
+        if (!ArchiveReadings.IsFile(entry))
             return;
 
         if (entry.IsEncrypted)
             throw new ModArchiveException("it needs a password.");
 
-        var path = ArchiveEntryPath.Inside(folder, entry.Key);
+        var path = ArchiveEntryPath.Inside(folder, entry.Key!);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
         using var source = open();

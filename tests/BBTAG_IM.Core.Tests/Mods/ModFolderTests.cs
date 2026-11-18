@@ -164,15 +164,80 @@ public class ModFolderTests
     }
 
     [Fact]
-    public void Inspect_FolderWithNothingToLoad_ThrowsInvalidModFolder()
+    public void Inspect_FolderWithNothingToLoad_IsAModWithoutGameFiles()
     {
         // Arrange
         _fileSystemMock.EnumerateFiles(Root).Returns([Path.Combine(Root, "readme.txt")]);
 
         // Act
-        Exception? exception = Record.Exception(() => ModFolder.Inspect(Root, _fileSystemMock));
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
 
         // Assert
-        Assert.IsType<InvalidModFolderException>(exception);
+        Assert.False(mod.HasGameFiles);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithAnAssetFolder_FindsTheEncryptedAssets()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "asset")).Returns(true);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.Equal(Path.Combine(Root, "asset"), mod.EncryptedAssetsPath);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithOnlyAnAssetFolder_HasGameFiles()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "asset")).Returns(true);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.True(mod.HasGameFiles);
+    }
+
+    [Fact]
+    public void Location_ModFromAnArchive_IsTheArchiveFile()
+    {
+        // Arrange
+        ModFolder mod = new("Bar.zip", @"D:\mods\Bar.zip\Bar", [], null, null, [], ArchivePath: @"D:\mods\Bar.zip");
+
+        // Act
+        string location = mod.Location;
+
+        // Assert
+        Assert.Equal(@"D:\mods\Bar.zip", location);
+    }
+
+    [Fact]
+    public void Location_ModFolder_IsTheFolder()
+    {
+        // Arrange
+        ModFolder mod = new("Foo", @"D:\mods\Foo", [], null, null, []);
+
+        // Act
+        string location = mod.Location;
+
+        // Assert
+        Assert.Equal(@"D:\mods\Foo", location);
+    }
+
+    [Fact]
+    public void Inspect_FolderWithoutAnAssetFolder_HasNoEncryptedAssets()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Path.Combine(Root, "data")).Returns(true);
+
+        // Act
+        ModFolder mod = ModFolder.Inspect(Root, _fileSystemMock);
+
+        // Assert
+        Assert.Null(mod.EncryptedAssetsPath);
     }
 }

@@ -21,12 +21,10 @@ internal static class HeadlessLaunch
 
         try
         {
-            var fileSystem = new PhysicalFileSystem();
+            var fileSystem = new ArchiveFileSystem(new PhysicalFileSystem());
             var settings = SettingsStores.Launcher(fileSystem, launcherDirectory).Load();
             var modsDirectory = settings.ModsDirectory(launcherDirectory);
-            var archives = new ModArchiveInstaller(fileSystem, new ArchiveUnpacker(), modsDirectory);
-            var options = archives.WithArchivesInstalled(LaunchOptions.Parse(arguments.Where(argument => !argument.Equals(Flag, StringComparison.OrdinalIgnoreCase)).ToArray()));
-            archives.InstallPending(_ => { });
+            var options = LaunchOptions.Parse(arguments.Where(argument => !argument.Equals(Flag, StringComparison.OrdinalIgnoreCase)).ToArray());
             var mods = settings.InLoadOrder(ModSelection.Resolve(options, modsDirectory, fileSystem));
             var context = LaunchContext.Resolve(options, launcherDirectory, settings.EnabledOf(mods)) with { TablePath = null, Table = null };
 

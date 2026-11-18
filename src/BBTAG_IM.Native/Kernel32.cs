@@ -72,6 +72,17 @@ public static unsafe partial class Kernel32
 
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetFilePointerEx(nint file, long distance, out long newPosition, uint moveMethod);
+
+    [LibraryImport(Library, EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint CreateFile(string fileName, uint desiredAccess, uint shareMode, nint security, uint creationDisposition, uint flags, nint template);
+
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetEvent(nint handle);
+
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ReadProcessMemory(nint process, nint address, byte* buffer, nuint length, out nuint read);
 
     [LibraryImport(Library)]

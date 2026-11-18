@@ -8,12 +8,12 @@ public static class UnpackedModRoot
     {
         var root = folder;
 
-        while (ModFolder.TryInspect(root, files) is null)
+        while (!ModFolder.Inspect(root, files).HasGameFiles)
         {
             var folders = files.EnumerateDirectories(root).ToArray();
 
             if (folders.Length != 1)
-                throw new ModArchiveException($"it has no '{ModFolder.GameDataFolder}' folder, {ModFolder.TableExtension} table or {ModFolder.PluginExtension} to load.");
+                return folder;
 
             root = folders[0];
         }

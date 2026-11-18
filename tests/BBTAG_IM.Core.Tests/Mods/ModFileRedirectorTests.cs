@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Assets;
 using NSubstitute;
 
 namespace BBTAG_IM.Core.Tests.Mods;
@@ -10,6 +11,13 @@ public class ModFileRedirectorTests
     private const string GameFile = GameDirectory + @"\data\char\char_adh_col.pac";
     private const string ModDirectory = GameDirectory + @"\mods\Overhaul";
     private const string ModFile = ModDirectory + @"\data\char\char_adh_col.pac";
+    private const string UnmoddedFile = GameDirectory + @"\data\char\char_adh_pal.pac";
+    private const string AssetFolder = GameDirectory + @"\asset";
+    private const string UnmoddedAssetName = "4686dd17591164b6d0e76dc2bc9daf3b";
+    private const string UnmoddedAsset = AssetFolder + @"\" + UnmoddedAssetName;
+    private const string ModFileAssetName = "af19b3d6cf381bc519b10931d65de589";
+    private const string ModAssetFolder = ModDirectory + @"\asset";
+    private const string ModAsset = ModAssetFolder + @"\4686dd17591164b6d0e76dc2bc9daf3b";
     private const uint GenericRead = 0x80000000;
     private const uint GenericWrite = 0x40000000;
     private const uint FileWriteData = 0x00000002;
@@ -26,14 +34,311 @@ public class ModFileRedirectorTests
 
     public ModFileRedirector CreateModFileRedirector(string executableDirectory = GameDirectory, DevOverlay? dev = null)
     {
-        ModFolder mod = new("Overhaul", ModDirectory, [new ModDataRoot(ModDirectory + @"\data", "data")], null, null, []);
+        ModFolder mod = new("Overhaul", ModDirectory, [new ModDataRoot(ModDirectory + @"\data", "data")], null, null, [], ModAssetFolder);
         return new ModFileRedirector(
             ModFileIndex.Build([mod], _fileSystemMock),
             GameDirectory,
             executableDirectory,
-            dev
+            dev,
+            new EncryptedAssetFolder(_fileSystemMock, GameDirectory)
         );
     }
+
+    private void GivenTheUnmoddedFileOnlyAsAnEncryptedAsset()
+    {
+        _fileSystemMock.DirectoryExists(AssetFolder).Returns(true);
+        _fileSystemMock.FileExists(UnmoddedAsset).Returns(true);
+    }
+
+    [Fact]
+    public void RedirectOpen_FileOnlyInTheEncryptedAssetFolder_ReturnsTheAssetFile()
+    {
+        // Arrange
+        GivenTheUnmoddedFileOnlyAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedFile, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(UnmoddedAsset, redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_FileOnlyInTheEncryptedAssetFolderAskedBesideTheModExecutable_ReturnsTheAssetFile()
+    {
+        // Arrange
+        GivenTheUnmoddedFileOnlyAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector(ModDirectory);
+
+        // Act
+        string? redirected = redirector.RedirectOpen(ModDirectory + @"\data\char\char_adh_pal.pac", GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(UnmoddedAsset, redirected);
+    }
+
+    [Fact]
+    public void RedirectLookup_FileOnlyInTheEncryptedAssetFolder_ReturnsTheAssetFile()
+    {
+        // Arrange
+        GivenTheUnmoddedFileOnlyAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectLookup(UnmoddedFile);
+
+        // Assert
+        Assert.Equal(UnmoddedAsset, redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_WriteOfAFileOnlyInTheEncryptedAssetFolder_ReturnsNull()
+    {
+        // Arrange
+        GivenTheUnmoddedFileOnlyAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedFile, GenericWrite, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Null(redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_FileAModProvidesThatIsAlsoAnEncryptedAsset_ReturnsTheModFile()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(AssetFolder).Returns(true);
+        _fileSystemMock.FileExists(Arg.Is<string>(path => path.StartsWith(AssetFolder, StringComparison.Ordinal))).Returns(true);
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(GameFile, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(ModFile, redirected);
+    }
+
+    [Fact]
+    public void AssetKeyStartOf_FileInTheAssetFolder_ReturnsItsKeyStart()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.AssetKeyStartOf(AssetFolder + @"\ac182c18ad5957273f33d5cc0ddd4fe8");
+
+        // Assert
+        Assert.Equal(26, keyStart);
+    }
+
+    [Fact]
+    public void AssetKeyStartOf_ModFile_ReturnsNull()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.AssetKeyStartOf(ModFile);
+
+        // Assert
+        Assert.Null(keyStart);
+    }
+
+    [Fact]
+    public void RedirectOpen_FileAModShipsOnlyAsAnEncryptedAsset_ReturnsTheModAssetFile()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedFile, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(ModAsset, redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_EncryptedAssetOfAModAndOfTheGame_ReturnsTheModAssetFile()
+    {
+        // Arrange
+        GivenTheUnmoddedFileOnlyAsAnEncryptedAsset();
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedFile, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(ModAsset, redirected);
+    }
+
+    [Fact]
+    public void AssetKeyStartOf_EncryptedAssetOfAMod_ReturnsItsKeyStart()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.AssetKeyStartOf(ModAsset);
+
+        // Assert
+        Assert.Equal(EncryptedAssets.KeyStartOf(Path.GetFileName(ModAsset)), keyStart);
+    }
+
+    [Fact]
+    public void ResolveBelowDev_FileAModShipsOnlyAsAnEncryptedAsset_ReturnsNull()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? resolved = redirector.ResolveBelowDev(@"data\char\char_adh_pal.pac");
+
+        // Assert
+        Assert.Null(resolved);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_GameAsksForItsEncryptedAssetItself_ReturnsNull()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(UnmoddedAsset, UnmoddedAsset);
+
+        // Assert
+        Assert.Null(keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_GameAsksForItsEncryptedAssetByRelativePath_ReturnsNull()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor("asset/4686dd17591164b6d0e76dc2bc9daf3b", UnmoddedAsset);
+
+        // Assert
+        Assert.Null(keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_DataFileServedFromTheGameAssetFolder_ReturnsTheKeyStartOfTheAsset()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(UnmoddedFile, UnmoddedAsset);
+
+        // Assert
+        Assert.Equal(EncryptedAssets.KeyStartOf(UnmoddedAssetName), keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_DataFileServedFromAModAssetFolder_ReturnsTheKeyStartOfTheAsset()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(UnmoddedFile, ModAsset);
+
+        // Assert
+        Assert.Equal(EncryptedAssets.KeyStartOf(UnmoddedAssetName), keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_AssetFileServedByADecryptedModFile_ReturnsTheKeyStartOfTheAskedAsset()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(AssetFolder + @"\" + ModFileAssetName, ModFile);
+
+        // Assert
+        Assert.Equal(EncryptedAssets.KeyStartOf(ModFileAssetName), keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_AssetFileServedByAModAsset_ReturnsNull()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(UnmoddedAsset, ModAsset);
+
+        // Assert
+        Assert.Null(keyStart);
+    }
+
+    [Fact]
+    public void XorKeyStartFor_DataFileServedDecrypted_ReturnsNull()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        int? keyStart = redirector.XorKeyStartFor(GameFile, ModFile);
+
+        // Assert
+        Assert.Null(keyStart);
+    }
+
+    [Fact]
+    public void RedirectOpen_AssetFileAModShipsDecrypted_ReturnsTheModFile()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(AssetFolder + @"\" + ModFileAssetName, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(ModFile, redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_AssetFileAModShipsEncrypted_ReturnsTheModAsset()
+    {
+        // Arrange
+        GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset();
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedAsset, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Equal(ModAsset, redirected);
+    }
+
+    [Fact]
+    public void RedirectOpen_AssetFileNoModShips_ReturnsNull()
+    {
+        // Arrange
+        ModFileRedirector redirector = CreateModFileRedirector();
+
+        // Act
+        string? redirected = redirector.RedirectOpen(UnmoddedAsset, GenericRead, ModFileRedirector.OpenExisting);
+
+        // Assert
+        Assert.Null(redirected);
+    }
+
+    private void GivenTheModShipsTheUnmoddedFileAsAnEncryptedAsset() =>
+        _fileSystemMock.EnumerateFiles(ModAssetFolder).Returns([ModAsset]);
 
     [Fact]
     public void RedirectOpen_FileInTheDevFolder_WinsOverTheMods()

@@ -23,6 +23,7 @@ internal sealed class LauncherController
     private IReadOnlyList<ModFolder> _allMods = [];
     private readonly List<int> _selection = [];
     private readonly ModSourceStore _sources = new(new PhysicalFileSystem());
+    private readonly ArchiveFileSystem _modFiles = new(new PhysicalFileSystem());
     private readonly CancellationTokenSource _closing = new();
 
     private LaunchContext? _context;
@@ -38,10 +39,10 @@ internal sealed class LauncherController
         _settingsStore = SettingsStores.Launcher(fileSystem, launcherDirectory);
         var settings = TryLoadSettings(startupMessages);
         _settings = settings ?? new LauncherSettings();
-        _options = settings is null ? null : WithArchivesInstalled(ParseOptions(arguments, startupMessages), startupMessages);
+        _options = settings is null ? null : ParseOptions(arguments, startupMessages);
 
         if (_options is not null)
-            _allMods = _settings.InLoadOrder(DiscoverMods(_options, fileSystem, startupMessages));
+            _allMods = _settings.InLoadOrder(DiscoverMods(_options, startupMessages));
 
         ViewModel = Load(startupMessages);
         CheckCharacters(_context);
@@ -51,14 +52,9 @@ internal sealed class LauncherController
 
     public LauncherViewModel ViewModel { get; private set; }
 
-    private bool HasArchivesToUnpack => _options is not null && Archives().Pending().Count > 0;
-
     public async Task OpenedAsync()
     {
         UpdaterStarter.TryStartAfter(_launcherDirectory, Environment.ProcessId);
-
-        if (HasArchivesToUnpack)
-            await RefreshModsAsync();
 
         if (_settings.UpdateModsOnStart)
             await UpdateModsAsync();
@@ -106,34 +102,11 @@ internal sealed class LauncherController
         if (_options is null || _session is not null || _busy)
             return;
 
-        await UnpackArchivesAsync();
         var before = _allMods.Select(mod => mod.Name).ToArray();
         List<string> messages = [];
-        _allMods = _settings.InLoadOrder(DiscoverMods(_options, new PhysicalFileSystem(), messages));
+        _allMods = _settings.InLoadOrder(DiscoverMods(_options, messages));
         messages.Add(ModRefreshMessage.From(before, _allMods.Select(mod => mod.Name).ToArray()));
         Reload(messages);
-    }
-
-    private async Task UnpackArchivesAsync()
-    {
-        var archives = Archives();
-
-        if (archives.Pending().Count == 0)
-            return;
-
-        IProgress<string> progress = new Progress<string>(ViewModel.Report);
-        _busy = true;
-        ViewModel.CanPlay = false;
-        ViewModel.CanChangeMods = false;
-
-        try
-        {
-            await Task.Run(() => archives.InstallPending(progress.Report));
-        }
-        finally
-        {
-            _busy = false;
-        }
     }
 
     public Task UpdateModsAsync() =>
@@ -147,6 +120,12 @@ internal sealed class LauncherController
         if (ImprovementModRelease.IsUpdatedByTheUpdater(mod.Name))
         {
             ViewModel.Report($"{mod.Name} is updated by {ImprovementModRelease.UpdaterFileName} from {ImprovementModRelease.Repository.Url}, so its link stays.");
+            return;
+        }
+
+        if (mod.ArchivePath is not null)
+        {
+            ViewModel.Report($"{mod.Name} is an archive, so it cannot follow a GitHub link. Use Add as a new mod to download the repository into a folder.");
             return;
         }
 
@@ -250,25 +229,6 @@ internal sealed class LauncherController
     private static bool IsUpdateError(Exception exception) =>
         exception is ModUpdateException or GitHubException or ModArchiveException or IOException or UnauthorizedAccessException;
 
-    private ModArchiveInstaller Archives() =>
-        new(new PhysicalFileSystem(), new ArchiveUnpacker(), _settings.ModsDirectory(_launcherDirectory));
-
-    private LaunchOptions? WithArchivesInstalled(LaunchOptions? options, List<string> messages)
-    {
-        if (options is null)
-            return null;
-
-        try
-        {
-            return Archives().WithArchivesInstalled(options);
-        }
-        catch (Exception exception) when (LaunchErrors.IsExpected(exception))
-        {
-            messages.Add(exception.Message);
-            return options;
-        }
-    }
-
     private LauncherSettings? TryLoadSettings(List<string> messages)
     {
         try
@@ -300,11 +260,11 @@ internal sealed class LauncherController
         }
     }
 
-    private IReadOnlyList<ModFolder> DiscoverMods(LaunchOptions options, IFileSystem fileSystem, List<string> messages)
+    private IReadOnlyList<ModFolder> DiscoverMods(LaunchOptions options, List<string> messages)
     {
         try
         {
-            return ModSelection.Resolve(options, _settings.ModsDirectory(_launcherDirectory), fileSystem);
+            return ModSelection.Resolve(options, _settings.ModsDirectory(_launcherDirectory), _modFiles);
         }
         catch (Exception exception) when (LaunchErrors.IsExpected(exception))
         {
@@ -476,9 +436,9 @@ internal sealed class LauncherController
         }
     }
 
-    private static IReadOnlyList<string> CharacterFileProblems(LaunchContext context)
+    private IReadOnlyList<string> CharacterFileProblems(LaunchContext context)
     {
-        var fileSystem = new PhysicalFileSystem();
+        var fileSystem = _modFiles;
         string[] roster = context.TablePath is { } tablePath ? [.. TableRoster.Codes(fileSystem.ReadAllText(tablePath)).Distinct()] : [];
 
         if (roster.Length == 0)

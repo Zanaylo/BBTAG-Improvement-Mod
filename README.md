@@ -55,6 +55,9 @@ executable patches in memory, and loads every mod DLL that exports `BBTAG_IM_Mod
 `ImprovementMod.dll` is one of those: it finds the game objects by byte patterns and draws its
 menu inside the game's Direct3D 9 frame.
 
+When a patched `BBTAG.exe` asks for a file that only exists encrypted in the Steam `asset`
+folder, the payload opens that file and decrypts each read.
+
 The player edition has no Mod Loader. `dinput8.dll` goes next to `BBTAG.exe`, which loads it by
 itself. It forwards `DirectInput8Create` to the system library, holds the game at its entry point
 while the mod starts (`Standalone/entry_gate.c`, the one piece that has to run at load time), and

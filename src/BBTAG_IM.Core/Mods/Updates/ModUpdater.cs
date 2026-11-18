@@ -7,6 +7,7 @@ namespace BBTAG_IM.Core.Mods.Updates;
 public sealed class ModUpdater(IGitHubApi gitHub, IFileSystem files, IArchiveUnpacker unpacker)
 {
     private const int ShortCommitLength = 7;
+    private const string UnpackingPrefix = ".unpacking-";
     private const string DownloadSuffix = ".download";
     private const string ArchiveFolder = "archive";
     private const string UnpackedFolder = "files";
@@ -97,7 +98,7 @@ public sealed class ModUpdater(IGitHubApi gitHub, IFileSystem files, IArchiveUnp
         if (target.Source.Version == version)
             return new ModUpdateResult(target.ModName, ModUpdateOutcome.UpToDate, release.Tag, 0, 0);
 
-        var work = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.Folder))!, ModArchiveInstaller.UnpackingPrefix + target.ModName);
+        var work = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.Folder))!, UnpackingPrefix + target.ModName);
         RemoveFolder(work);
 
         try

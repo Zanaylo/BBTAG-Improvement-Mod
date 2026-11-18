@@ -1,5 +1,6 @@
 using BBTAG_IM.Core.IO;
 using BBTAG_IM.Core.Mods;
+using BBTAG_IM.Core.Mods.Assets;
 using NSubstitute;
 
 namespace BBTAG_IM.Core.Tests.Mods;
@@ -70,6 +71,21 @@ public class GameFileLookupTests
     }
 
     [Fact]
+    public void Has_KeyOnlyInTheEncryptedAssetFolder_ReturnsTrue()
+    {
+        // Arrange
+        _fileSystemMock.DirectoryExists(Game + @"\asset").Returns(true);
+        _fileSystemMock.FileExists(Game + @"\asset\17b67f07e56eb72ada68a4e7f962fd18").Returns(true);
+        GameFileLookup lookup = CreateGameFileLookup(withDevFolder: false);
+
+        // Act
+        bool found = lookup.Has(Key);
+
+        // Assert
+        Assert.True(found);
+    }
+
+    [Fact]
     public void Has_KeyNowhere_ReturnsFalse()
     {
         // Arrange
@@ -87,6 +103,6 @@ public class GameFileLookupTests
         ModFolder mod = new("Overhaul", @"D:\BBTAG\mods\Overhaul", [new ModDataRoot(ModData, "data")], null, null, []);
         ModFileIndex index = ModFileIndex.Build([mod], _fileSystemMock);
         DevOverlay? dev = withDevFolder ? new DevOverlay(_fileSystemMock, Dev, _ => null) : null;
-        return new GameFileLookup(_fileSystemMock, Game, index, dev);
+        return new GameFileLookup(_fileSystemMock, Game, index, dev, new EncryptedAssetFolder(_fileSystemMock, Game));
     }
 }

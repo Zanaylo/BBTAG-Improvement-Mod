@@ -62,7 +62,7 @@
           <TextBlock DockPanel.Dock="Top"
                      Margin="0,0,0,8"
                      TextWrapping="Wrap"
-                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order. A .zip, .rar or .7z in the mods folder is unpacked next to it." />
+                     Text="Untick a mod to leave it out of the next game start. Ticked mods load in this order. When two mods replace the same file, the one higher in the list wins. Use the arrows to change the order. A .zip, .rar, .7z or .tar in the mods folder is a mod too, and its files are read from inside it." />
           <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" Spacing="6" IsEnabled="{Binding CanChangeMods}">
             <TextBlock TextWrapping="Wrap"
                        Opacity="0.75"
